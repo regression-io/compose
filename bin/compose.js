@@ -61,8 +61,12 @@ if (cmd === 'start') {
     stdio: 'inherit',
     cwd: PACKAGE_ROOT,
   })
+  child.on('error', (err) => {
+    console.error(`Failed to start compose: ${err.message}`)
+    process.exit(1)
+  })
   child.on('exit', (code) => process.exit(code ?? 0))
-  process.exit(0)
+  // Do NOT exit here — stay alive so the caller's exit code reflects the supervisor's
 }
 
 console.error(`Unknown command: ${cmd}`)

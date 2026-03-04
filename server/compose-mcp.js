@@ -108,9 +108,10 @@ function toolGetItemDetail({ id }) {
   const item = items.find(i => i.id === id || i.semanticId === id || i.slug === id);
   if (!item) return { error: `Item not found: ${id}` };
 
-  const related = connections.filter(c => c.fromId === id || c.toId === id);
+  const resolvedId = item.id;
+  const related = connections.filter(c => c.fromId === resolvedId || c.toId === resolvedId);
   const connectionDetails = related.map(c => {
-    const other = items.find(i => i.id === (c.fromId === id ? c.toId : c.fromId));
+    const other = items.find(i => i.id === (c.fromId === resolvedId ? c.toId : c.fromId));
     return {
       direction: c.fromId === id ? 'outgoing' : 'incoming',
       type: c.type,
