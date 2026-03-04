@@ -6,3 +6,4 @@ package-lock.json
 *.png
 *.jpg
 .playwright-mcp/
+.compose-supervisor.pid
