@@ -5,7 +5,7 @@
  * compose install  — register compose-mcp in the project's .mcp.json
  * compose start    — start the compose app (supervisor.js)
  */
-import { readFileSync, writeFileSync, existsSync, copyFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { resolve, join, basename } from 'path'
 import { spawn, spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
@@ -54,7 +54,17 @@ if (cmd === 'install') {
   writeFileSync(mcpPath, JSON.stringify(config, null, 2))
   console.log(`Registered compose-mcp in ${mcpPath}`)
 
-  // 3. Scaffold ROADMAP.md if the project doesn't have one
+  // 3. Install /compose skill to ~/.claude/skills/compose/
+  const skillSrc = join(PACKAGE_ROOT, '.claude', 'skills', 'compose', 'SKILL.md')
+  const skillDest = join(process.env.HOME || '~', '.claude', 'skills', 'compose', 'SKILL.md')
+  const skillDestDir = join(process.env.HOME || '~', '.claude', 'skills', 'compose')
+  if (existsSync(skillSrc)) {
+    mkdirSync(skillDestDir, { recursive: true })
+    writeFileSync(skillDest, readFileSync(skillSrc))
+    console.log(`Installed /compose skill to ${skillDest}`)
+  }
+
+  // 4. Scaffold ROADMAP.md if the project doesn't have one
   const roadmapDest = join(process.cwd(), 'ROADMAP.md')
   if (!existsSync(roadmapDest)) {
     const roadmapSrc = join(PACKAGE_ROOT, 'templates', 'ROADMAP.md')
