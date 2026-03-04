@@ -66,8 +66,8 @@ if (cmd === 'start') {
     process.exit(1)
   })
   child.on('exit', (code) => process.exit(code ?? 0))
-  // Do NOT exit here — stay alive so the caller's exit code reflects the supervisor's
+  // Stay alive — exit code comes from supervisor
+} else {
+  console.error(`Unknown command: ${cmd}`)
+  process.exit(1)
 }
-
-console.error(`Unknown command: ${cmd}`)
-process.exit(1)

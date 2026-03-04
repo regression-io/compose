@@ -113,7 +113,7 @@ function toolGetItemDetail({ id }) {
   const connectionDetails = related.map(c => {
     const other = items.find(i => i.id === (c.fromId === resolvedId ? c.toId : c.fromId));
     return {
-      direction: c.fromId === id ? 'outgoing' : 'incoming',
+      direction: c.fromId === resolvedId ? 'outgoing' : 'incoming',
       type: c.type,
       otherId: other?.id,
       otherTitle: other?.title ?? '(unknown)',
