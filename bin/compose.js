@@ -7,6 +7,7 @@
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { resolve, join, basename } from 'path'
+import { homedir } from 'os'
 import { spawn, spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
@@ -56,8 +57,8 @@ if (cmd === 'install') {
 
   // 3. Install /compose skill to ~/.claude/skills/compose/
   const skillSrc = join(PACKAGE_ROOT, '.claude', 'skills', 'compose', 'SKILL.md')
-  const skillDest = join(process.env.HOME || '~', '.claude', 'skills', 'compose', 'SKILL.md')
-  const skillDestDir = join(process.env.HOME || '~', '.claude', 'skills', 'compose')
+  const skillDest = join(homedir(), '.claude', 'skills', 'compose', 'SKILL.md')
+  const skillDestDir = join(homedir(), '.claude', 'skills', 'compose')
   if (existsSync(skillSrc)) {
     mkdirSync(skillDestDir, { recursive: true })
     writeFileSync(skillDest, readFileSync(skillSrc))
