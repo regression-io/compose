@@ -136,6 +136,23 @@ orchestration. See: [Lifecycle Engine Roadmap](plans/2026-02-15-lifecycle-engine
 
 ---
 
+## Phase 6.5: Pipeline Authoring Loop — PLANNED
+
+**Note on ordering:** Phase 6.5 is a parallel track on the stratum-compose integration — the
+closed loop between the embedded agent, the pipeline editor UI, and stratum execution. Independent
+of Phase 6's lifecycle state machine work; both can progress simultaneously.
+
+Close the loop between agent and UI so users can design, review, and execute pipelines without
+leaving compose. Agent drafts → UI surfaces → user approves → stratum executes.
+
+| # | Item | Status |
+|---|------|--------|
+| 29 | Pipeline template library — predefined `.stratum.yaml` templates (feature dev, bug fix, refactor, content, research) selectable by agent or user | PLANNED |
+| 30 | `stratum_draft_pipeline` MCP tool — agent pushes a drafted spec into the PipelineEditor UI; user can review and tweak before execution begins | PLANNED |
+| 31 | PipelineEditor live refresh — poll or WebSocket so UI updates when agent calls `stratum_draft_pipeline` without requiring manual reload | PLANNED |
+
+---
+
 ## Phase 7: Agent Abstraction — PLANNED (Post-V1)
 
 **Scope boundary:** Phase 4.5 wires concrete connectors (Claude SDK + Codex via OpenCode) as

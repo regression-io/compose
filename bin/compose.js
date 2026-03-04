@@ -5,8 +5,8 @@
  * compose install  — register compose-mcp in the project's .mcp.json
  * compose start    — start the compose app (supervisor.js)
  */
-import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { resolve, join } from 'path'
+import { readFileSync, writeFileSync, existsSync, copyFileSync } from 'fs'
+import { resolve, join, basename } from 'path'
 import { spawn, spawnSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
@@ -53,6 +53,22 @@ if (cmd === 'install') {
   }
   writeFileSync(mcpPath, JSON.stringify(config, null, 2))
   console.log(`Registered compose-mcp in ${mcpPath}`)
+
+  // 3. Scaffold ROADMAP.md if the project doesn't have one
+  const roadmapDest = join(process.cwd(), 'ROADMAP.md')
+  if (!existsSync(roadmapDest)) {
+    const roadmapSrc = join(PACKAGE_ROOT, 'templates', 'ROADMAP.md')
+    const projectName = basename(process.cwd())
+    const today = new Date().toISOString().slice(0, 10)
+    let template = readFileSync(roadmapSrc, 'utf-8')
+    template = template
+      .replace(/\{\{PROJECT_NAME\}\}/g, projectName)
+      .replace(/\{\{PROJECT_DESCRIPTION\}\}/g, 'describe your project here')
+      .replace(/\{\{DATE\}\}/g, today)
+    writeFileSync(roadmapDest, template)
+    console.log(`Created ROADMAP.md from template`)
+  }
+
   process.exit(0)
 }
 
