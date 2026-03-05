@@ -182,20 +182,26 @@ wires it in at skill entry — item 32 is integration work only, not a build.
 
 ---
 
-## Phase 7: Agent Abstraction — PLANNED (Post-V1)
+## Phase 7: Trusted Pipeline Harness — PLANNED (Post-V1)
 
-**Scope boundary:** Phase 4.5 wires concrete connectors (Claude SDK + Codex via OpenCode) as
-MCP tools. Phase 7 is distinct: it makes the *lifecycle itself* agent-agnostic — phases, gates,
-and artifacts remain identical regardless of which agent runs them. Phase 4.5 is prerequisite
-infrastructure; Phase 7 is the abstraction layer built on top of it.
+**Scope boundary:** Phase 4.5 has CC as orchestrator — it calls `stratum_plan`, runs steps,
+and calls `stratum_step_done` with self-reported results. This works but has a trust gap: the
+agent reporting postcondition results is the same agent whose work is being evaluated.
 
-Agent-agnostic lifecycle with agent-specific connectors. Claude Code, Codex, others run the
-same pipeline via adapter pattern.
+Phase 7 moves orchestration out of any agent. A deterministic harness outside CC drives the
+pipeline, verifies postconditions independently, and treats all agents (CC, Codex, others) as
+workers that receive prompts and return outputs. No agent calls `stratum_step_done` — the
+harness does, after verifying ground truth itself (run tests, check files, call a reviewer).
+
+**The shift:**
+- Phase 4.5: CC orchestrates, Stratum enforces what CC reports
+- Phase 7: Harness orchestrates, Stratum enforces what harness verifies independently
 
 | # | Item | Status |
 |---|------|--------|
-| 27 | Agent connector interface — capability negotiation, lifecycle-agnostic protocol | PLANNED |
-| 28 | Multi-agent connectors — Codex, Gemini, others via adapter pattern | PLANNED |
+| 27 | Pipeline runner — deterministic harness (`server/pipeline-runner.js`) that calls `stratum_plan`, dispatches steps to agent workers via `agent_run`, verifies postconditions independently, calls `stratum_step_done` | PLANNED |
+| 28 | Independent verification — harness runs tests, checks file existence, and calls a reviewer agent as a separate verification step; no agent self-reports pass/fail | PLANNED |
+| 29 | Multi-agent routing — harness selects which connector (`claude`, `codex`, others) to use per step based on step type; executor and reviewer never the same agent | PLANNED |
 
 ---
 
