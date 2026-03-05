@@ -10,6 +10,7 @@ import { requireSensitiveToken } from './security.js';
 import { spawnJournalAgent, extractSlugFromPath } from './vision-utils.js';
 import { attachSpeckitRoutes } from './speckit-helpers.js';
 import { StratumSync, attachStratumRoutes } from './stratum-sync.js';
+import { createStratumRouter } from './stratum-api.js';
 import { attachAgentSpawnRoutes } from './agent-spawn.js';
 import { attachVisionRoutes } from './vision-routes.js';
 import { attachSessionRoutes } from './session-routes.js';
@@ -99,7 +100,10 @@ export class VisionServer {
       scheduleBroadcast: () => this.scheduleBroadcast(),
     });
 
-    // ── Stratum routes + poller ─────────────────────────────────────────────
+    // ── Stratum pipeline monitor + gate routes ──────────────────────────────
+    app.use('/api/stratum', createStratumRouter());
+
+    // ── Stratum vision-sync poller + bind/audit routes ──────────────────────
     this._stratumSync = new StratumSync(this.store, () => this.scheduleBroadcast());
     attachStratumRoutes(app, {
       store: this.store,

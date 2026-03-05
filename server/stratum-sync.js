@@ -1,15 +1,14 @@
 /**
  * stratum-sync.js — Stratum flow poller + route registration.
  *
- * Reads persisted flow states from ~/.stratum/flows/ and syncs them into the
- * vision store every 15 seconds.
+ * Polls stratum flow state via stratum-client (not direct file reads) and syncs
+ * into the vision store every 15 seconds.
  *
- * Routes: GET /api/stratum/flows, POST /api/stratum/bind, POST /api/stratum/audit/:itemId
+ * Routes: POST /api/stratum/bind, POST /api/stratum/audit/:itemId
+ * (Flow/gate query routes are now in stratum-api.js)
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { homedir } from 'node:os';
+import { queryFlows } from './stratum-client.js';
 
 // ---------------------------------------------------------------------------
 // StratumSync class
@@ -32,11 +31,9 @@ export class StratumSync {
   /** Start the 15s polling interval. */
   start() {
     this.#pollTimer = setInterval(() => {
-      try {
-        this.#syncFlows();
-      } catch (err) {
+      this.#syncFlows().catch(err => {
         console.error('[vision] Stratum poll error:', err.message);
-      }
+      });
     }, 15_000);
   }
 
@@ -49,61 +46,35 @@ export class StratumSync {
   }
 
   /**
-   * Read all persisted flow states from ~/.stratum/flows/.
-   * @returns {Array}
+   * Fetch flow summaries via stratum-client (stable contract, not direct file reads).
+   * Maps stratum's query output to the shape the sync logic expects.
+   * @returns {Promise<Array>}
    */
-  readFlows() {
-    const flowsDir = path.join(homedir(), '.stratum', 'flows');
-    if (!fs.existsSync(flowsDir)) return [];
+  async readFlows() {
+    const raw = await queryFlows();
+    if (!Array.isArray(raw)) return [];
 
-    const flows = [];
-    let files;
-    try {
-      files = fs.readdirSync(flowsDir).filter(f => f.endsWith('.json'));
-    } catch { return []; }
+    return raw.map(f => {
+      // Map stratum canonical status → legacy sync status labels
+      const status = f.status === 'running' || f.status === 'awaiting_gate' ? 'running'
+        : f.status === 'complete' ? 'complete'
+        : f.status === 'killed' ? 'blocked'
+        : 'paused';
 
-    for (const file of files) {
-      try {
-        const raw = fs.readFileSync(path.join(flowsDir, file), 'utf-8');
-        const state = JSON.parse(raw);
-        const records = Array.isArray(state.records) ? state.records : [];
-        const attempts = state.attempts || {};
-        const stepOutputIds = new Set(Object.keys(state.step_outputs || {}));
-        const completedIds = new Set(records.map(r => r.step_id));
-
-        const hasInFlight = Object.keys(attempts).some(sid => !completedIds.has(sid));
-
-        // Exhausted: step is in records but NOT in step_outputs → retries_exhausted
-        const exhaustedSteps = records.filter(r => !stepOutputIds.has(r.step_id));
-        const hasExhausted = exhaustedSteps.length > 0;
-
-        // Status hierarchy: running > blocked > paused
-        // NOTE: 'complete' is NOT detectable via polling — driven by /api/stratum/audit instead.
-        const status = hasInFlight ? 'running' : hasExhausted ? 'blocked' : 'paused';
-
-        flows.push({
-          flowId: state.flow_id,
-          flowName: state.flow_name || state.flow_id,
-          status,
-          stepsCompleted: stepOutputIds.size,
-          currentIdx: state.current_idx || 0,
-          exhaustedSteps: exhaustedSteps.map(r => ({ stepId: r.step_id, attempts: r.attempts })),
-          steps: records.map(r => ({
-            id: r.step_id,
-            status: stepOutputIds.has(r.step_id) ? 'complete' : 'failed',
-            attempts: r.attempts,
-            duration_ms: r.duration_ms,
-          })),
-        });
-      } catch { /* skip malformed files */ }
-    }
-
-    return flows;
+      return {
+        flowId:   f.flow_id,
+        flowName: f.flow_name,
+        status,
+        stepsCompleted: f.completed_steps,
+        currentIdx:     f.completed_steps,
+        steps:          [],
+      };
+    });
   }
 
   /** Sync stratum flow states → vision item statuses + violation evidence. */
-  #syncFlows() {
-    const flows = this.readFlows();
+  async #syncFlows() {
+    const flows = await this.readFlows();
     if (flows.length === 0) return;
 
     const flowMap = new Map(flows.map(f => [f.flowId, f]));
@@ -126,22 +97,23 @@ export class StratumSync {
       }
 
       const existing = item.evidence || {};
-      if (flow.status === 'blocked' && flow.exhaustedSteps.length > 0) {
-        const violations = flow.exhaustedSteps.map(s =>
-          `Step '${s.stepId}' exhausted retries after ${s.attempts} attempt${s.attempts !== 1 ? 's' : ''}`
-        );
-        const needsUpdate = JSON.stringify(existing.stratumViolations) !== JSON.stringify(violations);
-        if (needsUpdate) {
+      if (flow.status === 'blocked') {
+        // Flow was killed via gate reject — record factual evidence, not retry semantics.
+        const killNote = `Flow '${flow.flowName}' was killed via gate reject`;
+        if (existing.stratumKillNote !== killNote) {
           try {
+            // Also clear any stale retry-exhaustion evidence from old sync format.
+            const { stratumViolations: _v, violatedAt: _va, ...rest } = existing;
             this.#store.updateItem(item.id, {
-              evidence: { ...existing, stratumViolations: violations, violatedAt: new Date().toISOString() },
+              evidence: { ...rest, stratumKillNote: killNote, killedAt: new Date().toISOString() },
             });
             changed = true;
           } catch { /* ignore */ }
         }
-      } else if (existing.stratumViolations) {
+      } else if (existing.stratumKillNote || existing.stratumViolations) {
+        // Flow is no longer blocked — clear kill evidence.
         try {
-          const { stratumViolations: _, violatedAt: __, ...rest } = existing;
+          const { stratumKillNote: _k, killedAt: _ka, stratumViolations: _v, violatedAt: _va, ...rest } = existing;
           this.#store.updateItem(item.id, { evidence: rest });
           changed = true;
         } catch { /* ignore */ }
@@ -163,16 +135,6 @@ export class StratumSync {
  * @param {{ store: object, scheduleBroadcast: function, broadcastMessage: function, sync: StratumSync }} deps
  */
 export function attachStratumRoutes(app, { store, scheduleBroadcast, broadcastMessage, sync }) {
-  // GET /api/stratum/flows — list persisted flow states from ~/.stratum/flows/
-  app.get('/api/stratum/flows', (_req, res) => {
-    try {
-      const flows = sync.readFlows();
-      res.json({ flows, count: flows.length });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
   // POST /api/stratum/bind — link a stratum flow_id to a vision item
   app.post('/api/stratum/bind', (req, res) => {
     const { flowId, itemId } = req.body || {};

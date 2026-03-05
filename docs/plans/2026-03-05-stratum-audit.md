@@ -135,15 +135,19 @@ The refactor has two parts:
 - Add `on_approve`, `on_revise`, `on_kill` to step schema
 - Add `skip_if` / `skip_reason` to step schema
 - Add `max_rounds` to flow schema
-- Add `round` to `StepRecord`
+- Add `round` and `round_start_step_id` to `StepRecord`
+- Add `rounds[]` archive to flow state (keyed by round index; holds archived trace entries per round)
 
 **Part B — Executor (executor.py + server.py):**
 - New tool: `stratum_gate_resolve(flow_id, step_id, outcome, rationale, resolved_by)` — the single
   canonical path for gate completion. `stratum_step_done` is NOT extended with gate outcomes;
   gate steps are resolved exclusively via `stratum_gate_resolve` to keep the two APIs distinct
   (step_done = agent reports work output; gate_resolve = any resolver approves/revises/kills)
-- On `outcome: revise` — executor clears `step_outputs`, `attempts`, and trace entries for all
-  steps from `on_revise` target onward; increments `flow.round`; returns next step info for target
+- On `outcome: revise` — executor archives trace entries for all steps from `on_revise` target
+  onward into `flow.rounds[flow.round]` before clearing active state (`step_outputs`, `attempts`,
+  active trace entries); increments `flow.round`; returns next step info for target. Archiving
+  before clearing is required — `stratum_audit` must be able to report per-round breakdown without
+  losing prior-round execution history
 - On `outcome: kill` — executor routes to `on_kill` terminal step; flow ends
 - `stratum_audit` reports per-step breakdown by round
 - `resolved_by`: `human | agent | system` — recorded in trace, no behavioural difference

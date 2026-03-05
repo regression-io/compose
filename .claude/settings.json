@@ -5,43 +5,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/ruze/reg/my/compose/coder-compose/scripts/session-start-hook.sh"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/ruze/reg/my/compose/coder-compose/scripts/session-end-hook.sh"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|Bash|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/ruze/reg/my/compose/coder-compose/scripts/agent-activity-hook.sh",
-            "timeout": 10,
-            "async": true
+            "command": "bash .claude/hooks/stratum-session-start.sh"
           }
         ]
       }
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "Write|Edit|Bash|NotebookEdit|Read|Glob|Grep",
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/ruze/reg/my/compose/coder-compose/scripts/agent-error-hook.sh",
-            "timeout": 10,
-            "async": true
+            "command": "bash .claude/hooks/stratum-post-tool-failure.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/stratum-session-stop.sh"
           }
         ]
       }
