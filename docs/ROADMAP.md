@@ -92,7 +92,7 @@ See: [Architecture Foundation Plan](plans/2026-02-26-architecture-foundation-pla
 | 18d | UI decoupling — verify zero new UI surface; VisionServer SSE stays sole UI channel | PLANNED |
 | 18e | Server modularization — split server/ into domain modules, single responsibility per file | PLANNED |
 | 18f | Test + observability hardening — golden flow tests for both MCP tools, Stratum audit trace | PLANNED |
-| 18g | Cutover + cleanup — remove openai dep, dead code, dangling imports | PLANNED |
+| 18g | Cutover + cleanup — remove openai dep, dead code, dangling imports | COMPLETE |
 | 18h | Acceptance gate — both tools callable; Stratum pipeline completes on a real feature | PLANNED |
 
 ---
