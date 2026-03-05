@@ -348,7 +348,7 @@ With explicit phase state, the next items become straightforward:
 |------|--------|---------|
 | `server/lifecycle-manager.js` | **Create** | State machine: transitions, validation, reconciliation |
 | `server/vision-store.js` | **Edit** | Strip `lifecycle` from generic `updateItem()` patches; add dedicated `updateLifecycle(itemId, lifecycle)` method |
-| `server/compose-mcp-tools.js` | **Edit** | Add `get_feature_lifecycle`, `advance_feature_phase` tools |
+| `server/compose-mcp-tools.js` | **Edit** | Add `get_feature_lifecycle`, `advance_feature_phase`, `skip_feature_phase`, `kill_feature`, `complete_feature` tools |
 | `server/vision-routes.js` | **Edit** | Add lifecycle endpoints |
 | `server/vision-server.js` | **Edit** | Broadcast lifecycle events |
 | `test/lifecycle-manager.test.js` | **Create** | State machine tests |
@@ -357,8 +357,10 @@ With explicit phase state, the next items become straightforward:
 
 ## Resolved Questions
 
-1. **`--through` behavior:** Updates `lifecycle.currentPhase` directly. Falls back to
-   writing `status.md` for features without a lifecycle object (backward compat).
+1. **`--through` behavior:** The compose skill calls the normal `advancePhase` /
+   `skipPhase` sequence through each phase up to the target, recording valid history
+   entries. Falls back to writing `status.md` for features without a lifecycle object
+   (backward compat).
 
 2. **Reconciliation direction:** Forward jumps record intermediate phases as
    `outcome: 'reconciled'`. Backward regression is flagged but never auto-applied
