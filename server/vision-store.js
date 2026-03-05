@@ -20,7 +20,9 @@ function slugify(title) {
 }
 
 export class VisionStore {
-  constructor() {
+  constructor(dataDir) {
+    this._dataDir = dataDir || DATA_DIR;
+    this._dataFile = dataDir ? path.join(dataDir, 'vision-state.json') : DATA_FILE;
     this.items = new Map();
     this.connections = new Map();
     this._load();
@@ -29,7 +31,7 @@ export class VisionStore {
   /** Load state from disk */
   _load() {
     try {
-      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+      const raw = fs.readFileSync(this._dataFile, 'utf-8');
       const data = JSON.parse(raw);
       if (Array.isArray(data.items)) {
         for (const item of data.items) {
@@ -41,7 +43,7 @@ export class VisionStore {
       if (Array.isArray(data.connections)) {
         for (const conn of data.connections) this.connections.set(conn.id, conn);
       }
-      console.log(`[vision] Loaded ${this.items.size} items, ${this.connections.size} connections from ${DATA_FILE}`);
+      console.log(`[vision] Loaded ${this.items.size} items, ${this.connections.size} connections from ${this._dataFile}`);
     } catch (err) {
       if (err.code === 'ENOENT') {
         console.log('[vision] No saved state found, starting fresh');
@@ -54,9 +56,9 @@ export class VisionStore {
   /** Save state to disk */
   _save() {
     try {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.mkdirSync(this._dataDir, { recursive: true });
       const data = JSON.stringify(this.getState(), null, 2);
-      fs.writeFileSync(DATA_FILE, data, 'utf-8');
+      fs.writeFileSync(this._dataFile, data, 'utf-8');
     } catch (err) {
       console.error('[vision] Failed to save state:', err.message);
     }

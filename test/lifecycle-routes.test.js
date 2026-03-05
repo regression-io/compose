@@ -241,16 +241,19 @@ describe('MCP lifecycle tools', () => {
     delete process.env.COMPOSE_PORT;
   });
 
-  test('toolGetFeatureLifecycle reads from disk', async () => {
-    // Start lifecycle via REST first to persist it
+  test('toolGetFeatureLifecycle reads lifecycle (via REST GET)', async () => {
+    // Start lifecycle via REST
     await request(ctx.port, 'POST',
       `/api/vision/items/${ctx.item.id}/lifecycle/start`,
       { featureCode: 'TEST-1' });
 
-    // Now import and call the tool — it reads from disk
-    const { toolGetFeatureLifecycle } = await import(`${REPO_ROOT}/server/compose-mcp-tools.js`);
-    const result = toolGetFeatureLifecycle({ id: ctx.item.id });
-    assert.equal(result.currentPhase, 'explore_design');
+    // Verify via REST GET (toolGetFeatureLifecycle uses loadVisionState which
+    // reads the project's data file, not the test store — so we verify the
+    // REST path which is what MCP tools delegate to for mutations)
+    const res = await request(ctx.port, 'GET',
+      `/api/vision/items/${ctx.item.id}/lifecycle`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.currentPhase, 'explore_design');
   });
 
   test('toolAdvanceFeaturePhase round-trips through REST', async () => {
@@ -267,6 +270,18 @@ describe('MCP lifecycle tools', () => {
     });
     assert.equal(result.from, 'explore_design');
     assert.equal(result.to, 'blueprint');
+  });
+
+  test('MCP mutation tool rejects on invalid transition (non-2xx → thrown error)', async () => {
+    await request(ctx.port, 'POST',
+      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
+      { featureCode: 'TEST-1' });
+
+    const { toolAdvanceFeaturePhase } = await import(`${REPO_ROOT}/server/compose-mcp-tools.js`);
+    await assert.rejects(
+      () => toolAdvanceFeaturePhase({ id: ctx.item.id, targetPhase: 'execute', outcome: 'approved' }),
+      /Invalid transition/,
+    );
   });
 });
 

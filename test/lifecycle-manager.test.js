@@ -359,6 +359,38 @@ describe('reconcile', () => {
     const result = ctx.manager.reconcile(ctx.item.id);
     assert.equal(result.reconcileWarning, null);
   });
+
+  test('terminal state (complete): reconcile does not transition out', () => {
+    ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    ctx.manager.advancePhase(ctx.item.id, 'verification', 'approved');
+    ctx.manager.advancePhase(ctx.item.id, 'plan', 'approved');
+    ctx.manager.advancePhase(ctx.item.id, 'execute', 'approved');
+    ctx.manager.advancePhase(ctx.item.id, 'docs', 'approved');
+    ctx.manager.advancePhase(ctx.item.id, 'ship', 'approved');
+    ctx.manager.completeFeature(ctx.item.id);
+
+    // Put artifacts on disk — reconcile must NOT leave terminal state
+    writeFileSync(join(ctx.featureRoot, 'TEST-1', 'design.md'), '# Design');
+    const result = ctx.manager.reconcile(ctx.item.id);
+    assert.equal(result.currentPhase, 'complete');
+  });
+
+  test('terminal state (killed): reconcile does not transition out', () => {
+    ctx.manager.killFeature(ctx.item.id, 'cancelled');
+
+    writeFileSync(join(ctx.featureRoot, 'TEST-1', 'design.md'), '# Design');
+    const result = ctx.manager.reconcile(ctx.item.id);
+    assert.equal(result.currentPhase, 'killed');
+  });
+
+  test('no artifacts at all: flags warning when current phase is non-initial', () => {
+    ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    // No artifacts on disk at all
+    const result = ctx.manager.reconcile(ctx.item.id);
+    assert.equal(result.currentPhase, 'blueprint');  // did NOT regress
+    assert.ok(result.reconcileWarning);
+    assert.equal(result.reconcileWarning.inferredPhase, 'none');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -190,8 +190,14 @@ function _postLifecycle(itemId, action, body) {
         let buf = '';
         res.on('data', (chunk) => buf += chunk);
         res.on('end', () => {
-          try { resolve(JSON.parse(buf)); }
-          catch { resolve({ error: buf }); }
+          let parsed;
+          try { parsed = JSON.parse(buf); }
+          catch { parsed = { error: buf }; }
+          if (res.statusCode >= 400) {
+            reject(new Error(parsed.error || `HTTP ${res.statusCode}: ${buf}`));
+          } else {
+            resolve(parsed);
+          }
         });
       },
     );

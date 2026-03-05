@@ -191,6 +191,17 @@ export class LifecycleManager {
   reconcile(itemId) {
     const { item, lifecycle } = this.#getLifecycle(itemId);
 
+    // Terminal states are immutable — only update artifacts map
+    if (TERMINAL.has(lifecycle.currentPhase)) {
+      lifecycle.artifacts = this.#scanArtifacts(lifecycle.featureCode);
+      this.#store.updateLifecycle(itemId, lifecycle);
+      return {
+        currentPhase: lifecycle.currentPhase,
+        artifacts: lifecycle.artifacts,
+        reconcileWarning: lifecycle.reconcileWarning,
+      };
+    }
+
     // Scan disk for artifacts
     const scanned = this.#scanArtifacts(lifecycle.featureCode);
     lifecycle.artifacts = scanned;
@@ -215,8 +226,8 @@ export class LifecycleManager {
       lifecycle.phaseHistory.push({ phase: inferredPhase, enteredAt: now, exitedAt: null, outcome: null });
       lifecycle.currentPhase = inferredPhase;
       lifecycle.reconcileWarning = null;
-    } else if (inferredIdx < currentIdx && inferredIdx >= 0) {
-      // Backward — flag but don't regress
+    } else if (inferredIdx < currentIdx) {
+      // Backward (or no artifacts at all) — flag but don't regress
       const missingArtifacts = [];
       for (const [phase, file] of Object.entries(PHASE_ARTIFACTS)) {
         if (PHASES.indexOf(phase) <= currentIdx && !scanned[file]) {
@@ -225,7 +236,7 @@ export class LifecycleManager {
       }
       lifecycle.reconcileWarning = {
         currentPhase: lifecycle.currentPhase,
-        inferredPhase,
+        inferredPhase: inferredPhase || 'none',
         missingArtifacts,
         detectedAt: new Date().toISOString(),
       };
