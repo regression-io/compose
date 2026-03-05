@@ -95,11 +95,11 @@ Phase 7 includes all four steps as exit criteria — you cannot exit without all
 
 ### Phase 1: Explore & Design
 
-**Agent:** `forge-explorer` (2-3 instances in parallel)
+**Agent:** `compose-explorer` (2-3 instances in parallel)
 
 - Check compose MCP for existing vision item; create one if absent
 - Create `docs/features/<feature-code>/` folder
-- Launch 2-3 `forge-explorer` agents in parallel:
+- Launch 2-3 `compose-explorer` agents in parallel:
   - "Find features similar to [feature] and trace their implementation"
   - "Map the architecture and abstractions for [area]"
   - "Analyze the current implementation of [related feature]"
@@ -124,7 +124,7 @@ Formalize into a PRD at `docs/features/<feature-code>/prd.md`. Sections: Problem
 
 ### Phase 3: Architecture Doc
 
-**Agent:** `forge-architect` (2-3 instances with competing mandates)
+**Agent:** `compose-architect` (2-3 instances with competing mandates)
 
 - **Minimal changes** — smallest possible change, maximum reuse
 - **Clean architecture** — maintainability first, elegant abstractions
@@ -138,10 +138,10 @@ Present all proposals, trade-offs, your recommendation. User picks. Write to `do
 
 ### Phase 4: Implementation Blueprint
 
-**Agent:** `forge-explorer` (targeted research)
+**Agent:** `compose-explorer` (targeted research)
 
 - Check for overlapping in-flight features: scan other `docs/features/*/blueprint.md` for shared file references
-- Launch `forge-explorer` targeting the specific area
+- Launch `compose-explorer` targeting the specific area
 - Read every critical file, note patterns with line references
 - Build corrections table (spec assumption vs reality)
 - Write to `docs/features/<feature-code>/blueprint.md`
@@ -209,7 +209,7 @@ Call agent_run with:
 
 Fix all issues Codex flags. Re-run until REVIEW CLEAN.
 
-If `agent_run` is unavailable (Phase 4.5 not yet deployed), fall back to `forge-reviewer`
+If `agent_run` is unavailable (Phase 4.5 not yet deployed), fall back to `compose-reviewer`
 agent and note the fallback in the session log.
 
 Max 10 iterations. If max hit, problem is in spec — surface to human.
@@ -304,7 +304,7 @@ contracts:
 functions:
   research:
     mode: compute
-    intent: "Explore the codebase with forge-explorer agents and surface patterns relevant to the feature."
+    intent: "Explore the codebase with compose-explorer agents and surface patterns relevant to the feature."
     input: {description: {type: string}}
     output: ResearchResult
     ensure:
@@ -443,10 +443,10 @@ When `/compose` is invoked, always scan first:
 
 | Agent/Skill | When |
 |---|---|
-| `forge-explorer` | Phase 1 (2-3 parallel), Phase 4 (targeted) |
-| `forge-architect` | Phase 3 (2-3 competing mandates) |
+| `compose-explorer` | Phase 1 (2-3 parallel), Phase 4 (targeted) |
+| `compose-architect` | Phase 3 (2-3 competing mandates) |
 | `agent_run(type="codex")` | Phase 7 step 3 — default reviewer (Opus executes, Codex reviews) |
-| `forge-reviewer` | Phase 7 step 3 — fallback only when `codex_run` unavailable |
+| `compose-reviewer` | Phase 7 step 3 — fallback only when `codex_run` unavailable |
 | `superpowers:test-driven-development` | Phase 7 step 1 |
 | `superpowers:verification-before-completion` | Before any task/phase done |
 | `superpowers:systematic-debugging` | Any unexpected failure |

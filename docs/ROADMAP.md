@@ -133,7 +133,7 @@ orchestration. See: [Lifecycle Engine Roadmap](plans/2026-02-15-lifecycle-engine
 | 23 | Policy enforcement runtime — gate/flag/skip dials as structural enforcement, not prose | PLANNED |
 | 24 | Gate UI — interactive approve/revise/kill in Vision Surface, gate queue, trade-offs display | PLANNED |
 | 25 | Session-lifecycle binding — sessions tagged to features and phases, contextualized activity | PLANNED |
-| 25a | Subagent activity nesting — hierarchical view of parallel compose agents in Vision Surface; each forge-explorer/architect instance visible as a child of the parent phase *(inspired by Damocles)* | PLANNED |
+| 25a | Subagent activity nesting — hierarchical view of parallel compose agents in Vision Surface; each compose-explorer/architect instance visible as a child of the parent phase *(inspired by Damocles)* | PLANNED |
 | 26 | Iteration orchestration — ralph loops as Compose primitive, completion promise monitoring, exit criteria enforcement | PLANNED |
 
 ---
