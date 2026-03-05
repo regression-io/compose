@@ -6,6 +6,7 @@ import { FileWatcherServer } from './file-watcher.js';
 import { VisionStore } from './vision-store.js';
 import { VisionServer } from './vision-server.js';
 import { SessionManager } from './session-manager.js';
+import { scanSpeckit, seedSpeckit } from './speckit-helpers.js';
 
 // Stratum is a hard requirement — compose agents need stratum-mcp tools to function.
 try {
@@ -59,8 +60,8 @@ visionServer.attach(server, app);
 
 // Seed .specify/ into vision store on startup
 try {
-  const features = visionServer._scanSpeckit();
-  if (features.length > 0) visionServer._seedSpeckit(features);
+  const features = scanSpeckit();
+  if (features.length > 0) seedSpeckit(features, visionStore);
 } catch (err) {
   console.error('[compose] Speckit startup seed error:', err.message);
 }
@@ -68,8 +69,8 @@ try {
 // Wire .specify/ file changes → auto-reseed vision store
 fileWatcher.onSpeckitChanged = (_relativePath) => {
   try {
-    const features = visionServer._scanSpeckit();
-    visionServer._seedSpeckit(features);
+    const features = scanSpeckit();
+    seedSpeckit(features, visionStore);
     visionServer.scheduleBroadcast();
   } catch (err) {
     console.error('[compose] Speckit reseed error:', err.message);
