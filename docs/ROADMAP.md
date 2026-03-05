@@ -1,7 +1,7 @@
 # Compose Roadmap
 
 **Project:** Compose — structured implementation pipeline for AI-driven development
-**Last updated:** 2026-02-26
+**Last updated:** 2026-03-05
 
 ## Related Documents
 
@@ -62,6 +62,7 @@ the same dependency window and delivery milestone as the connector work, not bec
 | # | Item | Status |
 |---|------|--------|
 | 15 | Git/file connector — link work items to code changes, diff awareness | PLANNED |
+| 15a | File checkpoint/rewind — snapshot affected files before agent changes; rewind surface in UI *(inspired by Damocles)* | PLANNED |
 | 16 | Tab popout — dockable/undockable tabs to separate monitors *(UI extension)* | PLANNED |
 | 17 | Persistence evolution — event-sourced, markdown generation from tracker | PLANNED |
 | 18 | Agent connector (read-write) — direct sessions from Compose | **SUPERSEDED by 18a–18h** |
@@ -132,6 +133,7 @@ orchestration. See: [Lifecycle Engine Roadmap](plans/2026-02-15-lifecycle-engine
 | 23 | Policy enforcement runtime — gate/flag/skip dials as structural enforcement, not prose | PLANNED |
 | 24 | Gate UI — interactive approve/revise/kill in Vision Surface, gate queue, trade-offs display | PLANNED |
 | 25 | Session-lifecycle binding — sessions tagged to features and phases, contextualized activity | PLANNED |
+| 25a | Subagent activity nesting — hierarchical view of parallel compose agents in Vision Surface; each forge-explorer/architect instance visible as a child of the parent phase *(inspired by Damocles)* | PLANNED |
 | 26 | Iteration orchestration — ralph loops as Compose primitive, completion promise monitoring, exit criteria enforcement | PLANNED |
 
 ---
@@ -150,6 +152,30 @@ leaving compose. Agent drafts → UI surfaces → user approves → stratum exec
 | 29 | Pipeline template library — predefined `.stratum.yaml` templates (feature dev, bug fix, refactor, content, research) selectable by agent or user | PLANNED |
 | 30 | `stratum_draft_pipeline` MCP tool — agent pushes a drafted spec into the PipelineEditor UI; user can review and tweak before execution begins | PLANNED |
 | 31 | PipelineEditor live refresh — poll or WebSocket so UI updates when agent calls `stratum_draft_pipeline` without requiring manual reload | PLANNED |
+
+---
+
+## Phase 6.8: Cross-Session Memory Layer — PLANNED
+
+**Note on ordering:** SmartMemory (`/reg/my/SmartMemory`) is already registered as an MCP server
+in compose's `.mcp.json` and session hooks (start/stop) already push episodic memories to it.
+Phase 6.8 formalizes it as the canonical cross-session memory layer and closes the loop so the
+agent actively consults memory at the start of each feature rather than treating it as ambient
+background.
+
+**SmartMemory fit:** lite mode (SQLite + usearch, no Docker) runs embedded. Memory types map
+cleanly: `episodic` → session summaries, `decision` → architecture choices, `semantic` → discovered
+patterns, `code` → indexed entities from blueprint research.
+
+**The key idea from Damocles:** pull-first catalog. Rather than injecting all memories into every
+prompt, the agent receives a compact ranked catalog at feature start and retrieves full details on
+demand. This keeps context bounded regardless of conversation history length.
+
+| # | Item | Status |
+|---|------|--------|
+| 32 | Memory catalog tool — `get_memory_catalog(query)` on compose-mcp; ranked SmartMemory search returning compact summaries; agent pulls full details via `memory_get` on demand *(pull-first pattern from Damocles)* | PLANNED |
+| 33 | Feature-scoped memory ingestion — after each gate approval, ingest phase artifact (design.md, blueprint.md, decisions) into SmartMemory with `feature_id` tag; retrieval scoped to feature or cross-feature | PLANNED |
+| 34 | Compose skill entry integration — `/compose` skill calls `get_memory_catalog` before Phase 1; surfaces relevant prior decisions and patterns from similar past features | PLANNED |
 
 ---
 
