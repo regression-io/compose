@@ -74,7 +74,7 @@ Only feature-type items with an active lifecycle get these fields. They're store
         phase: 'explore_design',
         enteredAt: '2026-03-05T10:00:00Z',
         exitedAt: '2026-03-05T11:30:00Z',
-        outcome: 'approved',          // approved | revised | skipped | killed
+        outcome: 'approved',          // approved | revised | skipped | killed | reconciled
         sessionId: 'abc-123',         // which session did this phase
       },
       {
@@ -176,6 +176,13 @@ transitions through `advancePhase`. This makes terminal semantics explicit:
 All methods throw on invalid transitions. The caller (compose skill or MCP tool) provides
 the explicit `targetPhase` — the state machine validates it but does not choose it.
 
+**Outcome vocabulary:**
+- `approved` — phase completed via gate approval (`advancePhase`)
+- `revised` — phase re-entered via revision loop (`advancePhase` with backward target)
+- `skipped` — phase bypassed with reason (`skipPhase`)
+- `killed` — feature terminated (`killFeature`)
+- `reconciled` — phase inferred from disk artifacts during reconciliation (`reconcile()` only, never from external callers)
+
 ---
 
 ## Decision 3: Reconciliation
@@ -191,7 +198,7 @@ with that. Reconciliation runs at lifecycle start and on demand:
 **Forward reconciliation (artifacts ahead of state):** If artifacts suggest a later phase
 than `currentPhase`, advance to match. For example, if `currentPhase` is `explore_design`
 but `blueprint.md` exists, advance to `blueprint`. Intermediate phases are recorded as
-`outcome: 'reconciled'` (not `skipped` — we don't know why they were skipped, so we don't
+`outcome: 'reconciled'` — a history-only outcome written exclusively by `reconcile()` (not `skipped` — we don't know why they were skipped, so we don't
 fabricate reasons).
 
 **Backward reconciliation (artifacts behind state):** If artifacts suggest an earlier phase
@@ -226,9 +233,10 @@ with the revision transition (verification → blueprint).
 The skill calls `LifecycleManager` at entry and at each gate:
 
 1. **Entry scan**: Call `reconcile(itemId)` to sync disk → state. Read `currentPhase` to determine where to resume.
-2. **Phase gate approved**: Call `advancePhase(itemId, 'approved')` to record the transition and advance.
-3. **Phase skipped**: Call `skipPhase(itemId, reason)`.
+2. **Phase gate approved**: Call `advancePhase(itemId, targetPhase, 'approved')` to record the transition and advance.
+3. **Phase skipped**: Call `skipPhase(itemId, targetPhase, reason)`.
 4. **Feature killed**: Call `killFeature(itemId, reason)`.
+5. **Feature shipped**: Call `completeFeature(itemId)` from the ship phase.
 
 The skill's existing folder-scan logic remains but becomes a **fallback** — if the lifecycle object doesn't exist (old features, manual work), the skill infers phase as today and optionally bootstraps a lifecycle.
 
@@ -339,7 +347,7 @@ With explicit phase state, the next items become straightforward:
 | File | Action | Purpose |
 |------|--------|---------|
 | `server/lifecycle-manager.js` | **Create** | State machine: transitions, validation, reconciliation |
-| `server/vision-store.js` | **Edit** | Accept `lifecycle` field on items (no schema change needed — it's freeform) |
+| `server/vision-store.js` | **Edit** | Strip `lifecycle` from generic `updateItem()` patches; add dedicated `updateLifecycle(itemId, lifecycle)` method |
 | `server/compose-mcp-tools.js` | **Edit** | Add `get_feature_lifecycle`, `advance_feature_phase` tools |
 | `server/vision-routes.js` | **Edit** | Add lifecycle endpoints |
 | `server/vision-server.js` | **Edit** | Broadcast lifecycle events |
