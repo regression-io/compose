@@ -89,9 +89,9 @@ See: [Architecture Foundation Plan](plans/2026-02-26-architecture-foundation-pla
 | 18a | Architecture alignment — connector class hierarchy, delete codex-server.js, reshape connectors | COMPLETE |
 | 18b | Integration surface stabilization — agent-mcp.js, `agent_run` MCP tool with `type` parameter (codex, claude, etc.), .mcp.json. **Acceptance:** `/compose` Phase 7 step 3 calls `agent_run(type="codex")` as default reviewer (Opus executes, Codex reviews) | COMPLETE |
 | 18c | Stratum externalization — pipelines/ directory, review-fix.stratum.yaml, end-to-end run | COMPLETE |
-| 18d | UI decoupling — verify zero new UI surface; VisionServer SSE stays sole UI channel | PLANNED |
-| 18e | Server modularization — split server/ into domain modules, single responsibility per file | PLANNED |
-| 18f | Test + observability hardening — golden flow tests for both MCP tools, Stratum audit trace | PLANNED |
+| 18d | UI decoupling — verify zero new UI surface; VisionServer SSE stays sole UI channel | COMPLETE |
+| 18e | Server modularization — split server/ into domain modules, single responsibility per file | COMPLETE |
+| 18f | Test + observability hardening — golden flow tests for both MCP tools, Stratum audit trace | PARTIAL — unit tests pass (13); integration golden flow tests require live inference |
 | 18g | Cutover + cleanup — remove openai dep, dead code, dangling imports | COMPLETE |
 | 18h | Acceptance gate — both tools callable; Stratum pipeline completes on a real feature | PLANNED |
 
