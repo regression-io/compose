@@ -132,23 +132,38 @@ Revisit once L3 (Policy Enforcement Runtime) is stable.
 
 ## Phase 6: Lifecycle Engine — IN_PROGRESS
 
-The `/compose` skill becomes the product. Seven layers from preferences to iteration orchestration.
+Compose is a workflow spec on top of Stratum. Stratum is the engine — steps, transitions, gates,
+retries, ensures. Compose defines the 10-phase lifecycle as a Stratum spec and consumes Stratum
+primitives directly rather than building a bespoke lifecycle engine.
+
+### Phase 6 Pre-work: Stratum Refactor — IN_PROGRESS
+
+Stratum must expose the primitives Compose needs before L1 can be built.
+
+| # | Item | Status |
+|---|------|--------|
+| 19 | Audit Stratum: inventory existing primitives, identify gaps (human gates, skip, revise, round tracking) | IN_PROGRESS |
+| 20 | Stratum refactor: add missing primitives, expose hooks for workflow specs like Compose | PLANNED |
+
+### Phase 6 Layers
 
 | # | Layer | Status |
 |---|-------|--------|
-| 23 | **L0 — User Preferences Inventory:** `.compose/preferences.json`; gate/flag/skip defaults, artifact versioning, agent model, UI prefs. Inheritance: project → feature → phase. | PLANNED |
-| 24 | **L1 — Feature Lifecycle State Machine:** explicit `currentPhase` on features, phase transitions as events, history, artifact-based reconciliation. | PLANNED |
-| 25 | **L2 — Artifact Awareness:** feature folder creation, artifact presence detection, phase-appropriate templates, artifact ↔ tracker item linking. | PLANNED |
-| 26 | **L3 — Policy Enforcement Runtime:** gate/flag/skip dials that structurally block phase transitions. Policy inheritance through work hierarchy. Override at any level. | PLANNED |
-| 27 | **L4 — Gate UI:** sidebar surface for pending phase transitions — shows artifact, proposed next phase, rationale. Three actions: Approve / Revise / Kill. Gate history. | PLANNED |
-| 28 | **L5 — Session-Lifecycle Binding:** sessions tagged to feature + phase. Activity grouped by feature. Transcripts auto-filed. Handoff context injected automatically. | PLANNED |
-| 29 | **L6 — Iteration Orchestration:** review and coverage loops as Compose primitives. Compose dispatches, monitors for completion promises, enforces exit criteria. Agent cannot self-report done without Compose confirming. | PLANNED |
+| 21 | **L0 — User Preferences Inventory:** full preferences system — gate/flag/skip defaults, artifact versioning, agent model, UI prefs. Deferred until L3–L6 reveal what actually needs configuring. | PARKED |
+| 22 | **L1 — Feature Lifecycle State Machine:** `contracts/lifecycle.json` (first contract); `compose_feature.stratum.yaml` rewritten as 10 sequential phase steps; `currentPhase` + `phaseHistory` on feature items; `phase-state.json` in feature folder; reconciliation on startup. | PLANNED |
+| 23 | **L2 — Artifact Awareness:** feature folder creation, artifact presence detection, phase-appropriate templates, artifact ↔ tracker item linking. | PLANNED |
+| 24 | **L3 — Policy Enforcement Runtime:** gate/flag/skip dials that structurally block phase transitions. Policy inheritance through work hierarchy. Override at any level. Hardcoded defaults until L0 lands. | PLANNED |
+| 25 | **L4 — Gate UI:** sidebar surface for pending phase transitions — shows artifact, proposed next phase, rationale. Three actions: Approve / Revise / Kill. Gate history. | PLANNED |
+| 26 | **L5 — Session-Lifecycle Binding:** sessions tagged to feature + phase. Activity grouped by feature. Transcripts auto-filed. Handoff context injected automatically. | PLANNED |
+| 27 | **L6 — Iteration Orchestration:** review and coverage loops as Compose primitives. Compose dispatches, monitors for completion promises, enforces exit criteria. Agent cannot self-report done without Compose confirming. | PLANNED |
 
-**Dependency order:** L0 → L1 → L2; L0 + L1 → L3 → L4; L5 depends on Phase 3 + L1; L6 depends on L5 + Phase 4.
+**Key architectural decision (2026-03-05):** Compose does not build a lifecycle engine. Stratum is
+the engine. Compose is a workflow spec. L1 is a Stratum spec + contract, not a new backend service.
+L0 deferred — design it after L3–L6 reveal what actually needs to be configurable.
 
 **L3 is the core new build.** It is the difference between "the skill says gate" and "Compose won't let you proceed without approval."
 
-**Exit:** Compose enforces the `/compose` lifecycle structurally. Gates block, policies inherit, iterations are orchestrated, artifacts are managed. The process runs through Compose, not alongside it.
+**Exit:** Compose enforces the `/compose` lifecycle structurally via Stratum. Gates block, policies inherit, iterations are orchestrated, artifacts are managed. The process runs through Compose, not alongside it.
 
 See `docs/plans/2026-02-15-lifecycle-engine-roadmap.md` for full layer detail.
 
