@@ -214,7 +214,7 @@ The MCP tools read from disk (same pattern as existing tools — `loadVisionStat
 ```js
 import http from 'node:http';
 
-const COMPOSE_API = 'http://127.0.0.1:3001';
+const COMPOSE_API = `http://127.0.0.1:${process.env.PORT || 3001}`;
 
 function _postLifecycle(itemId, action, body) {
   return new Promise((resolve, reject) => {
