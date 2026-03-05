@@ -37,11 +37,15 @@ import { CodexConnector }     from './connectors/codex-connector.js';
  * @param {string} [opts.cwd]
  * @returns {import('./connectors/agent-connector.js').AgentConnector}
  */
+const VALID_TYPES = new Set(['claude', 'codex']);
+
 function _makeConnector(type, { modelID, cwd } = {}) {
+  if (!VALID_TYPES.has(type)) {
+    throw new Error(`agent_run: unknown type '${type}'. Valid types: ${[...VALID_TYPES].join(', ')}`);
+  }
   if (type === 'codex') {
     return new CodexConnector({ modelID, cwd });
   }
-  // default: claude
   return new ClaudeSDKConnector({ model: modelID, cwd });
 }
 

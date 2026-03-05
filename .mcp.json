@@ -3,13 +3,13 @@
     "agent": {
       "command": "node",
       "args": [
-        "/Users/ruze/reg/my/forge/compose/server/agent-mcp.js"
+        "./server/agent-mcp.js"
       ]
     },
     "compose": {
       "command": "node",
       "args": [
-        "/Users/ruze/reg/my/forge/compose/server/compose-mcp.js"
+        "./server/compose-mcp.js"
       ]
     },
     "smartmemory-memory": {

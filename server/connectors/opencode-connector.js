@@ -113,6 +113,7 @@ export class OpencodeConnector extends AgentConnector {
     try {
       for await (const event of sseResult.stream) {
         if (event.type === 'message.part.updated') {
+          if (event.properties?.sessionID !== sessionId) continue;
           const delta = event.properties?.delta;
           if (delta) yield { type: 'assistant', content: delta };
         } else if (event.type === 'session.idle') {
