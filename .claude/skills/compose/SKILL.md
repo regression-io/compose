@@ -192,17 +192,25 @@ Uses `EnterPlanMode`. Plan writes to `docs/features/<feature-code>/plan.md`.
 
 1. **All tasks executed** — tests pass
 2. **E2E smoke test** — start dev server (`npm run dev` from compose root — Vite on :5173, API on :3001, agent on :3002), run Playwright tests for affected flows
-3. **Review loop clean** — `forge-reviewer` agent, confidence >= 80, loop until `REVIEW CLEAN`
+3. **Review loop clean** — Codex reviews via `codex_run`, confidence >= 80, loop until `REVIEW CLEAN`
 4. **Coverage sweep clean** — loop until `TESTS PASSING`
 
 **Step 3: Review Loop**
 
+Codex is the default reviewer. Opus executes; Codex reviews. This is not configurable.
+
 ```
-Launch forge-reviewer agent to review implementation against
-docs/features/<feature-code>/blueprint.md and plan.md.
-Fix all issues with confidence >= 80.
-Output REVIEW CLEAN when no actionable findings remain.
+Call agent_run with:
+  type: "codex"
+  task: "Review the implementation against blueprint and plan. List all issues
+         with confidence >= 80. Output REVIEW CLEAN if no actionable findings remain."
+  files: changed files + docs/features/<feature-code>/blueprint.md + plan.md
 ```
+
+Fix all issues Codex flags. Re-run until REVIEW CLEAN.
+
+If `agent_run` is unavailable (Phase 4.5 not yet deployed), fall back to `forge-reviewer`
+agent and note the fallback in the session log.
 
 Max 10 iterations. If max hit, problem is in spec — surface to human.
 
@@ -437,7 +445,8 @@ When `/compose` is invoked, always scan first:
 |---|---|
 | `forge-explorer` | Phase 1 (2-3 parallel), Phase 4 (targeted) |
 | `forge-architect` | Phase 3 (2-3 competing mandates) |
-| `forge-reviewer` | Phase 7 step 3 (confidence >= 80) |
+| `agent_run(type="codex")` | Phase 7 step 3 — default reviewer (Opus executes, Codex reviews) |
+| `forge-reviewer` | Phase 7 step 3 — fallback only when `codex_run` unavailable |
 | `superpowers:test-driven-development` | Phase 7 step 1 |
 | `superpowers:verification-before-completion` | Before any task/phase done |
 | `superpowers:systematic-debugging` | Any unexpected failure |

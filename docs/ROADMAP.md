@@ -87,7 +87,7 @@ See: [Architecture Foundation Plan](plans/2026-02-26-architecture-foundation-pla
 | # | Item | Status |
 |---|------|--------|
 | 18a | Architecture alignment — connector class hierarchy, delete codex-server.js, reshape connectors | PLANNED |
-| 18b | Integration surface stabilization — agent-mcp.js, claude_run + codex_run MCP tools, .mcp.json | PLANNED |
+| 18b | Integration surface stabilization — agent-mcp.js, `agent_run` MCP tool with `type` parameter (codex, claude, etc.), .mcp.json. **Acceptance:** `/compose` Phase 7 step 3 calls `agent_run(type="codex")` as default reviewer (Opus executes, Codex reviews) | PLANNED |
 | 18c | Stratum externalization — pipelines/ directory, review-fix.stratum.yaml, end-to-end run | PLANNED |
 | 18d | UI decoupling — verify zero new UI surface; VisionServer SSE stays sole UI channel | PLANNED |
 | 18e | Server modularization — split server/ into domain modules, single responsibility per file | PLANNED |
