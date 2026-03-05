@@ -51,8 +51,16 @@ functions:
         Instruct Claude to fix every finding before proceeding.
 
       Step B — Review:
-        Call agent_run with type "codex" and the following schema for structured output:
-          { clean: boolean, summary: string, findings: string[] }
+        Call agent_run with type "codex" and the following JSON Schema for structured output:
+          {
+            "type": "object",
+            "required": ["clean", "summary", "findings"],
+            "properties": {
+              "clean":    { "type": "boolean" },
+              "summary":  { "type": "string" },
+              "findings": { "type": "array", "items": { "type": "string" } }
+            }
+          }
         The review prompt must include:
           - the task description
           - the execute_summary (what was implemented)
