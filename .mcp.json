@@ -1,9 +1,16 @@
 {
   "mcpServers": {
+    "agent": {
+      "command": "node",
+      "args": [
+        "/Users/ruze/reg/my/forge/compose/server/agent-mcp.js"
+      ]
+    },
     "compose": {
       "command": "node",
-      "args": ["server/compose-mcp.js"],
-      "description": "Compose tracker state — vision items, sessions, phase summaries, blocked items"
+      "args": [
+        "/Users/ruze/reg/my/forge/compose/server/compose-mcp.js"
+      ]
     },
     "smartmemory-memory": {
       "command": "uv",
