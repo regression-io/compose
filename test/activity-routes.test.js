@@ -102,10 +102,12 @@ after(() => new Promise(res => {
 // blocking httpServer.close() at teardown.
 // ---------------------------------------------------------------------------
 
+// 'Connection: close' prevents undici from pooling the TCP socket, which would
+// otherwise hold the socket open in undici's idle pool and block httpServer.close().
 async function post(path, body) {
   const res = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Connection: 'close' },
     body: JSON.stringify(body),
   });
   const json = await res.json();
@@ -113,7 +115,9 @@ async function post(path, body) {
 }
 
 async function get(path) {
-  const res = await fetch(`${baseUrl}${path}`);
+  const res = await fetch(`${baseUrl}${path}`, {
+    headers: { Connection: 'close' },
+  });
   const json = await res.json();
   return { status: res.status, body: json };
 }
