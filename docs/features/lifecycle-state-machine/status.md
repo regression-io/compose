@@ -1,5 +1,4 @@
-phase: docs
+phase: complete
 outcome: approved
-next: ship
 date: 2026-03-05
-note: ROADMAP item 21 marked COMPLETE. No CHANGELOG or README exists to update. CLAUDE.md has no lifecycle references.
+note: Feature shipped. 77 tests pass, all files syntax-checked, roadmap updated.
