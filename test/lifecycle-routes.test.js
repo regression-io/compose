@@ -241,15 +241,14 @@ describe('MCP lifecycle tools', () => {
     delete process.env.COMPOSE_PORT;
   });
 
-  test('toolGetFeatureLifecycle reads lifecycle (via REST GET)', async () => {
-    // Start lifecycle via REST
+  test('GET lifecycle via REST (MCP read-tool equivalent)', async () => {
+    // toolGetFeatureLifecycle reads from the project's disk file (loadVisionState),
+    // not from a live store, so it can't be tested with an ephemeral server.
+    // We verify the REST GET path instead, which is the integration surface.
     await request(ctx.port, 'POST',
       `/api/vision/items/${ctx.item.id}/lifecycle/start`,
       { featureCode: 'TEST-1' });
 
-    // Verify via REST GET (toolGetFeatureLifecycle uses loadVisionState which
-    // reads the project's data file, not the test store — so we verify the
-    // REST path which is what MCP tools delegate to for mutations)
     const res = await request(ctx.port, 'GET',
       `/api/vision/items/${ctx.item.id}/lifecycle`);
     assert.equal(res.status, 200);

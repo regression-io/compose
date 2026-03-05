@@ -185,7 +185,7 @@ function _postLifecycle(itemId, action, body) {
     const url = new URL(`${_getComposeApi()}/api/vision/items/${itemId}/lifecycle/${action}`);
     const req = http.request(
       { hostname: url.hostname, port: url.port, path: url.pathname, method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } },
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } },
       (res) => {
         let buf = '';
         res.on('data', (chunk) => buf += chunk);
