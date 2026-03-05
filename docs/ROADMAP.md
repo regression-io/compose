@@ -55,16 +55,16 @@ Real-time visibility into what the agent is doing, errors it hits, and session l
 
 ## Phase 4: Integration & UI Extensions — PLANNED
 
-Connectors to code and agents, persistence evolution, and UI window management. Items 15/17/18
-are connector work; item 16 (tab popout) is a UI extension grouped here because it shares
-the same dependency window and delivery milestone as the connector work, not because it is a connector.
+Connectors to code and agents, and UI window management. Items 15/18 are connector work;
+item 16 (tab popout) is a UI extension grouped here because it shares the same dependency
+window and delivery milestone as the connector work, not because it is a connector.
 
 | # | Item | Status |
 |---|------|--------|
 | 15 | Git/file connector — link work items to code changes, diff awareness | PLANNED |
 | 15a | File checkpoint/rewind — snapshot affected files before agent changes; rewind surface in UI *(inspired by Damocles)* | PLANNED |
 | 16 | Tab popout — dockable/undockable tabs to separate monitors *(UI extension)* | PLANNED |
-| 17 | Persistence evolution — event-sourced, markdown generation from tracker | PLANNED |
+| 17 | Persistence evolution — event-sourced, markdown generation from tracker | **SUPERSEDED** — Base44 dependency already cut; flat JSON store sufficient for current scale |
 | 18 | Agent connector (read-write) — direct sessions from Compose | **SUPERSEDED by 18a–18h** |
 
 Item 18 is fully replaced by Phase 4.5. It is not independently actionable. 18a–18h are the
