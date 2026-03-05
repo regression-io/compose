@@ -1,8 +1,8 @@
 /**
- * haiku-summarizer.js — Haiku prompt builder, caller, and JSON extractor.
+ * summarizer.js — Spawn a Claude CLI subprocess to summarize batch events as JSON.
  *
- * These pure functions are extracted from SessionManager so they can be
- * tested and reused independently.
+ * Model-agnostic: defaults to haiku for cost efficiency but accepts any model.
+ * Extracted from SessionManager for independent reuse and testing.
  */
 
 import { spawn } from 'node:child_process';
@@ -12,18 +12,20 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
+const DEFAULT_MODEL = process.env.SUMMARIZER_MODEL || 'haiku';
+
 // ---------------------------------------------------------------------------
 // Prompt builder
 // ---------------------------------------------------------------------------
 
 /**
- * Format batch events into a prompt asking Haiku for structured JSON.
+ * Format batch events into a prompt asking the model for structured JSON.
  *
  * @param {Array} batch — array of buffered tool-use events
  * @param {string} [projectRoot]
  * @returns {string}
  */
-export function buildHaikuPrompt(batch, projectRoot = PROJECT_ROOT) {
+export function buildSummaryPrompt(batch, projectRoot = PROJECT_ROOT) {
   const eventLines = batch.map(evt => {
     const itemLabel = evt.itemTitles.length > 0
       ? ` [${evt.itemTitles.join(', ')}]`
@@ -51,25 +53,27 @@ JSON schema:
 }
 
 // ---------------------------------------------------------------------------
-// Haiku caller
+// Summarize caller
 // ---------------------------------------------------------------------------
 
 /**
- * Spawn `claude -p <prompt> --model haiku --max-turns 1` with CLAUDECODE unset.
+ * Spawn `claude -p <prompt> --model <model> --max-turns 1` with CLAUDECODE unset.
  * Parse JSON from output. Returns parsed object or null on failure.
  *
  * @param {string} prompt
- * @param {string} [projectRoot]
+ * @param {object} [opts]
+ * @param {string} [opts.model]       — model to use (default: haiku or SUMMARIZER_MODEL env)
+ * @param {string} [opts.projectRoot]
  * @returns {Promise<object|null>}
  */
-export function callHaiku(prompt, projectRoot = PROJECT_ROOT) {
+export function summarize(prompt, { model = DEFAULT_MODEL, projectRoot = PROJECT_ROOT } = {}) {
   return new Promise((resolve) => {
     const cleanEnv = { ...process.env, NO_COLOR: '1' };
     delete cleanEnv.CLAUDECODE;
 
     const proc = spawn('claude', [
       '-p', prompt,
-      '--model', 'haiku',
+      '--model', model,
       '--max-turns', '1',
     ], {
       cwd: projectRoot,
@@ -84,13 +88,13 @@ export function callHaiku(prompt, projectRoot = PROJECT_ROOT) {
     proc.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
 
     proc.on('error', (err) => {
-      console.error('[session] Haiku spawn error:', err.message);
+      console.error('[session] Summarizer spawn error:', err.message);
       resolve(null);
     });
 
     proc.on('close', (code) => {
       if (code !== 0) {
-        console.error(`[session] Haiku exited with code ${code}:`, stderr.slice(0, 200));
+        console.error(`[session] Summarizer exited with code ${code}:`, stderr.slice(0, 200));
         resolve(null);
         return;
       }
@@ -99,7 +103,7 @@ export function callHaiku(prompt, projectRoot = PROJECT_ROOT) {
         const json = extractJSON(stdout);
         resolve(json);
       } catch (err) {
-        console.error('[session] Haiku JSON parse failed:', err.message, 'raw:', stdout.slice(0, 300));
+        console.error('[session] Summarizer JSON parse failed:', err.message, 'raw:', stdout.slice(0, 300));
         resolve(null);
       }
     });
@@ -111,9 +115,9 @@ export function callHaiku(prompt, projectRoot = PROJECT_ROOT) {
 // ---------------------------------------------------------------------------
 
 /**
- * Extract JSON from Haiku output, handling possible markdown fences.
+ * Extract JSON from model output, handling possible markdown fences.
  *
- * @param {string} text — raw stdout from Haiku
+ * @param {string} text — raw stdout
  * @returns {object}
  * @throws {Error} if no JSON found
  */

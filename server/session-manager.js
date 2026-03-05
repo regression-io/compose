@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildHaikuPrompt, callHaiku } from './haiku-summarizer.js';
+import { buildSummaryPrompt, summarize } from './summarizer.js';
 import { updateBlock, closeCurrentBlock } from './block-tracker.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -225,8 +225,8 @@ export class SessionManager {
     const batch = this._pendingBatch.splice(0);
 
     try {
-      const prompt = buildHaikuPrompt(batch, PROJECT_ROOT);
-      const result = await callHaiku(prompt, PROJECT_ROOT);
+      const prompt = buildSummaryPrompt(batch, PROJECT_ROOT);
+      const result = await summarize(prompt, { projectRoot: PROJECT_ROOT });
       if (result) {
         this._distributeSummary(result, batch);
         for (const fn of this._summaryListeners) {
