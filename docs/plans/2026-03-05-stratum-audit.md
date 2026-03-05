@@ -37,21 +37,24 @@ point, restorable later. This is the closest thing to "revise" today.
 
 ### Python Library (not MCP-accessible)
 
-The Python library has `await_human()` — a full HITL gate with typed `HumanDecision[T]`,
-pluggable `ReviewSink`, rationale capture. **Not exposed in the MCP layer or `.stratum.yaml` IR.**
+The Python library has `await_human()` — a gate primitive with typed `HumanDecision[T]`,
+pluggable `ReviewSink`, rationale capture. The resolver could be human or agent; the type is
+recorded but execution semantics are the same. **Not exposed in the MCP layer or `.stratum.yaml` IR.**
 
 ---
 
 ## Gaps for 10-Phase Human-Gated Workflows
 
-### Gap 1 — No HITL gate in the IR ❌
+### Gap 1 — No gate step type in the IR ❌
 
-The `.stratum.yaml` format has no `gate` step type. Human approval cannot be expressed in a spec.
+The `.stratum.yaml` format has no `gate` step type. Approval cannot be expressed in a spec —
+whether the resolver is a human, an agent (e.g. clean review result), or a system condition.
 Today gates are handled outside Stratum entirely (the Compose skill handles them in prose).
 
-**What's needed:** A `mode: gate` function type (or a `gate:` step field) that suspends the flow
-until an explicit approval call is made. On approve → advance. On revise → revert to designated
-step. On kill → terminate.
+**What's needed:** A `mode: gate` function type that suspends the flow until an explicit
+`stratum_gate_resolve` call is made. Resolver identity (`human | agent | system`) is recorded
+in the trace but does not affect execution semantics. On approve → advance. On revise → roll back
+to designated step with round counter incremented. On kill → route to terminal step.
 
 ### Gap 2 — No skip mechanism ❌
 
@@ -70,13 +73,16 @@ run phase 4."
 **What's needed:** A `round` field in `StepRecord`, incremented on each revert cycle. Flow-level
 `max_rounds` to cap revision loops.
 
-### Gap 4 — No conditional branching ❌
+### Gap 4 — No conditional runtime branching ❌
 
-Flows are linear sequences. There is no `if/else` routing based on step output. Gate rejection
-(revise vs kill vs approve) requires out-of-band orchestration logic.
+Stratum already supports DAG execution ordering via `depends_on` and topological sort — flows are
+not strictly linear. The true gap is *conditional runtime branching*: there is no way to route to
+a different step based on the *output* of a prior step at runtime. Gate resolution
+(approve/revise/kill) requires out-of-band orchestration logic because the IR has no
+`on_approve`/`on_revise`/`on_kill` routing.
 
-**What's needed:** `on_approve` / `on_revise` / `on_kill` routing on gate steps, or a general
-`condition:` branch construct in the flow.
+**What's needed:** Conditional routing on gate steps — `on_approve`, `on_revise`, `on_kill` —
+so the flow can declaratively express "if revised, go back to step X; if killed, go to terminal."
 
 ---
 
@@ -97,7 +103,10 @@ steps:
   - id: design_gate
     function: approval_gate
     on_approve: prd          # next step if approved
-    on_revise: explore       # revert target if revised (replaces manual stratum_revert)
+    on_revise: explore       # roll back to this step id if revised
+                             # rollback semantics: step_outputs, attempts, and trace entries
+                             # for all steps from on_revise target onward are cleared;
+                             # round counter increments; execution resumes from target step
     on_kill: killed          # terminal step if killed
 
 # 3. Skip
@@ -129,10 +138,15 @@ The refactor has two parts:
 - Add `round` to `StepRecord`
 
 **Part B — Executor (executor.py + server.py):**
-- `stratum_step_done` with `outcome: gate_approved | gate_revised | gate_killed` handling
-- `stratum_revert` updated to increment round counter
-- `stratum_audit` reports round breakdown per step
-- New tool: `stratum_gate_resolve(flow_id, step_id, outcome, rationale)` — explicit gate resolution
+- New tool: `stratum_gate_resolve(flow_id, step_id, outcome, rationale, resolved_by)` — the single
+  canonical path for gate completion. `stratum_step_done` is NOT extended with gate outcomes;
+  gate steps are resolved exclusively via `stratum_gate_resolve` to keep the two APIs distinct
+  (step_done = agent reports work output; gate_resolve = any resolver approves/revises/kills)
+- On `outcome: revise` — executor clears `step_outputs`, `attempts`, and trace entries for all
+  steps from `on_revise` target onward; increments `flow.round`; returns next step info for target
+- On `outcome: kill` — executor routes to `on_kill` terminal step; flow ends
+- `stratum_audit` reports per-step breakdown by round
+- `resolved_by`: `human | agent | system` — recorded in trace, no behavioural difference
 
 ---
 
