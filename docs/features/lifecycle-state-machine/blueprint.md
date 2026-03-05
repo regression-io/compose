@@ -15,7 +15,7 @@
 | `server/compose-mcp-tools.js` | **Edit** | ~80 lines added |
 | `server/compose-mcp.js` | **Edit** | ~60 lines added |
 | `server/vision-routes.js` | **Edit** | ~40 lines added |
-| `server/vision-server.js` | **Edit** | ~5 lines added |
+| `server/vision-server.js` | **No change** | — |
 | `test/lifecycle-manager.test.js` | **Create** | ~300 |
 
 ---
