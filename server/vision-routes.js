@@ -13,12 +13,19 @@
  *   GET    /api/vision/blocked
  *   POST   /api/vision/ui
  *   POST   /api/plan/parse
+ *   GET    /api/vision/items/:id/lifecycle
+ *   POST   /api/vision/items/:id/lifecycle/start
+ *   POST   /api/vision/items/:id/lifecycle/advance
+ *   POST   /api/vision/items/:id/lifecycle/skip
+ *   POST   /api/vision/items/:id/lifecycle/kill
+ *   POST   /api/vision/items/:id/lifecycle/complete
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractFilePaths } from './vision-utils.js';
+import { LifecycleManager } from './lifecycle-manager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -102,6 +109,120 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
       c => c.fromId === req.params.id || c.toId === req.params.id
     );
     res.json({ ...item, connections });
+  });
+
+  // ── Lifecycle endpoints ────────────────────────────────────────────────
+  const lifecycleManager = new LifecycleManager(store, path.join(projectRoot, 'docs', 'features'));
+
+  app.get('/api/vision/items/:id/lifecycle', (req, res) => {
+    try {
+      const items = store.getState().items;
+      const item = items.find(i => i.id === req.params.id);
+      if (!item) return res.status(404).json({ error: `Item not found: ${req.params.id}` });
+      if (!item.lifecycle) return res.status(404).json({ error: 'No lifecycle on this item' });
+      res.json(item.lifecycle);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/items/:id/lifecycle/start', (req, res) => {
+    try {
+      const { featureCode } = req.body;
+      if (!featureCode) return res.status(400).json({ error: 'featureCode is required' });
+      const lifecycle = lifecycleManager.startLifecycle(req.params.id, featureCode);
+      scheduleBroadcast();
+      broadcastMessage({
+        type: 'lifecycleStarted',
+        itemId: req.params.id,
+        phase: lifecycle.currentPhase,
+        featureCode,
+        timestamp: new Date().toISOString(),
+      });
+      res.json(lifecycle);
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/items/:id/lifecycle/advance', (req, res) => {
+    try {
+      const { targetPhase, outcome } = req.body;
+      const result = lifecycleManager.advancePhase(req.params.id, targetPhase, outcome);
+      scheduleBroadcast();
+      broadcastMessage({
+        type: 'lifecycleTransition',
+        itemId: req.params.id,
+        from: result.from,
+        to: result.to,
+        outcome: result.outcome,
+        timestamp: new Date().toISOString(),
+      });
+      res.json(result);
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/items/:id/lifecycle/skip', (req, res) => {
+    try {
+      const { targetPhase, reason } = req.body;
+      const result = lifecycleManager.skipPhase(req.params.id, targetPhase, reason);
+      scheduleBroadcast();
+      broadcastMessage({
+        type: 'lifecycleTransition',
+        itemId: req.params.id,
+        from: result.from,
+        to: result.to,
+        outcome: result.outcome,
+        timestamp: new Date().toISOString(),
+      });
+      res.json(result);
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/items/:id/lifecycle/kill', (req, res) => {
+    try {
+      const { reason } = req.body;
+      const result = lifecycleManager.killFeature(req.params.id, reason);
+      scheduleBroadcast();
+      broadcastMessage({
+        type: 'lifecycleTransition',
+        itemId: req.params.id,
+        from: result.phase,
+        to: 'killed',
+        outcome: 'killed',
+        timestamp: new Date().toISOString(),
+      });
+      res.json(result);
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/items/:id/lifecycle/complete', (req, res) => {
+    try {
+      const result = lifecycleManager.completeFeature(req.params.id);
+      scheduleBroadcast();
+      broadcastMessage({
+        type: 'lifecycleTransition',
+        itemId: req.params.id,
+        from: 'ship',
+        to: 'complete',
+        outcome: 'approved',
+        timestamp: new Date().toISOString(),
+      });
+      res.json(result);
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
   });
 
   // GET /api/vision/summary — structured board summary

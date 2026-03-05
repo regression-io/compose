@@ -6,6 +6,7 @@
  */
 
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -168,4 +169,57 @@ export function toolGetCurrentSession() {
       recentSummaries: allSummaries.slice(-5),
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle tools — read from disk, mutations delegate to Compose REST API
+// ---------------------------------------------------------------------------
+
+function _getComposeApi() {
+  return `http://127.0.0.1:${process.env.COMPOSE_PORT || process.env.PORT || 3001}`;
+}
+
+function _postLifecycle(itemId, action, body) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const url = new URL(`${_getComposeApi()}/api/vision/items/${itemId}/lifecycle/${action}`);
+    const req = http.request(
+      { hostname: url.hostname, port: url.port, path: url.pathname, method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } },
+      (res) => {
+        let buf = '';
+        res.on('data', (chunk) => buf += chunk);
+        res.on('end', () => {
+          try { resolve(JSON.parse(buf)); }
+          catch { resolve({ error: buf }); }
+        });
+      },
+    );
+    req.on('error', (err) => reject(new Error(`Compose server unreachable: ${err.message}`)));
+    req.end(data);
+  });
+}
+
+export function toolGetFeatureLifecycle({ id }) {
+  const { items } = loadVisionState();
+  const item = items.find(i => i.id === id || i.semanticId === id || i.slug === id);
+  if (!item) return { error: `Item not found: ${id}` };
+  if (!item.lifecycle) return { error: 'No lifecycle on this item' };
+  return item.lifecycle;
+}
+
+export async function toolAdvanceFeaturePhase({ id, targetPhase, outcome }) {
+  return _postLifecycle(id, 'advance', { targetPhase, outcome });
+}
+
+export async function toolSkipFeaturePhase({ id, targetPhase, reason }) {
+  return _postLifecycle(id, 'skip', { targetPhase, reason });
+}
+
+export async function toolKillFeature({ id, reason }) {
+  return _postLifecycle(id, 'kill', { reason });
+}
+
+export async function toolCompleteFeature({ id }) {
+  return _postLifecycle(id, 'complete', {});
 }

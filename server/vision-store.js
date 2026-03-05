@@ -140,6 +140,18 @@ export class VisionStore {
     return item;
   }
 
+  /** Update the lifecycle field on an item — bypasses the generic allowlist.
+   *  Only callable by LifecycleManager. */
+  updateLifecycle(id, lifecycle) {
+    const item = this.items.get(id);
+    if (!item) throw new Error(`Item not found: ${id}`);
+    item.lifecycle = lifecycle;
+    item.updatedAt = new Date().toISOString();
+    this.items.set(id, item);
+    this._save();
+    return item;
+  }
+
   /** Delete an item and all its connections */
   deleteItem(id) {
     if (!this.items.has(id)) throw new Error(`Item not found: ${id}`);

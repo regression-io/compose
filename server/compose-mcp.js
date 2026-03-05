@@ -32,6 +32,11 @@ import {
   toolGetPhasesSummary,
   toolGetBlockedItems,
   toolGetCurrentSession,
+  toolGetFeatureLifecycle,
+  toolAdvanceFeaturePhase,
+  toolSkipFeaturePhase,
+  toolKillFeature,
+  toolCompleteFeature,
 } from './compose-mcp-tools.js';
 
 // ---------------------------------------------------------------------------
@@ -111,6 +116,66 @@ const TOOLS = [
       properties: {},
     },
   },
+  {
+    name: 'get_feature_lifecycle',
+    description: 'Get the lifecycle state of a feature: current phase, phase history, artifacts, warnings.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Item ID (UUID) or slug' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'advance_feature_phase',
+    description: 'Advance a feature to the next lifecycle phase. Validates the transition is allowed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Item ID' },
+        targetPhase: { type: 'string', description: 'Phase to advance to' },
+        outcome: { type: 'string', enum: ['approved', 'revised'], description: 'Gate outcome' },
+      },
+      required: ['id', 'targetPhase', 'outcome'],
+    },
+  },
+  {
+    name: 'skip_feature_phase',
+    description: 'Skip the current phase (only prd, architecture, report are skippable).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Item ID' },
+        targetPhase: { type: 'string', description: 'Phase to skip to' },
+        reason: { type: 'string', description: 'Why this phase is being skipped' },
+      },
+      required: ['id', 'targetPhase', 'reason'],
+    },
+  },
+  {
+    name: 'kill_feature',
+    description: 'Kill a feature from any phase. Records reason and sets status to killed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Item ID' },
+        reason: { type: 'string', description: 'Why the feature is being killed' },
+      },
+      required: ['id', 'reason'],
+    },
+  },
+  {
+    name: 'complete_feature',
+    description: 'Mark a feature as complete. Only callable from the ship phase.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Item ID' },
+      },
+      required: ['id'],
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -137,6 +202,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'get_phase_summary':   result = toolGetPhasesSummary(args); break;
       case 'get_blocked_items':   result = toolGetBlockedItems(); break;
       case 'get_current_session': result = toolGetCurrentSession(); break;
+      case 'get_feature_lifecycle':    result = toolGetFeatureLifecycle(args); break;
+      case 'advance_feature_phase':    result = await toolAdvanceFeaturePhase(args); break;
+      case 'skip_feature_phase':       result = await toolSkipFeaturePhase(args); break;
+      case 'kill_feature':             result = await toolKillFeature(args); break;
+      case 'complete_feature':         result = await toolCompleteFeature(args); break;
       default:
         return {
           content: [{ type: 'text', text: `Unknown tool: ${name}` }],
