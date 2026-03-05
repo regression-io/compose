@@ -349,10 +349,10 @@ import {
 
 ```js
 case 'get_feature_lifecycle':    result = toolGetFeatureLifecycle(args); break;
-case 'advance_feature_phase':    result = toolAdvanceFeaturePhase(args); break;
-case 'skip_feature_phase':       result = toolSkipFeaturePhase(args); break;
-case 'kill_feature':             result = toolKillFeature(args); break;
-case 'complete_feature':         result = toolCompleteFeature(args); break;
+case 'advance_feature_phase':    result = await toolAdvanceFeaturePhase(args); break;
+case 'skip_feature_phase':       result = await toolSkipFeaturePhase(args); break;
+case 'kill_feature':             result = await toolKillFeature(args); break;
+case 'complete_feature':         result = await toolCompleteFeature(args); break;
 ```
 
 ---
@@ -399,7 +399,7 @@ Each POST route:
 4. Broadcast `lifecycleTransition` event via `broadcastMessage()`
 5. Return result or error
 
-**Note:** The `LifecycleManager` here is instantiated with the live `store` passed to `attachVisionRoutes`, so it shares the same in-memory state as the running server. Different from the MCP tools pattern (which instantiates fresh from disk).
+**Note:** The `LifecycleManager` here is instantiated with the live `store` passed to `attachVisionRoutes`, so it shares the same in-memory state as the running server. MCP mutation tools delegate to these REST endpoints rather than writing directly.
 
 ---
 
