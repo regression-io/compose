@@ -90,22 +90,32 @@ before(() => new Promise(res => {
   });
 }));
 
-after(() => new Promise(res => httpServer.close(res)));
+after(() => new Promise(res => {
+  // closeAllConnections() drains keep-alive sockets so close() completes immediately.
+  httpServer.closeAllConnections?.();
+  httpServer.close(res);
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
+// Always consume the response body to prevent undrained connections from
+// blocking httpServer.close() at teardown.
 // ---------------------------------------------------------------------------
 
-function post(path, body) {
-  return fetch(`${baseUrl}${path}`, {
+async function post(path, body) {
+  const res = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  const json = await res.json();
+  return { status: res.status, body: json };
 }
 
-function get(path) {
-  return fetch(`${baseUrl}${path}`);
+async function get(path) {
+  const res = await fetch(`${baseUrl}${path}`);
+  const json = await res.json();
+  return { status: res.status, body: json };
 }
 
 // ---------------------------------------------------------------------------
@@ -113,20 +123,18 @@ function get(path) {
 // ---------------------------------------------------------------------------
 
 test('POST /api/agent/activity — missing tool returns 400', async () => {
-  const res = await post('/api/agent/activity', {});
-  assert.equal(res.status, 400);
-  const body = await res.json();
+  const { status, body } = await post('/api/agent/activity', {});
+  assert.equal(status, 400);
   assert.equal(body.error, 'tool is required');
 });
 
 test('POST /api/agent/activity — Read tool returns 200 and ok:true', async () => {
-  const res = await post('/api/agent/activity', {
+  const { status, body } = await post('/api/agent/activity', {
     tool: 'Read',
     input: { file_path: 'src/app.js' },
     timestamp: new Date().toISOString(),
   });
-  assert.equal(res.status, 200);
-  const body = await res.json();
+  assert.equal(status, 200);
   assert.equal(body.ok, true);
 });
 
@@ -138,7 +146,7 @@ test('POST /api/agent/activity — records activity in sessionManager', async ()
   });
   assert.equal(fakeSM.activities.length, before + 1);
   const last = fakeSM.activities.at(-1);
-  assert.equal(last[0], 'Edit');   // tool
+  assert.equal(last[0], 'Edit');    // tool
   assert.equal(last[1], 'writing'); // category
 });
 
@@ -177,9 +185,7 @@ test('POST /api/agent/activity — detects error in response text', async () => 
   assert.ok(errMsg, 'should broadcast agentError');
   assert.equal(errMsg.errorType, 'build_error');
   assert.equal(errMsg.severity, 'error');
-  // sessionManager should also have it
-  const lastErr = fakeSM.errors.at(-1);
-  assert.ok(lastErr, 'sessionManager should record error');
+  assert.ok(fakeSM.errors.at(-1), 'sessionManager should record error');
 });
 
 test('POST /api/agent/activity — non-error response broadcasts no agentError', async () => {
@@ -206,8 +212,8 @@ test('POST /api/agent/activity — unrecognized tool gets thinking category', as
 // ---------------------------------------------------------------------------
 
 test('POST /api/agent/error — missing tool returns 400', async () => {
-  const res = await post('/api/agent/error', {});
-  assert.equal(res.status, 400);
+  const { status } = await post('/api/agent/error', {});
+  assert.equal(status, 400);
 });
 
 test('POST /api/agent/error — records in sessionManager', async () => {
@@ -234,12 +240,11 @@ test('POST /api/agent/error — broadcasts agentError message', async () => {
 });
 
 test('POST /api/agent/error — returns ok:true with detected error info', async () => {
-  const res = await post('/api/agent/error', {
+  const { status, body } = await post('/api/agent/error', {
     tool: 'Bash',
     error: 'SyntaxError: unexpected token',
   });
-  assert.equal(res.status, 200);
-  const body = await res.json();
+  assert.equal(status, 200);
   assert.equal(body.ok, true);
   assert.ok(body.detected?.type);
 });
@@ -249,13 +254,12 @@ test('POST /api/agent/error — returns ok:true with detected error info', async
 // ---------------------------------------------------------------------------
 
 test('GET /api/agents returns empty array initially', async () => {
-  const res = await get('/api/agents');
-  assert.equal(res.status, 200);
-  const body = await res.json();
+  const { status, body } = await get('/api/agents');
+  assert.equal(status, 200);
   assert.ok(Array.isArray(body.agents));
 });
 
 test('GET /api/agent/:id returns 404 for unknown agent', async () => {
-  const res = await get('/api/agent/nonexistent-id');
-  assert.equal(res.status, 404);
+  const { status } = await get('/api/agent/nonexistent-id');
+  assert.equal(status, 404);
 });
