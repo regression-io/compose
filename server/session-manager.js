@@ -6,11 +6,11 @@
  * periodically summarises batches via Haiku.
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildSummaryPrompt, summarize } from './summarizer.js';
 import { updateBlock, closeCurrentBlock } from './block-tracker.js';
+import { serializeSession, persistSession, readLastSession } from './session-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -196,16 +196,7 @@ export class SessionManager {
 
   /** Return the most recent session summary for the SessionStart hook. */
   getContext() {
-    try {
-      const raw = fs.readFileSync(SESSIONS_FILE, 'utf-8');
-      const sessions = JSON.parse(raw);
-      if (Array.isArray(sessions) && sessions.length > 0) {
-        return sessions[sessions.length - 1];
-      }
-    } catch {
-      // No sessions file yet — that's fine
-    }
-    return null;
+    return readLastSession(SESSIONS_FILE);
   }
 
   /** True if the current session crosses the journal-worthiness threshold. */
@@ -283,49 +274,6 @@ export class SessionManager {
     return str.length > 200 ? str.slice(0, 197) + '...' : str;
   }
 
-  _serialize(session) {
-    const items = {};
-    for (const [id, acc] of session.items) {
-      items[id] = { ...acc };
-    }
-    return {
-      id: session.id,
-      startedAt: session.startedAt,
-      endedAt: session.endedAt || null,
-      endReason: session.endReason || null,
-      source: session.source,
-      toolCount: session.toolCount,
-      items,
-      blocks: session.blocks,
-      commits: session.commits,
-      errors: session.errors || [],
-      transcriptPath: session.transcriptPath || null,
-    };
-  }
-
-  _persist(session) {
-    try {
-      const dir = path.dirname(SESSIONS_FILE);
-      fs.mkdirSync(dir, { recursive: true });
-
-      let sessions = [];
-      try {
-        const raw = fs.readFileSync(SESSIONS_FILE, 'utf-8');
-        sessions = JSON.parse(raw);
-        if (!Array.isArray(sessions)) sessions = [];
-      } catch (parseErr) {
-        if (parseErr.code !== 'ENOENT') {
-          const backup = SESSIONS_FILE + '.bak';
-          try { fs.copyFileSync(SESSIONS_FILE, backup); } catch { /* best effort */ }
-          console.warn(`[session] Corrupted sessions.json backed up to ${backup}`);
-        }
-      }
-
-      sessions.push(session);
-      fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2), 'utf-8');
-      console.log(`[session] Persisted to ${SESSIONS_FILE} (${sessions.length} total sessions)`);
-    } catch (err) {
-      console.error('[session] Failed to persist session:', err.message);
-    }
-  }
+  _serialize(session) { return serializeSession(session); }
+  _persist(session)   { persistSession(session, SESSIONS_FILE); }
 }

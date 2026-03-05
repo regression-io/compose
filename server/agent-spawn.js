@@ -11,20 +11,20 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
-/** Tracks running agents: Map<id, { process, output, stderr, status, prompt, startedAt, exitCode }> */
-const _agents = new Map();
-
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
 /**
  * Attach agent spawn/poll routes to an Express app.
+ * Each call creates an isolated agent registry — safe for multiple instances.
  *
  * @param {object} app — Express app
  * @param {{ projectRoot: string, broadcastMessage: function, requireSensitiveToken: function }} deps
  */
 export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadcastMessage, requireSensitiveToken }) {
+  /** Tracks running agents: Map<id, { process, output, stderr, status, prompt, startedAt, exitCode }> */
+  const _agents = new Map();
   // POST /api/agent/spawn — spawn a hidden Claude subagent
   app.post('/api/agent/spawn', requireSensitiveToken, (req, res) => {
     const { prompt, id } = req.body || {};
