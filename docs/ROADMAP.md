@@ -171,9 +171,12 @@ patterns, `code` → indexed entities from blueprint research.
 prompt, the agent receives a compact ranked catalog at feature start and retrieves full details on
 demand. This keeps context bounded regardless of conversation history length.
 
+**Implementation split:** SmartMemory owns the pull-first catalog tool (in progress). Compose
+wires it in at skill entry — item 32 is integration work only, not a build.
+
 | # | Item | Status |
 |---|------|--------|
-| 32 | Memory catalog tool — `get_memory_catalog(query)` on compose-mcp; ranked SmartMemory search returning compact summaries; agent pulls full details via `memory_get` on demand *(pull-first pattern from Damocles)* | PLANNED |
+| 32 | Memory catalog integration — wire SmartMemory's native pull-first catalog tool into compose skill entry; SmartMemory owns the implementation, compose calls it *(blocked on SmartMemory pull-first landing)* | PLANNED |
 | 33 | Feature-scoped memory ingestion — after each gate approval, ingest phase artifact (design.md, blueprint.md, decisions) into SmartMemory with `feature_id` tag; retrieval scoped to feature or cross-feature | PLANNED |
 | 34 | Compose skill entry integration — `/compose` skill calls `get_memory_catalog` before Phase 1; surfaces relevant prior decisions and patterns from similar past features | PLANNED |
 
