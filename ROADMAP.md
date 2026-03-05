@@ -116,22 +116,21 @@ Infrastructure that landed alongside Phase 4 connector work.
 
 ---
 
-## Phase 5: Standalone App — PLANNED
+## Phase 5: Standalone App — PARKED
 
-Compose becomes a tool you install, not a dev project you clone.
+Deferred in favour of Phase 6. Packaging doesn't change what Compose is — the lifecycle engine does.
+Revisit once L3 (Policy Enforcement Runtime) is stable.
 
 | # | Item | Status |
 |---|------|--------|
-| 19 | macOS LaunchAgent: start on login, `KeepAlive: true`, `compose ui install/uninstall` | PLANNED |
-| 20 | Version-aware restart: detect code updates, show banner, `/api/restart` | PLANNED |
-| 21 | Suspend/resume watchdog: detect system sleep, restart on wake | PLANNED |
-| 22 | CLI + package distribution: `npm install -g compose`, pre-built dist, no Vite in production | PLANNED |
-
-**Exit:** `npm install -g compose && compose ui` — working app, no clone needed, starts on login.
+| 19 | macOS LaunchAgent: start on login, `KeepAlive: true`, `compose ui install/uninstall` | PARKED |
+| 20 | Version-aware restart: detect code updates, show banner, `/api/restart` | PARKED |
+| 21 | Suspend/resume watchdog: detect system sleep, restart on wake | PARKED |
+| 22 | CLI + package distribution: `npm install -g compose`, pre-built dist, no Vite in production | PARKED |
 
 ---
 
-## Phase 6: Lifecycle Engine — PLANNED
+## Phase 6: Lifecycle Engine — IN_PROGRESS
 
 The `/compose` skill becomes the product. Seven layers from preferences to iteration orchestration.
 
