@@ -128,7 +128,7 @@ orchestration. See: [Lifecycle Engine Roadmap](plans/2026-02-15-lifecycle-engine
 | # | Item | Status |
 |---|------|--------|
 | 20 | User preferences inventory — config surface for feature toggles, policy defaults, agent settings | PLANNED |
-| 21 | Feature lifecycle state machine — explicit phase tracking per feature, event-driven transitions | PLANNED |
+| 21 | Feature lifecycle state machine — explicit phase tracking per feature, event-driven transitions | COMPLETE |
 | 22 | Artifact awareness — feature folder management, presence detection, templates, quality signals | PLANNED |
 | 23 | Policy enforcement runtime — gate/flag/skip dials as structural enforcement, not prose | PLANNED |
 | 24 | Gate UI — interactive approve/revise/kill in Vision Surface, gate queue, trade-offs display | PLANNED |
