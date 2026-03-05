@@ -73,20 +73,26 @@ export class LifecycleManager {
 
 1. Get item from `this.#store.items.get(itemId)` — throw if not found
 2. Build initial artifacts map by scanning `${this.#featureRoot}/${featureCode}/` for each key in `PHASE_ARTIFACTS`
-3. Create lifecycle object:
+3. Create lifecycle object with an open history entry for the first phase:
    ```js
+   const now = new Date().toISOString();
    {
      currentPhase: 'explore_design',
      featureCode,
-     phaseHistory: [],
+     phaseHistory: [
+       { phase: 'explore_design', enteredAt: now, exitedAt: null, outcome: null },
+     ],
      artifacts: { /* scanned */ },
-     startedAt: new Date().toISOString(),
+     startedAt: now,
      completedAt: null,
      killedAt: null,
      killReason: null,
      reconcileWarning: null,
    }
    ```
+
+   The seeded entry ensures `advancePhase`/`skipPhase`/`killFeature` always have
+   an open entry to close on first transition.
 4. Call `this.#store.updateLifecycle(itemId, lifecycle)` (new store method)
 5. Return lifecycle
 
@@ -96,6 +102,10 @@ export class LifecycleManager {
 2. Validate: `currentPhase` not in `TERMINAL`
 3. Validate: `targetPhase` is in `TRANSITIONS[currentPhase]`
 4. Validate: `outcome` is `'approved'` or `'revised'`
+5. If `outcome === 'revised'`, validate that `targetPhase` is a backward transition
+   (i.e., `PHASES.indexOf(targetPhase) < PHASES.indexOf(currentPhase)`). The only
+   defined revision edge is verification → blueprint, but the rule is general:
+   `revised` means going back.
 5. Close current phase history entry: set `exitedAt`, `outcome`
 6. Push new history entry: `{ phase: targetPhase, enteredAt: now, exitedAt: null, outcome: null }`
 7. Set `currentPhase = targetPhase`
@@ -197,21 +207,37 @@ Add five new tool implementations after `toolGetCurrentSession` (after line 171)
 
 The MCP tools read from disk (same pattern as existing tools — `loadVisionState()` returns parsed JSON, no live store). But lifecycle mutations need to go through LifecycleManager which needs a live VisionStore instance.
 
-**Problem:** `compose-mcp-tools.js` reads from disk files directly (`loadVisionState()`), not from a running VisionStore. The lifecycle mutation tools (`advance_feature_phase`, etc.) need a live store + LifecycleManager.
+**Problem:** `compose-mcp-tools.js` reads from disk files directly (`loadVisionState()`), not from a running VisionStore. The lifecycle mutation tools (`advance_feature_phase`, etc.) need a live store + LifecycleManager. Instantiating a fresh VisionStore per MCP call risks clobbering state — the Compose server's in-memory store and the MCP process would be independent writers to the same JSON file.
 
-**Solution:** The read tool (`get_feature_lifecycle`) reads from disk like the others. The mutation tools instantiate a temporary VisionStore + LifecycleManager per call. This is the same process-lifetime as the MCP server (stdio, one process per session), so there's no concurrent-access concern — the MCP server is the only writer during its lifetime.
+**Solution:** The read tool (`get_feature_lifecycle`) reads from disk like the others. The mutation tools delegate to the Compose server's REST endpoints (`POST /api/vision/items/:id/lifecycle/advance`, etc.) via `http.request` to `localhost:3001`. This ensures all writes go through the single live VisionStore instance and avoids multi-process write conflicts.
 
 ```js
-import { VisionStore } from './vision-store.js';
-import { LifecycleManager } from './lifecycle-manager.js';
+import http from 'node:http';
 
-const FEATURES_DIR = path.join(PROJECT_ROOT, 'docs', 'features');
+const COMPOSE_API = 'http://127.0.0.1:3001';
 
-function _getManager() {
-  const store = new VisionStore();
-  return new LifecycleManager(store, FEATURES_DIR);
+function _postLifecycle(itemId, action, body) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const req = http.request(
+      `${COMPOSE_API}/api/vision/items/${itemId}/lifecycle/${action}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } },
+      (res) => {
+        let buf = '';
+        res.on('data', (chunk) => buf += chunk);
+        res.on('end', () => {
+          try { resolve(JSON.parse(buf)); }
+          catch { resolve({ error: buf }); }
+        });
+      },
+    );
+    req.on('error', (err) => reject(new Error(`Compose server unreachable: ${err.message}`)));
+    req.end(data);
+  });
 }
 ```
+
+If the Compose server is not running, mutation tools return a clear error. Read-only tools still work from disk.
 
 ### `toolGetFeatureLifecycle({ id })`
 
@@ -220,22 +246,22 @@ function _getManager() {
 
 ### `toolAdvanceFeaturePhase({ id, targetPhase, outcome })`
 
-1. `_getManager()` → call `advancePhase(id, targetPhase, outcome)`
-2. Return result
+1. `await _postLifecycle(id, 'advance', { targetPhase, outcome })`
+2. Return result (or error if server unreachable)
 
 ### `toolSkipFeaturePhase({ id, targetPhase, reason })`
 
-1. `_getManager()` → call `skipPhase(id, targetPhase, reason)`
+1. `await _postLifecycle(id, 'skip', { targetPhase, reason })`
 2. Return result
 
 ### `toolKillFeature({ id, reason })`
 
-1. `_getManager()` → call `killFeature(id, reason)`
+1. `await _postLifecycle(id, 'kill', { reason })`
 2. Return result
 
 ### `toolCompleteFeature({ id })`
 
-1. `_getManager()` → call `completeFeature(id)`
+1. `await _postLifecycle(id, 'complete', {})`
 2. Return result
 
 ---
@@ -333,14 +359,18 @@ case 'complete_feature':         result = toolCompleteFeature(args); break;
 
 ## 5. `server/vision-routes.js` (existing, edit)
 
-Add lifecycle REST endpoints inside `attachVisionRoutes`. These are for the UI (gate approval, phase display). Import LifecycleManager at the top.
+Add lifecycle REST endpoints inside `attachVisionRoutes`. These are for the UI (gate approval, phase display).
 
-Add after the `GET /api/vision/items/:id` route (after line 105):
+Add import at the top of the file (after line 21, with the other imports):
+
+```js
+import { LifecycleManager } from './lifecycle-manager.js';
+```
+
+Add inside `attachVisionRoutes`, after the `GET /api/vision/items/:id` route (after line 105):
 
 ```js
 // ── Lifecycle endpoints ────────────────────────────────────────────────
-import { LifecycleManager } from './lifecycle-manager.js';
-
 const lifecycleManager = new LifecycleManager(store, path.join(projectRoot, 'docs', 'features'));
 
 // GET /api/vision/items/:id/lifecycle
@@ -439,5 +469,5 @@ function makeManager(store, featureDir) {
 |---|---|---|
 | "Need to add lifecycle stripping to updateItem" | Allowlist at `vision-store.js:122` already excludes unlisted fields — lifecycle is never in the list | No strip logic needed; zero-change in updateItem |
 | "vision-server.js needs edit for broadcast" | `attachVisionRoutes` already receives `broadcastMessage` at `vision-server.js:38` | No change needed in vision-server.js |
-| "MCP tools can mutate via live store" | `compose-mcp-tools.js` reads from disk files, not live store. MCP server is a separate stdio process. | Mutation tools instantiate temporary VisionStore per call |
+| "MCP tools can mutate via live store" | `compose-mcp-tools.js` runs in a separate stdio process; fresh VisionStore would conflict with the server's in-memory store | Mutation tools delegate to Compose REST API; reads stay disk-based |
 | "compose-mcp.js token budget ~519 for 5 tools" | Adding 5 more tools (~300 tokens) brings total to ~819, well under 2000 soft cap | No concern |
