@@ -113,6 +113,22 @@ functions:
     output: PhaseResult
     retries: 2
 
+  blueprint_and_verification:
+    mode: compute
+    intent: >-
+      Compound step: blueprint → verification with revision loop
+      (verification may loop back to blueprint).
+      blueprint: Implementation blueprint with file:line references.
+      verification: Verify all blueprint references against actual code.
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    ensure:
+      - "file_exists('docs/features/' + input.featureCode + '/blueprint.md')"
+    # Revision edge: verification → blueprint
+    retries: 3
+
 flows:
   compose_feature:
     input:
@@ -140,26 +156,20 @@ flows:
           description: "$.input.description"
         depends_on: [explore_design]
 
-      - id: blueprint
-        function: blueprint
+      - id: blueprint_and_verification
+        function: blueprint_and_verification
+        # Revision loop: verification → blueprint
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
         depends_on: [explore_design]
-
-      - id: verification
-        function: verification
-        inputs:
-          featureCode: "$.input.featureCode"
-          description: "$.input.description"
-        depends_on: [blueprint]
 
       - id: plan
         function: plan
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
-        depends_on: [verification]
+        depends_on: [blueprint_and_verification]
 
       - id: execute
         function: execute

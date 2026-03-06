@@ -9,7 +9,7 @@
       "label": "Explore & Design",
       "artifact": "design.md",
       "skippable": false,
-      "defaultPolicy": null,
+      "defaultPolicy": "gate",
       "description": "Entry phase — codebase exploration and design doc"
     },
     {
