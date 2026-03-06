@@ -173,30 +173,28 @@ Three milestone gates. Each produces a usable deliverable. Nothing ships until e
 
 ### Milestone 1: Stratum Engine Complete
 
-Stratum IR v0.2 parses, validates, and executes specs with all primitives.
+Stratum IR v0.2 parses, validates, and executes specs with all primitives. All work in the Stratum repo.
 
-| # | Item | Status |
-|---|------|--------|
-| 37 | Audit Stratum: inventory existing primitives, identify gaps | COMPLETE |
-| 38 | IR v0.2 schema: inline steps (`agent`, `intent`, `on_fail`, `next`), `flow:` composition, gates, policy, skip, rounds | PLANNED |
-| 39a | Executor stratum 1: execution state model (StepRecord, FlowState, agent passthrough, audit infra) | PLANNED |
-| 39b | Executor stratum 2: gates, policy, skip | PLANNED |
-| 39c | Executor stratum 3: loops and rounds | PLANNED |
-| 39d | Executor stratum 4: `on_fail`/`next` routing, `flow:` composition | PLANNED |
-| 39e | Contract freeze: spec shape, MCP tool signatures, flow state/audit output | PLANNED |
+| # | Feature | Item | Status |
+|---|---------|------|--------|
+| 37 | — | Audit Stratum: inventory existing primitives, identify gaps | COMPLETE |
+| 38 | STRAT-ENG-1 | IR v0.2 schema: inline steps (`agent`, `intent`, `on_fail`, `next`), `flow:` composition, gates, policy, skip, rounds | PLANNED |
+| 39 | STRAT-ENG-2 | Executor — state model: StepRecord, FlowState, agent passthrough, audit infra | PLANNED |
+| 40 | STRAT-ENG-3 | Executor — gates, policy, skip: gate resolution, 3-level policy, `skip_if` expressions | PLANNED |
+| 41 | STRAT-ENG-4 | Executor — loops and rounds: round tracking, `max_rounds`, per-step iteration | PLANNED |
+| 42 | STRAT-ENG-5 | Executor — routing and composition: `on_fail`/`next`, `flow:` sub-execution | PLANNED |
+| 43 | STRAT-ENG-6 | Contract freeze: spec shape, MCP tool signatures, flow state/audit output | PLANNED |
 
 **Gate:** Multi-step spec with gates, loops, and per-step agent assignment executes end-to-end in Stratum.
 
 ### Milestone 2: Headless Compose Runner
 
-`compose build` works without UI. CLI → Stratum → agents → artifacts.
+`compose build` works without UI. CLI → Stratum → agents → artifacts. All work in the Compose repo.
 
-| # | Item | Status |
-|---|------|--------|
-| 40 | Stratum skill prompt: universal agent skill for authoring/executing `.stratum.yaml` | PLANNED |
-| 41 | `compose build`: headless lifecycle runner (plan → dispatch → gate → loop → audit) | PLANNED |
-| 42 | `compose init` upgrade: questionnaire, agent detection, skill install, optional UI | PLANNED |
-| 43 | Delete bespoke code: replace lifecycle-manager/policy-engine with Stratum adapters | PLANNED |
+| # | Feature | Item | Status |
+|---|---------|------|--------|
+| 44 | STRAT-COMP-1 | Skill prompt + headless runner + init upgrade: universal agent skill, `compose build`, questionnaire, agent detection | PLANNED |
+| 45 | STRAT-COMP-2 | Delete bespoke code: replace lifecycle-manager/policy-engine with Stratum adapters | PLANNED |
 
 **Gate:** `compose build FEAT-X` reads a spec, dispatches agents, enforces gates, produces artifacts. No server required.
 
@@ -204,11 +202,9 @@ Stratum IR v0.2 parses, validates, and executes specs with all primitives.
 
 Run STRAT-1's own Compose integration through `compose build`. Dogfooding milestone D4.
 
-| # | Item | Status |
-|---|------|--------|
-| 44 | Write STRAT-1 spec.md (Track B: Compose integration) | PLANNED |
-| 45 | Execute `compose build STRAT-1` headless — cross-agent review loop, gates, full lifecycle | PLANNED |
-| 46 | Validate: 410+ tests pass, Stratum test suite, E2E audit trail | PLANNED |
+| # | Feature | Item | Status |
+|---|---------|------|--------|
+| 46 | STRAT-COMP-3 | Proof run: write STRAT-1 spec, execute `compose build STRAT-1` headless, validate (410+ tests, E2E audit trail) | PLANNED |
 
 **Gate:** Compose builds itself using `compose build`. Multi-agent, gated, audited.
 

@@ -289,7 +289,9 @@ Nothing ships until each gate passes. Each milestone produces a usable deliverab
 
 **Gate:** Stratum IR v0.2 parses, validates, and executes a multi-step spec with gates, policy, skip, rounds, loops, composition, and per-step agent assignment. Proven with Stratum's own test suite.
 
-#### M1.1: Full IR v0.2 Schema (Stratum repo)
+All work in the Stratum repo. Each feature is a `/compose` invocation.
+
+#### STRAT-ENG-1: IR v0.2 Schema
 
 All new fields at once in `spec.py` — one schema pass:
 
@@ -324,38 +326,47 @@ All new fields at once in `spec.py` — one schema pass:
 **Validation:** `stratum_validate` catches invalid specs.
 **Reference:** `contracts/lifecycle.json` for the structural envelope pattern.
 
-#### M1.2: Full Executor (Stratum repo)
+#### STRAT-ENG-2: Executor — State Model + Agent Dispatch
 
-One pass through `executor.py`, built in four internal strata. Each builds on the prior one's state model, reducing rework.
+Foundation layer. All subsequent features build on this state model.
 
-**Stratum 1 — Execution state model:**
 - `StepRecord` with all new fields (agent, round, iteration_history)
 - `FlowState` with rounds[], pending_gate, audit trail
 - Agent field passthrough — caller knows who to invoke
-- Audit trail infrastructure — all subsequent strata write to it
+- Audit trail infrastructure — all subsequent features write to it
 
-**Stratum 2 — Gates, policy, skip:**
+**References:** `lifecycle-manager.js:424-497` (gate creation), `lifecycle-manager.js:174-215` (gate approval)
+
+#### STRAT-ENG-3: Executor — Gates, Policy, Skip
+
+Builds on STRAT-ENG-2's state model and audit infra.
+
 - Gate resolution: `stratum_gate_resolve` MCP tool, pending-gate mutex, on_approve/revise/kill routing
 - Policy evaluation: three-level resolution (step → flow → spec default), flag audit entries
 - Skip evaluation: `skip_if` expressions, `stratum_skip_step` explicit tool
 
-**Stratum 3 — Loops and rounds:**
+**References:** `policy-engine.js` — portable almost line-for-line
+
+#### STRAT-ENG-4: Executor — Loops and Rounds
+
+Builds on STRAT-ENG-3's gate routing.
+
 - Round tracking: counter increment on revise, `max_rounds` enforcement, `rounds[]` archive
 - Per-step iteration tracking: `max_iterations`, `exit_criterion`, `iteration_history[]`
 
-**Stratum 4 — Routing and composition:**
+**References:** `lifecycle-constants.js` SKIPPABLE set, `lifecycle-manager.js` phaseHistory
+
+#### STRAT-ENG-5: Executor — Routing and Composition
+
+Builds on STRAT-ENG-4's loop tracking.
+
 - `on_fail` → route to named step on ensure failure
 - `next` → explicit next-step override for loop-back
 - `flow:` sub-execution creation, result propagation, nested audit trails
 
 **Audit:** `stratum_audit` reports per-round breakdown with all primitive decisions.
 
-**References:**
-- `lifecycle-manager.js:424-497` (gate creation), `lifecycle-manager.js:174-215` (gate approval)
-- `policy-engine.js` — portable almost line-for-line
-- `lifecycle-constants.js` SKIPPABLE set, `lifecycle-manager.js` phaseHistory
-
-#### M1.3: Contract Freeze
+#### STRAT-ENG-6: Contract Freeze
 
 Freeze the Stratum contract before Compose integration. Without this, integration thrashes.
 
@@ -373,21 +384,21 @@ Published as a contract document in `docs/features/STRAT-1/stratum-contract.md`.
 
 **Gate:** `compose build FEAT-X` reads a spec, invokes Stratum, dispatches agents, enforces gates, and produces artifacts in the feature folder. No UI, no server — CLI → Stratum → agents → disk.
 
-#### M2.1: Stratum Skill Prompt (starts during M1.1)
+All work in the Compose repo. Each feature is a `/compose` invocation.
 
-Universal agent skill for authoring/executing `.stratum.yaml`:
+#### STRAT-COMP-1: Skill Prompt + Headless Runner + Init Upgrade
+
+Three deliverables in one feature — they're tightly coupled (init installs the skill, build uses it).
+
+**Stratum skill prompt:**
 - IR v0.2 format reference with examples
 - MCP tool usage patterns
 - How to report structured results that satisfy `ensure` expressions
 - Example specs: simple linear, review loop, multi-agent, composed workflows
 - Install to all detected agent skill directories (Claude, Codex, Gemini)
+- Test: give the skill to an agent, have it author a spec from scratch
 
-Test: give the skill to an agent, have it author a spec from scratch.
-
-#### M2.2: `compose build` — Headless Lifecycle Runner
-
-The core new code. Reads a `.stratum.yaml` spec, orchestrates execution:
-
+**`compose build` — headless lifecycle runner:**
 1. Load feature: read `spec.md` (or `design.md`) from feature folder
 2. Plan: call `stratum_plan` with the lifecycle spec and feature input
 3. Loop: for each step, dispatch to the assigned agent via connector
@@ -397,14 +408,12 @@ The core new code. Reads a `.stratum.yaml` spec, orchestrates execution:
 
 **No server required.** Vision state writes directly to `data/vision-state.json`. Gate resolution via CLI prompt (headless) or REST API (if server is running).
 
-#### M2.3: `compose init` Questionnaire
-
-Upgrade existing `compose init` to interactive:
+**`compose init` upgrade:**
 - Project name, artifact root, gate preference
 - Agent auto-detection + skill installation
 - Optional UI install (`npm install` + daemon)
 
-#### M2.4: Compose Integration — Delete Bespoke Code
+#### STRAT-COMP-2: Delete Bespoke Code
 
 Replace Compose's lifecycle engine with Stratum calls:
 
@@ -444,13 +453,13 @@ Iteration API:
 
 **Gate:** Compose builds its own Track B (Compose integration) using `compose build`. The headless runner reads the STRAT-1 spec, dispatches Claude to implement, dispatches Codex to review, loops until clean, enforces gates, produces artifacts. Dogfooding milestone D4.
 
-#### M3.1: Write STRAT-1 Spec
+#### STRAT-COMP-3: Proof Run
 
-`docs/features/STRAT-1/spec.md` — the input to `compose build STRAT-1`. Covers Track B only (Compose integration). Track A (Stratum engine) must be complete first.
+Write STRAT-1 spec, execute, validate — one feature because it's a single end-to-end run.
 
-#### M3.2: Execute
+**Write spec:** `docs/features/STRAT-1/spec.md` — the input to `compose build STRAT-1`. Covers Track B only (Compose integration). Track A (Stratum engine) must be complete first.
 
-Run `compose build STRAT-1` headless. The runner:
+**Execute:** Run `compose build STRAT-1` headless. The runner:
 - Reads spec.md
 - Explores codebase, writes/updates design.md
 - Gates for human approval
@@ -462,8 +471,7 @@ Run `compose build STRAT-1` headless. The runner:
 - Runs coverage sweep
 - Writes report, updates docs, commits
 
-#### M3.3: Validate
-
+**Validate:**
 - All 410+ Compose tests pass with Stratum backend
 - Stratum's own tests for all v0.2 primitives
 - E2E audit trail: complete trace of the STRAT-1 execution
