@@ -185,11 +185,14 @@ These endpoints stay. The route handlers become a thin adapter layer:
 Iteration loops (review/coverage within execute phase) are a **Stratum primitive**, not a Compose-local concern. The current transport contract:
 - `POST /api/vision/items/:id/lifecycle/iteration/start` — `{ loopType, maxIterations }`
 - `POST /api/vision/items/:id/lifecycle/iteration/report` — `{ clean, passing, summary, findings, failures }`
-- WebSocket broadcasts: `iterationStarted`, `iterationUpdate`
+- `GET /api/vision/items/:id/lifecycle/iteration` — current iteration status (loopType, count, maxIterations, active)
+- WebSocket broadcasts: `iterationStarted`, `iterationUpdate`, `iterationComplete { loopType, outcome, finalCount }`
 
-These endpoints stay as an adapter layer. Stratum owns the loop execution:
+These endpoints and events stay as an adapter layer. Stratum owns the loop execution:
 - `iteration/start` calls a new `stratum_iteration_start(flow_id, step_id, loopType, maxIterations)` tool
 - `iteration/report` calls `stratum_iteration_report(flow_id, step_id, result)` — Stratum evaluates exit criteria, increments count, enforces max
+- `iteration` GET reads loop state from Stratum flow state instead of `lifecycleManager.getIterationStatus()`
+- `iterationComplete` is broadcast when Stratum reports loop exit (clean completion or max_reached) — the client message handler and error detection depend on this signal
 - The phase-exit mutex (cannot leave execute while loop active) moves to Stratum's executor
 - Loop types and their exit criteria (`clean` for review, `passing` for coverage) are defined in the `.stratum.yaml` spec, not hardcoded in Compose
 
@@ -220,7 +223,7 @@ These endpoints stay as an adapter layer. Stratum owns the loop execution:
 
 1. **Event model:** Should Stratum push events (WebSocket/SSE) or should Compose continue polling? Push would eliminate `stratum-sync.js` polling and enable real-time gate notifications.
 
-2. **Iteration loops vs. revision rounds:** Compose has two distinct concepts — revision rounds (gate → revise → redo phase) and iteration loops (review loop within execute phase). Stratum's `round` tracks the first. Should iteration loops also be a Stratum primitive, or do they stay in Compose as a step-internal concern?
+2. ~~**Iteration loops vs. revision rounds:**~~ **Resolved.** Iteration loops are a Stratum primitive (see Phase 5: Compose Integration). Stratum owns loop execution, count tracking, exit criteria evaluation, and max enforcement. Compose retains the REST/WS adapter layer and the loop type definitions in its `.stratum.yaml` spec.
 
 3. **Artifact awareness:** Reconciliation (infer phase from files on disk) is currently in Compose. Should Stratum have a generic "external signal reconciliation" primitive, or is this always workflow-specific?
 
