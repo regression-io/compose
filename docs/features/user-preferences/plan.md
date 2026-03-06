@@ -23,7 +23,7 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 - [ ] `get()`: deep-merges `_defaults()` with `_userSettings`, returns merged result
 - [ ] `update(patch)`: validates, deep-merges into `_userSettings`, saves, returns `get()`
 - [ ] `reset(section?)`: clears section or all, saves, returns `get()`
-- [ ] Validation: policies against `CONTRACT.policyModes`, iterations 1-100, models non-empty string, theme in light/dark/system
+- [ ] Validation: policies against `CONTRACT.policyModes`, iterations 1-100, models non-empty string, theme in light/dark/system, defaultView in allowed view keys (`attention`, `gates`, `roadmap`, `list`, `board`, `tree`, `graph`, `docs`, `settings`)
 
 **Tests (`test/settings-store.test.js`):**
 - [ ] `get()` returns contract defaults when no settings file
