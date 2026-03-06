@@ -338,19 +338,15 @@ const updateSettings = useCallback(async (patch) => {
 
 ### `src/App.jsx`
 
-**Theme initialization (~line 100) — read from settings when available, fall back to localStorage:**
-The `loadTheme()` function stays as the synchronous initial value. A `useEffect` watching `settings?.ui?.theme` applies the server-authoritative theme when settings arrive via WS.
+**No changes to App.jsx for settings integration.** Theme and fontSize are owned here (lines 127-144) and rendered in the top chrome bar (lines 197-229). App.jsx does NOT have access to `useVisionStore` — it lives above the Canvas/VisionTracker boundary.
 
-**Theme toggle (~line 131) — call updateSettings instead of just localStorage:**
-```js
-const toggleTheme = useCallback(() => {
-  const next = theme === 'dark' ? 'light' : 'dark';
-  setTheme(next);
-  document.documentElement.classList.toggle('dark', next === 'dark');
-  localStorage.setItem(THEME_KEY, next);
-  updateSettings({ ui: { theme: next } });
-}, [theme, updateSettings]);
-```
+Theme persistence is handled entirely within SettingsPanel (inside VisionTracker):
+- SettingsPanel's theme dropdown calls `updateSettings({ ui: { theme: value } })` to persist
+- SettingsPanel also applies theme directly to the DOM: `document.documentElement.classList.toggle('dark', value === 'dark')` and updates `localStorage.setItem('compose:theme', value)` — same mechanism App.jsx uses today
+- The existing `toggleTheme` in App.jsx continues to work for the top-bar toggle button; it writes to localStorage and toggles the DOM class as it does now
+- On page load, `loadTheme()` reads from the DOM class (which Tailwind sets from the `dark` class). Settings sync happens when the WS connects and SettingsPanel receives the initial `settingsState` message.
+
+This avoids crossing the App/VisionTracker boundary. Both the top-bar toggle and the SettingsPanel dropdown produce the same result (DOM class + localStorage). The SettingsPanel additionally persists to the server.
 
 ## Corrections Table
 
