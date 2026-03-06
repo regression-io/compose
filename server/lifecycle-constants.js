@@ -30,7 +30,7 @@ export const PHASE_ARTIFACTS = Object.fromEntries(
 
 /** Default policy modes per phase, derived from contract. */
 export const DEFAULT_POLICIES = Object.fromEntries(
-  contract.phases.filter(p => p.defaultPolicy).map(p => [p.id, p.defaultPolicy])
+  contract.phases.filter(p => p.defaultPolicy !== null).map(p => [p.id, p.defaultPolicy])
 );
 
 /** Valid gate outcomes. */

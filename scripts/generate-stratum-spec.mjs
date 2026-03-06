@@ -103,7 +103,8 @@ for (let i = 0; i < contract.phases.length; i++) {
       forwardPreds.push(from);
     }
   }
-  // Sort by phase index — use earliest predecessor to preserve skip paths
+  // Sort by phase index — use latest predecessor for correct scheduling order.
+  // Skip paths are handled at runtime by the lifecycle manager, not in the DAG.
   forwardPreds.sort((a, b) => phaseIndex[a] - phaseIndex[b]);
 
   w(`      - id: ${phase.id}`);
@@ -113,7 +114,7 @@ for (let i = 0; i < contract.phases.length; i++) {
   w('          description: "$.input.description"');
 
   if (forwardPreds.length > 0) {
-    w(`        depends_on: [${forwardPreds[0]}]`);
+    w(`        depends_on: [${forwardPreds[forwardPreds.length - 1]}]`);
   }
 
   // Annotate revision edges involving this step

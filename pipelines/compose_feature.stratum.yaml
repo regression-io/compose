@@ -140,14 +140,14 @@ flows:
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
-        depends_on: [explore_design]
+        depends_on: [prd]
 
       - id: blueprint
         function: blueprint
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
-        depends_on: [explore_design]
+        depends_on: [architecture]
         # Revision target: verification may loop back here
 
       - id: verification
@@ -184,7 +184,7 @@ flows:
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
-        depends_on: [execute]
+        depends_on: [report]
 
       - id: ship
         function: ship

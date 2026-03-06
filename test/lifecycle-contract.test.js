@@ -215,26 +215,30 @@ describe('Stratum spec parity', () => {
       'spec steps must be 1:1 with contract phases in order');
   });
 
-  test('forward skip paths are preserved in depends_on', () => {
-    // Phases reachable directly from explore_design (skip paths)
-    const skipTargets = contract.transitions.explore_design || [];
+  test('each step depends on its latest forward predecessor', () => {
+    const phaseIdx = Object.fromEntries(contract.phases.map((p, i) => [p.id, i]));
 
-    for (const target of skipTargets) {
-      const step = stratumSpec.steps.find(s => s.id === target);
-      if (!step) continue;
+    for (const step of stratumSpec.steps) {
+      if (step.depends_on.length === 0) continue;
 
-      if (step.depends_on.length > 0) {
-        assert.equal(step.depends_on[0], 'explore_design',
-          `step "${step.id}" should depend on explore_design ` +
-          `to preserve skip path, got [${step.depends_on}]`);
+      const dep = step.depends_on[0];
+      // The dependency must be a forward predecessor (earlier in phase order)
+      assert.ok(phaseIdx[dep] < phaseIdx[step.id],
+        `step "${step.id}" depends on "${dep}" which is not earlier in phase order`);
+
+      // The dependency must be the LATEST forward predecessor
+      const forwardPreds = [];
+      for (const [from, targets] of Object.entries(contract.transitions)) {
+        if (targets.includes(step.id) && phaseIdx[from] < phaseIdx[step.id]) {
+          forwardPreds.push(from);
+        }
+      }
+      forwardPreds.sort((a, b) => phaseIdx[a] - phaseIdx[b]);
+      if (forwardPreds.length > 0) {
+        assert.equal(dep, forwardPreds[forwardPreds.length - 1],
+          `step "${step.id}" should depend on latest predecessor ` +
+          `"${forwardPreds[forwardPreds.length - 1]}", got "${dep}"`);
       }
     }
-  });
-
-  test('post-execute skip path preserved (execute → docs)', () => {
-    const docsStep = stratumSpec.steps.find(s => s.id === 'docs');
-    assert.ok(docsStep, 'docs step should exist');
-    assert.deepEqual(docsStep.depends_on, ['execute'],
-      'docs should depend on execute (skipping report)');
   });
 });
