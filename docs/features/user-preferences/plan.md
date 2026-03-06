@@ -171,6 +171,7 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
   - Each field calls `onSettingsChange({ [section]: { [key]: value } })` immediately on change
   - Theme dropdown additionally applies DOM class and localStorage (same mechanism as App.jsx toggleTheme)
   - Reset to Defaults button at bottom: calls `onReset()` (no section = full reset) with confirmation dialog
+- [ ] `VisionTracker.jsx` line 1: add `useRef` to the React import (`import { useState, useCallback, useMemo, useEffect, useRef, createContext } from 'react'`)
 - [ ] `VisionTracker.jsx` line 13: import `SettingsPanel`
 - [ ] `VisionTracker.jsx` lines 23-24: destructure `settings`, `updateSettings`, `resetSettings` from `useVisionStore()`
 - [ ] After line 223 (after gates view): add `{activeView === 'settings' && <SettingsPanel settings={settings} onSettingsChange={updateSettings} onReset={resetSettings} />}`
