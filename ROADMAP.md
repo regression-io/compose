@@ -130,7 +130,7 @@ Revisit once L3 (Policy Enforcement Runtime) is stable.
 
 ---
 
-## Phase 6: Lifecycle Engine — IN_PROGRESS
+## Phase 6: Lifecycle Engine — COMPLETE
 
 Compose is a workflow spec on top of Stratum. Stratum is the engine — steps, transitions, gates,
 retries, ensures. Compose defines the 10-phase lifecycle as a Stratum spec and consumes Stratum

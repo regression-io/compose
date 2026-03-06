@@ -202,7 +202,7 @@ Phase 4 (Agent Connector) ──────────→ Layer 6 (Iteration)
 ## Sequencing
 
 **Now (during Phase 3):**
-- Layer 0: User Preferences Inventory — design the config surface, implement basic preferences
+- Layer 0: User Preferences Inventory — COMPLETE (settings store, REST API, WS broadcast, Settings panel)
 - Layer 5 (partial): Tag sessions with feature context when session tracking lands
 
 **Phase 4 (Connectors):**

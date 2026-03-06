@@ -15,25 +15,25 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 
 **Files:** `server/settings-store.js` (new), `test/settings-store.test.js` (new)
 
-- [ ] Create `server/settings-store.js` following VisionStore pattern (`server/vision-store.js:22-69`)
-- [ ] Constructor takes `(dataDir, contract)`, builds `_file = path.join(dataDir, 'settings.json')`
-- [ ] `_load()`: readFileSync with ENOENT fallback to empty object
-- [ ] `_save()`: mkdirSync + writeFileSync (JSON, 2-space indent)
-- [ ] `_defaults()`: builds defaults from contract phases + hardcoded model/ui defaults
-- [ ] `get()`: deep-merges `_defaults()` with `_userSettings`, returns merged result
-- [ ] `update(patch)`: validates, deep-merges into `_userSettings`, saves, returns `get()`
-- [ ] `reset(section?)`: clears section or all, saves, returns `get()`
-- [ ] Validation: policies against `CONTRACT.policyModes`, iterations 1-100, models non-empty string, theme in light/dark/system, defaultView in allowed view keys (`attention`, `gates`, `roadmap`, `list`, `board`, `tree`, `graph`, `docs`, `settings`)
+- [x]Create `server/settings-store.js` following VisionStore pattern (`server/vision-store.js:22-69`)
+- [x]Constructor takes `(dataDir, contract)`, builds `_file = path.join(dataDir, 'settings.json')`
+- [x]`_load()`: readFileSync with ENOENT fallback to empty object
+- [x]`_save()`: mkdirSync + writeFileSync (JSON, 2-space indent)
+- [x]`_defaults()`: builds defaults from contract phases + hardcoded model/ui defaults
+- [x]`get()`: deep-merges `_defaults()` with `_userSettings`, returns merged result
+- [x]`update(patch)`: validates, deep-merges into `_userSettings`, saves, returns `get()`
+- [x]`reset(section?)`: clears section or all, saves, returns `get()`
+- [x]Validation: policies against `CONTRACT.policyModes`, iterations 1-100, models non-empty string, theme in light/dark/system, defaultView in allowed view keys (`attention`, `gates`, `roadmap`, `list`, `board`, `tree`, `graph`, `docs`, `settings`)
 
 **Tests (`test/settings-store.test.js`):**
-- [ ] `get()` returns contract defaults when no settings file
-- [ ] `update({ policies: { prd: 'gate' } })` persists and returns merged
-- [ ] `update()` with invalid policy mode throws
-- [ ] `update()` with invalid iteration count throws
-- [ ] `reset()` clears all user settings, returns defaults
-- [ ] `reset('policies')` clears only policies section
-- [ ] File round-trip: update, construct new store from same dir, verify persisted
-- [ ] Unknown top-level keys rejected
+- [x]`get()` returns contract defaults when no settings file
+- [x]`update({ policies: { prd: 'gate' } })` persists and returns merged
+- [x]`update()` with invalid policy mode throws
+- [x]`update()` with invalid iteration count throws
+- [x]`reset()` clears all user settings, returns defaults
+- [x]`reset('policies')` clears only policies section
+- [x]File round-trip: update, construct new store from same dir, verify persisted
+- [x]Unknown top-level keys rejected
 
 **Pattern:** `server/vision-store.js:22-69` (constructor, _load, _save, getState)
 
@@ -45,20 +45,20 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 
 **Depends on:** Task 1
 
-- [ ] Create `server/settings-routes.js` with `attachSettingsRoutes(app, { settingsStore, broadcastMessage })`
-- [ ] `GET /api/settings` → `res.json(settingsStore.get())`
-- [ ] `PATCH /api/settings` → validate, update, broadcast `{ type: 'settingsUpdated', settings }`, return updated
-- [ ] `POST /api/settings/reset` → reset(section), broadcast, return updated
-- [ ] 400 on validation errors with `{ error: message }`
+- [x]Create `server/settings-routes.js` with `attachSettingsRoutes(app, { settingsStore, broadcastMessage })`
+- [x]`GET /api/settings` → `res.json(settingsStore.get())`
+- [x]`PATCH /api/settings` → validate, update, broadcast `{ type: 'settingsUpdated', settings }`, return updated
+- [x]`POST /api/settings/reset` → reset(section), broadcast, return updated
+- [x]400 on validation errors with `{ error: message }`
 
 **Tests (`test/settings-routes.test.js`):**
-- [ ] GET returns defaults when no user settings
-- [ ] PATCH updates and returns merged settings
-- [ ] PATCH broadcasts `settingsUpdated` message
-- [ ] PATCH with invalid policy returns 400
-- [ ] PATCH with invalid iteration returns 400
-- [ ] POST reset clears settings, broadcasts, returns defaults
-- [ ] POST reset with section clears only that section
+- [x]GET returns defaults when no user settings
+- [x]PATCH updates and returns merged settings
+- [x]PATCH broadcasts `settingsUpdated` message
+- [x]PATCH with invalid policy returns 400
+- [x]PATCH with invalid iteration returns 400
+- [x]POST reset clears settings, broadcasts, returns defaults
+- [x]POST reset with section clears only that section
 
 **Pattern:** `server/vision-routes.js:45` (attachXRoutes signature, error handling)
 
@@ -70,13 +70,13 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 
 **Depends on:** Task 2
 
-- [ ] Import `SettingsStore` from `./settings-store.js`
-- [ ] Import `attachSettingsRoutes` from `./settings-routes.js`
-- [ ] Import `CONTRACT` from `./lifecycle-constants.js`
-- [ ] Construct `this.settingsStore = new SettingsStore(undefined, CONTRACT)` in `attach()` before route registration
-- [ ] Call `attachSettingsRoutes(app, { settingsStore, broadcastMessage })` after existing route registrations
-- [ ] Pass `settingsStore: this.settingsStore` in the deps object to `attachVisionRoutes()`
-- [ ] In WS `onconnection` handler (line 132), send `settingsState` message after `visionState`:
+- [x]Import `SettingsStore` from `./settings-store.js`
+- [x]Import `attachSettingsRoutes` from `./settings-routes.js`
+- [x]Import `CONTRACT` from `./lifecycle-constants.js`
+- [x]Construct `this.settingsStore = new SettingsStore(undefined, CONTRACT)` in `attach()` before route registration
+- [x]Call `attachSettingsRoutes(app, { settingsStore, broadcastMessage })` after existing route registrations
+- [x]Pass `settingsStore: this.settingsStore` in the deps object to `attachVisionRoutes()`
+- [x]In WS `onconnection` handler (line 132), send `settingsState` message after `visionState`:
   ```js
   ws.send(JSON.stringify({ type: 'settingsState', settings: this.settingsStore.get() }));
   ```
@@ -91,17 +91,17 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 
 **Depends on:** Task 3
 
-- [ ] `server/policy-engine.js`: Add third parameter `settingsPolicies` to `evaluatePolicy(targetPhase, overrides, settingsPolicies)`. Insert in fallback chain: `ov[targetPhase] ?? settingsPolicies?.[targetPhase] ?? DEFAULT_POLICIES[targetPhase] ?? 'skip'`
-- [ ] `server/lifecycle-manager.js`: Accept `settingsStore` as third constructor parameter, store as `#settingsStore`
-- [ ] `advancePhase` (line 75): pass `this.#settingsStore?.get()?.policies` as third arg to `evaluatePolicy`
-- [ ] `skipPhase` (line 104): same
-- [ ] `startIterationLoop` (line 233): read `this.#settingsStore?.get()?.iterations?.[loopType]?.maxIterations` as middle fallback
-- [ ] `server/vision-routes.js` (line 121): pass `settingsStore` to `new LifecycleManager(store, featureRoot, settingsStore)`
+- [x]`server/policy-engine.js`: Add third parameter `settingsPolicies` to `evaluatePolicy(targetPhase, overrides, settingsPolicies)`. Insert in fallback chain: `ov[targetPhase] ?? settingsPolicies?.[targetPhase] ?? DEFAULT_POLICIES[targetPhase] ?? 'skip'`
+- [x]`server/lifecycle-manager.js`: Accept `settingsStore` as third constructor parameter, store as `#settingsStore`
+- [x]`advancePhase` (line 75): pass `this.#settingsStore?.get()?.policies` as third arg to `evaluatePolicy`
+- [x]`skipPhase` (line 104): same
+- [x]`startIterationLoop` (line 233): read `this.#settingsStore?.get()?.iterations?.[loopType]?.maxIterations` as middle fallback
+- [x]`server/vision-routes.js` (line 121): pass `settingsStore` to `new LifecycleManager(store, featureRoot, settingsStore)`
 
 **Tests:**
-- [ ] `test/policy-engine.test.js`: add test for settings override in fallback chain (feature override > settings > contract)
-- [ ] `test/lifecycle-manager.test.js`: verify iteration limits respect settings override
-- [ ] All existing policy/lifecycle tests still pass (settingsPolicies=undefined preserves old behavior)
+- [x]`test/policy-engine.test.js`: add test for settings override in fallback chain (feature override > settings > contract)
+- [x]`test/lifecycle-manager.test.js`: verify iteration limits respect settings override
+- [x]All existing policy/lifecycle tests still pass (settingsPolicies=undefined preserves old behavior)
 
 ---
 
@@ -111,10 +111,10 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 
 **Depends on:** Task 1 (settings.json format)
 
-- [ ] Add `import { readFileSync } from 'node:fs'` at top
-- [ ] Add `SETTINGS_FILE = path.join(PROJECT_ROOT, 'data', 'settings.json')`
-- [ ] Add `_readModelSetting()` function: try/catch readFileSync + JSON.parse, return `settings.models?.interactive` or null
-- [ ] Replace line 156 `model: 'claude-sonnet-4-6'` with `model: _readModelSetting() || 'claude-sonnet-4-6'`
+- [x]Add `import { readFileSync } from 'node:fs'` at top
+- [x]Add `SETTINGS_FILE = path.join(PROJECT_ROOT, 'data', 'settings.json')`
+- [x]Add `_readModelSetting()` function: try/catch readFileSync + JSON.parse, return `settings.models?.interactive` or null
+- [x]Replace line 156 `model: 'claude-sonnet-4-6'` with `model: _readModelSetting() || 'claude-sonnet-4-6'`
 
 **Verify:** No test changes needed — agent-server tests don't mock the model. Manual verification: write a `data/settings.json` with `models.interactive: 'claude-haiku-4-5-20251001'`, restart agent server, verify it uses that model.
 
@@ -126,8 +126,8 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 
 **Depends on:** Nothing (independent)
 
-- [ ] `server/agent-hooks.js` line 12: change `'http://127.0.0.1:3001'` to `` `http://127.0.0.1:${process.env.PORT || 3001}` ``
-- [ ] `server/supervisor.js` line 41: change `port: 5173` to `port: process.env.VITE_PORT || 5173`
+- [x]`server/agent-hooks.js` line 12: change `'http://127.0.0.1:3001'` to `` `http://127.0.0.1:${process.env.PORT || 3001}` ``
+- [x]`server/supervisor.js` line 41: change `port: 5173` to `port: process.env.VITE_PORT || 5173`
 
 **Verify:** Run existing tests. No new tests needed — these are env-var wiring fixes.
 
@@ -139,18 +139,18 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 
 **Depends on:** Task 3 (server sends settingsState/settingsUpdated)
 
-- [ ] `visionMessageHandler.js` line 17: add `setSettings` to destructured setters
-- [ ] After last else-if block (~line 189): add handler for `settingsState` and `settingsUpdated` → `setSettings(msg.settings || null)`
-- [ ] `useVisionStore.js` line ~83: add `const [settings, setSettings] = useState(null)`
-- [ ] Lines 112-114: add `setSettings` to setters object
-- [ ] Add `updateSettings(patch)` useCallback: PATCH `/api/settings`, return json
-- [ ] Add `resetSettings(section?)` useCallback: POST `/api/settings/reset` with `{ section }`, return json
-- [ ] Return object: add `settings`, `updateSettings`, `resetSettings`
+- [x]`visionMessageHandler.js` line 17: add `setSettings` to destructured setters
+- [x]After last else-if block (~line 189): add handler for `settingsState` and `settingsUpdated` → `setSettings(msg.settings || null)`
+- [x]`useVisionStore.js` line ~83: add `const [settings, setSettings] = useState(null)`
+- [x]Lines 112-114: add `setSettings` to setters object
+- [x]Add `updateSettings(patch)` useCallback: PATCH `/api/settings`, return json
+- [x]Add `resetSettings(section?)` useCallback: POST `/api/settings/reset` with `{ section }`, return json
+- [x]Return object: add `settings`, `updateSettings`, `resetSettings`
 
 **Tests (`test/settings-client.test.js`):**
-- [ ] `settingsState` message calls `setSettings` with settings payload
-- [ ] `settingsUpdated` message calls `setSettings` with updated payload
-- [ ] Missing `setSettings` in setters does not crash (guard with `if (setSettings)`)
+- [x]`settingsState` message calls `setSettings` with settings payload
+- [x]`settingsUpdated` message calls `setSettings` with updated payload
+- [x]Missing `setSettings` in setters does not crash (guard with `if (setSettings)`)
 
 ---
 
@@ -160,9 +160,9 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 
 **Depends on:** Task 7
 
-- [ ] `AppSidebar.jsx` line 2: add `Settings2` to lucide-react imports
-- [ ] `AppSidebar.jsx` line 19: add `{ key: 'settings', label: 'Settings', icon: Settings2 }` to VIEWS
-- [ ] Create `SettingsPanel.jsx`:
+- [x]`AppSidebar.jsx` line 2: add `Settings2` to lucide-react imports
+- [x]`AppSidebar.jsx` line 19: add `{ key: 'settings', label: 'Settings', icon: Settings2 }` to VIEWS
+- [x]Create `SettingsPanel.jsx`:
   - Props: `settings`, `onSettingsChange(patch)`, `onReset(section?)`
   - Section 1: Phase Policies — 10 rows, dropdown per phase (gate/flag/skip; null only for explore_design)
   - Section 2: Iteration Limits — 2 number inputs (review max, coverage max) with min=1 max=100
@@ -171,11 +171,11 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
   - Each field calls `onSettingsChange({ [section]: { [key]: value } })` immediately on change
   - Theme dropdown additionally applies DOM class and localStorage (same mechanism as App.jsx toggleTheme)
   - Reset to Defaults button at bottom: calls `onReset()` (no section = full reset) with confirmation dialog
-- [ ] `VisionTracker.jsx` line 1: add `useRef` to the React import (`import { useState, useCallback, useMemo, useEffect, useRef, createContext } from 'react'`)
-- [ ] `VisionTracker.jsx` line 13: import `SettingsPanel`
-- [ ] `VisionTracker.jsx` lines 23-24: destructure `settings`, `updateSettings`, `resetSettings` from `useVisionStore()`
-- [ ] After line 223 (after gates view): add `{activeView === 'settings' && <SettingsPanel settings={settings} onSettingsChange={updateSettings} onReset={resetSettings} />}`
-- [ ] `VisionTracker.jsx` line 27 (activeView init): read `settings?.ui?.defaultView` as fallback when no sessionStorage value:
+- [x]`VisionTracker.jsx` line 1: add `useRef` to the React import (`import { useState, useCallback, useMemo, useEffect, useRef, createContext } from 'react'`)
+- [x]`VisionTracker.jsx` line 13: import `SettingsPanel`
+- [x]`VisionTracker.jsx` lines 23-24: destructure `settings`, `updateSettings`, `resetSettings` from `useVisionStore()`
+- [x]After line 223 (after gates view): add `{activeView === 'settings' && <SettingsPanel settings={settings} onSettingsChange={updateSettings} onReset={resetSettings} />}`
+- [x]`VisionTracker.jsx` line 27 (activeView init): read `settings?.ui?.defaultView` as fallback when no sessionStorage value:
   ```js
   const [activeView, setActiveView] = useState(() =>
     sessionStorage.getItem('vision-activeView') || 'roadmap'
@@ -210,13 +210,13 @@ Task 6 (independent) ────────────
 
 ## Exit Criteria
 
-- [ ] `GET /api/settings` returns merged defaults + user overrides
-- [ ] `PATCH /api/settings` persists, validates, broadcasts
-- [ ] Policy engine uses settings as middle fallback layer
-- [ ] Iteration limits respect settings override
-- [ ] Agent server reads model from `data/settings.json`
-- [ ] Settings panel renders in sidebar with all 4 sections
-- [ ] WS broadcasts settings changes to all clients
-- [ ] Agent hooks port bug fixed
-- [ ] Vite port env escape added
-- [ ] All existing tests pass + new tests for store, routes, client, policy chain
+- [x] `GET /api/settings` returns merged defaults + user overrides
+- [x] `PATCH /api/settings` persists, validates, broadcasts
+- [x] Policy engine uses settings as middle fallback layer
+- [x] Iteration limits respect settings override
+- [x] Agent server reads model from `data/settings.json`
+- [x] Settings panel renders in sidebar with all 4 sections
+- [x] WS broadcasts settings changes to all clients
+- [x] Agent hooks port bug fixed
+- [x] Vite port env escape added
+- [x] All existing tests pass + new tests for store, routes, client, policy chain
