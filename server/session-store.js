@@ -30,6 +30,11 @@ export function serializeSession(session) {
     commits: session.commits,
     errors: session.errors || [],
     transcriptPath: session.transcriptPath || null,
+    featureCode: session.featureCode || null,
+    featureItemId: session.featureItemId || null,
+    phaseAtBind: session.phaseAtBind || null,
+    phaseAtEnd: session.phaseAtEnd || null,
+    boundAt: session.boundAt || null,
   };
 }
 
@@ -79,4 +84,24 @@ export function readLastSession(sessionsFile) {
     // No sessions file yet — that's fine
   }
   return null;
+}
+
+/**
+ * Read sessions bound to a specific feature, sorted descending by startedAt.
+ * @param {string} featureCode
+ * @param {number} limit — max results to return
+ * @param {string} sessionsFile — absolute path to sessions.json
+ * @returns {Array<object>}
+ */
+export function readSessionsByFeature(featureCode, limit, sessionsFile) {
+  try {
+    const raw = fs.readFileSync(sessionsFile, 'utf8');
+    const sessions = JSON.parse(raw);
+    return sessions
+      .filter(s => s.featureCode === featureCode)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+      .slice(0, limit);
+  } catch {
+    return [];
+  }
 }

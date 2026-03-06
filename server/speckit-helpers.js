@@ -7,10 +7,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+import { TARGET_ROOT } from './project-root.js';
+
+const PROJECT_ROOT = TARGET_ROOT;
 
 // ---------------------------------------------------------------------------
 // Scan

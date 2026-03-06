@@ -44,3 +44,28 @@ export const PHASE_LABELS = {
 
 export const CONFIDENCE_LABELS = ['Untested', 'Low', 'Moderate', 'High', 'Crystallized'];
 
+// Lifecycle phases (from server/lifecycle-constants.js) — distinct from board-level PHASES above
+export const LIFECYCLE_PHASE_LABELS = {
+  explore_design: 'Design',
+  prd:            'PRD',
+  architecture:   'Architecture',
+  blueprint:      'Blueprint',
+  verification:   'Verification',
+  plan:           'Plan',
+  execute:        'Execute',
+  report:         'Report',
+  docs:           'Docs',
+  ship:           'Ship',
+  complete:       'Complete',
+  killed:         'Killed',
+};
+
+export const LIFECYCLE_PHASE_ARTIFACTS = {
+  explore_design: 'design.md',
+  prd:            'prd.md',
+  architecture:   'architecture.md',
+  blueprint:      'blueprint.md',
+  plan:           'plan.md',
+  report:         'report.md',
+};
+

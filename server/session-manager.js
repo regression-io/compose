@@ -7,14 +7,17 @@
  */
 
 import path from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { copyFile, mkdir } from 'node:fs/promises';
 import { buildSummaryPrompt, summarize } from './summarizer.js';
 import { updateBlock, closeCurrentBlock } from './block-tracker.js';
-import { serializeSession, persistSession, readLastSession } from './session-store.js';
+import { serializeSession, persistSession, readLastSession, readSessionsByFeature } from './session-store.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SESSIONS_FILE = path.join(PROJECT_ROOT, 'data', 'sessions.json');
+import { TARGET_ROOT, DATA_DIR } from './project-root.js';
+
+const PROJECT_ROOT = TARGET_ROOT;
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 
 /** Tools whose events count toward the Haiku summary batch threshold */
 const SIGNIFICANT_TOOLS = new Set(['Write', 'Edit', 'Bash', 'NotebookEdit']);
@@ -23,9 +26,18 @@ const SIGNIFICANT_TOOLS = new Set(['Write', 'Edit', 'Bash', 'NotebookEdit']);
 const BATCH_SIZE = 4;
 
 export class SessionManager {
-  constructor() {
+  constructor({ getFeaturePhase, featureRoot, sessionsFile } = {}) {
     /** @type {object|null} Current active session */
     this.currentSession = null;
+
+    /** @type {function} Callback to get current phase for a featureCode */
+    this._getFeaturePhase = getFeaturePhase || (() => null);
+
+    /** @type {string} Root directory for feature folders */
+    this._featureRoot = featureRoot || 'docs/features';
+
+    /** @type {string} Path to sessions.json — injectable for tests */
+    this._sessionsFile = sessionsFile || SESSIONS_FILE;
 
     /** @type {Array<{tool,filePath,input,itemIds,timestamp}>} Buffered significant events */
     this._pendingBatch = [];
@@ -62,7 +74,7 @@ export class SessionManager {
 
     const now = new Date().toISOString();
     this.currentSession = {
-      id: `session-${Date.now()}`,
+      id: `session-${Date.now()}-${randomBytes(3).toString('hex')}`,
       startedAt: now,
       source,
       toolCount: 0,
@@ -71,6 +83,10 @@ export class SessionManager {
       blocks: [],                // closed blocks: { itemIds[], startedAt, endedAt, toolCount }
       commits: [],
       errors: [],                // { type, severity, tool, message, itemIds, timestamp }
+      featureCode: null,
+      featureItemId: null,
+      phaseAtBind: null,
+      boundAt: null,
     };
 
     this._pendingBatch = [];
@@ -98,6 +114,20 @@ export class SessionManager {
     session.endedAt = new Date().toISOString();
     session.endReason = reason;
     if (transcriptPath) session.transcriptPath = transcriptPath;
+
+    // Capture phaseAtEnd for bound sessions
+    if (session.featureCode) {
+      session.phaseAtEnd = this._getFeaturePhase(session.featureCode);
+    }
+
+    // Auto-file transcript to feature folder — awaited to ensure copy completes before process exit
+    if (session.featureCode && transcriptPath) {
+      try {
+        await this._fileTranscript(session.featureCode, session.id, transcriptPath);
+      } catch (err) {
+        console.error(`[session] Failed to file transcript to ${session.featureCode}:`, err.message);
+      }
+    }
 
     const serializable = this._serialize(session);
 
@@ -195,9 +225,29 @@ export class SessionManager {
   }
 
   /** Return the most recent session summary for the SessionStart hook. */
-  getContext() {
-    return readLastSession(SESSIONS_FILE);
+  getContext(featureCode) {
+    if (featureCode) {
+      return readSessionsByFeature(featureCode, 1, this._sessionsFile)[0] || null;
+    }
+    return readLastSession(this._sessionsFile);
   }
+
+  /** Bind the current session to a lifecycle feature. One-shot — re-bind returns already_bound. */
+  bindToFeature(featureCode, itemId, phase) {
+    const session = this.currentSession;
+    if (!session) throw new Error('No active session');
+    if (session.featureCode) {
+      return { already_bound: true, featureCode: session.featureCode };
+    }
+    session.featureCode = featureCode;
+    session.featureItemId = itemId;
+    session.phaseAtBind = phase;
+    session.boundAt = new Date().toISOString();
+    return { bound: true, featureCode, itemId, phase };
+  }
+
+  /** Expose sessions file path for use by routes. */
+  get sessionsFile() { return this._sessionsFile; }
 
   /** True if the current session crosses the journal-worthiness threshold. */
   meetsJournalThreshold() {
@@ -274,6 +324,14 @@ export class SessionManager {
     return str.length > 200 ? str.slice(0, 197) + '...' : str;
   }
 
+  async _fileTranscript(featureCode, sessionId, transcriptPath) {
+    const ext = path.extname(transcriptPath) || '.transcript';
+    const sessionsDir = path.join(this._featureRoot, featureCode, 'sessions');
+    await mkdir(sessionsDir, { recursive: true });
+    const dest = path.join(sessionsDir, `${sessionId}${ext}`);
+    await copyFile(transcriptPath, dest);
+  }
+
   _serialize(session) { return serializeSession(session); }
-  _persist(session)   { persistSession(session, SESSIONS_FILE); }
+  _persist(session)   { persistSession(session, this._sessionsFile); }
 }

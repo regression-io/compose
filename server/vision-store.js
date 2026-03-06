@@ -12,8 +12,9 @@ export const VALID_STATUSES = ['planned', 'ready', 'in_progress', 'review', 'com
 export const VALID_CONNECTION_TYPES = ['informs', 'blocks', 'supports', 'contradicts', 'implements'];
 export const VALID_PHASES = ['vision', 'specification', 'planning', 'implementation', 'verification', 'release'];
 
-const DATA_DIR = path.resolve(import.meta.dirname, '..', 'data');
-const DATA_FILE = path.join(DATA_DIR, 'vision-state.json');
+import { DATA_DIR as DEFAULT_DATA_DIR } from './project-root.js';
+
+const DATA_FILE = path.join(DEFAULT_DATA_DIR, 'vision-state.json');
 
 function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -21,7 +22,7 @@ function slugify(title) {
 
 export class VisionStore {
   constructor(dataDir) {
-    this._dataDir = dataDir || DATA_DIR;
+    this._dataDir = dataDir || DEFAULT_DATA_DIR;
     this._dataFile = dataDir ? path.join(dataDir, 'vision-state.json') : DATA_FILE;
     this.items = new Map();
     this.connections = new Map();
@@ -251,5 +252,13 @@ export class VisionStore {
       if (gate.itemId === itemId) result.push(gate);
     }
     return result;
+  }
+
+  /** Find an item by its lifecycle featureCode */
+  getItemByFeatureCode(featureCode) {
+    for (const item of this.items.values()) {
+      if (item.lifecycle?.featureCode === featureCode) return item;
+    }
+    return null;
   }
 }

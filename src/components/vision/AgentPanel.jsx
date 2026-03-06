@@ -50,7 +50,7 @@ const SessionTimer = React.memo(function SessionTimer({ startedAt, active, durat
  * AgentPanel — volatile telemetry display for agent status, activity, errors, and session info.
  * Extracted from AppSidebar to isolate high-frequency re-renders from stable navigation.
  */
-function AgentPanel({ agentActivity, agentErrors, sessionState }) {
+function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem }) {
   const [agentState, setAgentState] = React.useState({
     status: 'idle', tool: null, category: null, activityLog: [], currentActivity: null,
   });
@@ -93,6 +93,24 @@ function AgentPanel({ agentActivity, agentErrors, sessionState }) {
   return (
     <>
       {/* Session info */}
+      {sessionState?.featureCode && (
+        <div className="px-3 py-1.5 mb-1 rounded bg-muted/50">
+          <div className="flex items-center gap-1.5 text-[10px]">
+            <span className="text-muted-foreground">Working on</span>
+            <button
+              className="font-medium text-foreground hover:underline"
+              onClick={() => sessionState.featureItemId && onSelectItem?.(sessionState.featureItemId)}
+            >
+              {sessionState.featureCode}
+            </button>
+          </div>
+          {sessionState.phaseAtBind && (
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              Phase: {sessionState.phaseAtBind.replace(/_/g, ' ')}
+            </div>
+          )}
+        </div>
+      )}
       {sessionState && (
         <div className="px-3 pb-1">
           <div className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--ink-tertiary, var(--color-text-tertiary))' }}>

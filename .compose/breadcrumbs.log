@@ -1,0 +1,72 @@
+2026-03-05T10:14:58+02:00 | 18a: delete codex-server.js (replaced by connector class hierarchy)
+2026-03-05T10:15:22+02:00 | 18b: create agent-mcp.js with agent_run MCP tool
+2026-03-05T11:28:29+02:00 | 18c: create pipelines/review-fix.stratum.yaml
+2026-03-05T11:46:26+02:00 | refactor(18e): modularize server/ into 8 new modules — no file over 300 lines
+2026-03-05T12:14:10+02:00 | 18f: write connector + server-unit + activity-route regression tests
+2026-03-05T13:52:07+02:00 | 18g: remove unused openai + gray-matter deps
+2026-03-05T16:18:39+02:00 | Add gate/revise spec tests (test_gate_revise, test_gate_api)
+2026-03-05T22:58:27+02:00 | FEAT-21 execute: Tasks 1+3 — lifecycle-manager.js + vision-store updateLifecycle
+2026-03-05T22:59:26+02:00 | FEAT-21 execute: Task 2 — lifecycle-manager tests
+2026-03-05T23:00:50+02:00 | FEAT-21 execute: Task 4 — lifecycle REST endpoints in vision-routes.js
+2026-03-05T23:01:30+02:00 | FEAT-21 execute: Tasks 5+6 — MCP tool implementations and wiring
+2026-03-05T23:02:30+02:00 | FEAT-21 execute: Task 7 — integration test for lifecycle routes + MCP tools
+2026-03-05T23:14:47+02:00 | FEAT-21 Phase 9: update docs (CHANGELOG, ROADMAP, status)
+2026-03-05T23:20:24+02:00 | FEAT-22 Phase 1: writing artifact awareness design doc
+2026-03-05T23:28:59+02:00 | FEAT-22 Phase 4: writing artifact awareness blueprint
+2026-03-05T23:31:19+02:00 | Writing artifact-awareness blueprint with file:line references
+2026-03-05T23:54:52+02:00 | Implementing FEAT-22 artifact-awareness: core module + templates + tests + MCP + routes
+2026-03-06T10:23:54+02:00 | FEAT-22 docs update: ROADMAP, CHANGELOG, status.md
+2026-03-06T10:30:29+02:00 | Starting FEAT-23 policy enforcement runtime design
+2026-03-06T12:43:52+02:00 | Writing FEAT-23 policy enforcement blueprint with file:line references
+2026-03-06T13:24:45+02:00 | FEAT-23 implementation: Tasks 1-2 (policy-engine.js + vision-store gates)
+2026-03-06T13:25:27+02:00 | FEAT-23 Task 3: lifecycle-manager.js policy integration
+2026-03-06T13:26:50+02:00 | FEAT-23 Tasks 4-5: vision-routes gate endpoints + MCP tools
+2026-03-06T13:28:21+02:00 | FEAT-23 Task 6: tests — policy-engine, lifecycle gate, route gate
+2026-03-06T13:29:52+02:00 | FEAT-23 Task 7: verify all tests
+2026-03-06T17:17:49+02:00 | Task 6: Wire GateView, GateToast, gates state into VisionTracker.jsx
+2026-03-06T17:18:54+02:00 | Task 7: Add lifecycle gate section to ItemDetailPanel
+2026-03-06T17:20:15+02:00 | Task 8: Write gate-client.test.js for visionMessageHandler
+2026-03-06T17:24:36+02:00 | Task 1: Session-lifecycle binding core infrastructure — tests first, then implement bindToFeature, phaseAtEnd, transcript filing, readSessionsByFeature, getItemByFeatureCode
+2026-03-06T17:26:29+02:00 | Fix P2 findings: lifecycle section without gates, gateResolved race, test coverage
+2026-03-06T17:28:14+02:00 | Task 2: Adding route tests and implementing bind/history/current endpoints in session-routes.js
+2026-03-06T17:29:30+02:00 | Fix P2: add artifact assessment to detail panel gate banner + write missing test files
+2026-03-06T17:31:34+02:00 | Task 4: Add toolBindSession and update toolGetCurrentSession in MCP tools + dispatcher
+2026-03-06T17:31:53+02:00 | Task 5: Add session-lifecycle binding fields to client state in visionMessageHandler.js and useVisionStore.js
+2026-03-06T17:33:14+02:00 | Thread onSelectItem callback from VisionTracker through AppSidebar to AgentPanel, add feature context header
+2026-03-06T17:36:21+02:00 | Phase 8: Write implementation report for L4 Gate UI
+2026-03-06T17:38:26+02:00 | Fix P1 path traversal in session bind + P2 MCP error handling
+2026-03-06T17:42:37+02:00 | Writing implementation report and updating roadmap/design status for L5
+2026-03-06T17:44:55+02:00 | /compose L6: Entry scan — checking feature folder and dependencies
+2026-03-06T17:47:11+02:00 | Phase 1: Write L6 Iteration Orchestration design.md
+2026-03-06T17:55:26+02:00 | Fix P1: Kill button should use lifecycle kill path for lifecycle-bound items
+2026-03-06T18:00:28+02:00 | Phase 4: Write L6 Iteration Orchestration blueprint
+2026-03-06T18:14:13+02:00 | L6 Phase 7: implementing iteration orchestration — constants, lifecycle manager methods, routes, MCP tools, client handler, pipeline, tests
+2026-03-06T18:34:22+02:00 | L1 formalization: contract JSON, derived constants, Stratum spec generator, contract test
+2026-03-06T19:07:58+02:00 | L0 design — full preferences system with config file + REST API + Settings UI
+2026-03-06T19:18:58+02:00 | L0 blueprint — reading all integration points for file:line references
+2026-03-06T19:29:10+02:00 | L0 plan — ordered task list from blueprint
+2026-03-06T19:57:52+02:00 | L0 execute — Task 1: SettingsStore + tests, Task 6: bug fixes (parallel)
+2026-03-06T20:02:03+02:00 | Task 2: Creating settings-routes.js and settings-routes.test.js (REST API + tests)
+2026-03-06T20:02:58+02:00 | Task 3: Wiring SettingsStore into VisionServer
+2026-03-06T20:03:28+02:00 | Task 4: Wiring settings into policy engine fallback chain and lifecycle manager
+2026-03-06T20:05:24+02:00 | Task 5: Agent server reads model from settings.json on disk
+2026-03-06T20:05:51+02:00 | Task 7: Adding settings state to WS handler and useVisionStore
+2026-03-06T20:06:42+02:00 | Task 8: SettingsPanel UI component + sidebar wiring + VisionTracker integration
+2026-03-06T20:10:50+02:00 | Review fix: sidebar theme toggle → settings API, model inputs → controlled
+2026-03-06T20:13:12+02:00 | Review fix: App.jsx header theme toggle → settings API
+2026-03-06T20:14:56+02:00 | Review fix: defaultView blocked by eager sessionStorage write
+2026-03-06T20:16:58+02:00 | Review fix: App.jsx theme state derives from DOM class instead of independent state
+2026-03-06T20:18:54+02:00 | Phase 7 Step 2: E2E smoke test for settings feature
+2026-03-06T20:20:44+02:00 | Phase 7 Step 4: Coverage sweep — edge cases and error paths
+2026-03-06T20:22:57+02:00 | Phase 8: Writing implementation report
+2026-03-06T20:23:42+02:00 | Phase 9: Updating CHANGELOG, README, docs
+2026-03-06T20:24:26+02:00 | Phase 10: Final verification and ship
+2026-03-06T20:26:58+02:00 | Review fix: AppSidebar theme state → MutationObserver like App.jsx
+2026-03-06T20:47:58+02:00 | Writing manual test guide for Compose end-to-end with empty project
+2026-03-06T20:50:52+02:00 | Splitting PROJECT_ROOT into COMPOSE_HOME + TARGET_ROOT with project root inference
+2026-03-06T20:54:24+02:00 | Completing PROJECT_ROOT → COMPOSE_HOME/TARGET_ROOT refactor for remaining files: summarizer, agent-spawn, compose-mcp-tools, speckit-helpers, vision-store, settings-store
+2026-03-06T22:07:50+02:00 | INIT-1 Phase 7: Executing implementation plan — Task 1 (find-root.js + project-root.js config loader)
+2026-03-06T22:11:48+02:00 | INIT-1 Phase 7: Tasks 5-8 — config-driven paths in vision-routes, file-watcher, vision-utils, compose-mcp-tools
+2026-03-06T22:14:30+02:00 | INIT-1 Phase 7: Task 9 — writing tests for project config, init command, stratum softfail, config-driven paths
+2026-03-06T22:18:21+02:00 | Writing remaining Task 9 test files: init.test.js, stratum-softfail.test.js, config-paths.test.js
+2026-03-06T22:24:29+02:00 | Writing Phase 8 implementation report for INIT-1

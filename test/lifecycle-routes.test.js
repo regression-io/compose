@@ -479,6 +479,7 @@ describe('gate REST endpoints', () => {
     const resolveBroadcast = ctx.broadcasts.find(b => b.type === 'gateResolved');
     assert.ok(resolveBroadcast, 'Expected gateResolved broadcast');
     assert.equal(resolveBroadcast.gateId, advRes.body.gateId);
+    assert.equal(resolveBroadcast.itemId, ctx.item.id);
     assert.equal(resolveBroadcast.outcome, 'approved');
     assert.ok(resolveBroadcast.timestamp);
   });

@@ -17,10 +17,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { COMPOSE_HOME, TARGET_ROOT, ensureDataDir } from './project-root.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
-const PID_FILE = path.join(PROJECT_ROOT, '.compose-supervisor.pid');
+console.log('[supervisor] Target project:', TARGET_ROOT);
+const PID_FILE = path.join(COMPOSE_HOME, '.compose-supervisor.pid');
 
 const PROCESSES = [
   {
@@ -37,7 +38,7 @@ const PROCESSES = [
   },
   {
     name: 'vite',
-    command: path.join(PROJECT_ROOT, 'node_modules', '.bin', 'vite'),
+    command: path.join(COMPOSE_HOME, 'node_modules', '.bin', 'vite'),
     port: process.env.VITE_PORT || 5173,
     type: 'spawn',
   },
@@ -94,6 +95,7 @@ function removePidFile() {
 // Kill old supervisor before anything else
 killExistingSupervisor();
 ensureComposeApiToken();
+ensureDataDir();
 
 // Kill anything listening on our ports (stale children from old supervisor)
 function freePort(port, childPid) {
@@ -142,7 +144,7 @@ function startProcess(proc) {
   } else {
     proc.child = spawn(proc.command, [], {
       stdio: 'inherit',
-      cwd: PROJECT_ROOT,
+      cwd: COMPOSE_HOME,
       env: process.env,
     });
   }

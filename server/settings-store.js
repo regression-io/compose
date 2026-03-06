@@ -6,13 +6,14 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { DATA_DIR as DEFAULT_DATA_DIR } from './project-root.js';
 
 const VALID_VIEWS = ['attention', 'gates', 'roadmap', 'list', 'board', 'tree', 'graph', 'docs', 'settings'];
 const VALID_THEMES = ['light', 'dark', 'system'];
 
 export class SettingsStore {
   constructor(dataDir, contract) {
-    const dir = dataDir || path.resolve(import.meta.dirname, '..', 'data');
+    const dir = dataDir || DEFAULT_DATA_DIR;
     this._file = path.join(dir, 'settings.json');
     this._contract = contract;
     this._userSettings = {};

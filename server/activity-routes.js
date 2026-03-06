@@ -81,7 +81,7 @@ export function attachActivityRoutes(app, { store, sessionManager, scheduleBroad
       category,
       detail,
       error: error ? { type: error.type, severity: error.severity } : null,
-      items: items.map(i => ({ id: i.id, title: i.title, status: i.status })),
+      items: items.map(i => ({ id: i.id, title: i.title, status: i.status, phase: i.lifecycle?.currentPhase || null })),
       timestamp: timestamp || new Date().toISOString(),
     });
 

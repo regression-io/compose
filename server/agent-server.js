@@ -13,18 +13,15 @@
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { requireSensitiveToken } from './security.js';
 import { HOOK_OPTIONS } from './agent-hooks.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+import { TARGET_ROOT, DATA_DIR } from './project-root.js';
 
 const PORT = process.env.AGENT_PORT || 3002;
-const SETTINGS_FILE = path.join(PROJECT_ROOT, 'data', 'settings.json');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 
 function _readModelSetting() {
   try {
@@ -163,7 +160,7 @@ app.get('/api/agent/session/status', (_req, res) => {
 
 function _buildOptions(prompt, resumeId) {
   return {
-    cwd: PROJECT_ROOT,
+    cwd: TARGET_ROOT,
     model: _readModelSetting() || 'claude-sonnet-4-6',
     permissionMode: 'acceptEdits',
     settingSources: ['project'],
