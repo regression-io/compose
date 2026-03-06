@@ -39,6 +39,8 @@ import {
   toolCompleteFeature,
   toolAssessFeatureArtifacts,
   toolScaffoldFeature,
+  toolApproveGate,
+  toolGetPendingGates,
 } from './compose-mcp-tools.js';
 
 // ---------------------------------------------------------------------------
@@ -205,6 +207,29 @@ const TOOLS = [
       required: ['featureCode'],
     },
   },
+  {
+    name: 'approve_gate',
+    description: 'Resolve a pending policy gate. Outcomes: approved (proceed), revised (stay in phase), killed (abandon feature).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        gateId: { type: 'string', description: 'Gate ID' },
+        outcome: { type: 'string', enum: ['approved', 'revised', 'killed'], description: 'Resolution outcome' },
+        comment: { type: 'string', description: 'Optional human feedback' },
+      },
+      required: ['gateId', 'outcome'],
+    },
+  },
+  {
+    name: 'get_pending_gates',
+    description: 'List pending policy gates. Optionally filter by item ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        itemId: { type: 'string', description: 'Filter to gates for a specific item (optional)' },
+      },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -238,6 +263,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'complete_feature':         result = await toolCompleteFeature(args); break;
       case 'assess_feature_artifacts': result = toolAssessFeatureArtifacts(args); break;
       case 'scaffold_feature':         result = toolScaffoldFeature(args); break;
+      case 'approve_gate':             result = await toolApproveGate(args); break;
+      case 'get_pending_gates':        result = toolGetPendingGates(args); break;
       default:
         return {
           content: [{ type: 'text', text: `Unknown tool: ${name}` }],

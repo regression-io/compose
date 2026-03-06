@@ -25,6 +25,7 @@ export class VisionStore {
     this._dataFile = dataDir ? path.join(dataDir, 'vision-state.json') : DATA_FILE;
     this.items = new Map();
     this.connections = new Map();
+    this.gates = new Map();
     this._load();
   }
 
@@ -42,6 +43,9 @@ export class VisionStore {
       }
       if (Array.isArray(data.connections)) {
         for (const conn of data.connections) this.connections.set(conn.id, conn);
+      }
+      if (Array.isArray(data.gates)) {
+        for (const gate of data.gates) this.gates.set(gate.id, gate);
       }
       console.log(`[vision] Loaded ${this.items.size} items, ${this.connections.size} connections from ${this._dataFile}`);
     } catch (err) {
@@ -69,6 +73,7 @@ export class VisionStore {
     return {
       items: Array.from(this.items.values()),
       connections: Array.from(this.connections.values()),
+      gates: Array.from(this.gates.values()),
     };
   }
 
@@ -154,7 +159,7 @@ export class VisionStore {
     return item;
   }
 
-  /** Delete an item and all its connections */
+  /** Delete an item and all its connections and gates */
   deleteItem(id) {
     if (!this.items.has(id)) throw new Error(`Item not found: ${id}`);
     this.items.delete(id);
@@ -165,6 +170,14 @@ export class VisionStore {
         this.connections.delete(connId);
       }
     }
+
+    // Remove gates associated with this item
+    for (const [gateId, gate] of this.gates) {
+      if (gate.itemId === id) {
+        this.gates.delete(gateId);
+      }
+    }
+
     this._save();
     return { ok: true };
   }
@@ -194,5 +207,49 @@ export class VisionStore {
     this.connections.delete(id);
     this._save();
     return { ok: true };
+  }
+
+  // ── Gate methods ──────────────────────────────────────────────────────
+
+  /** Create a gate record */
+  createGate(gate) {
+    this.gates.set(gate.id, gate);
+    this._save();
+    return gate;
+  }
+
+  /** Resolve a pending gate */
+  resolveGate(gateId, { outcome, comment }) {
+    const gate = this.gates.get(gateId);
+    if (!gate) throw new Error(`Gate not found: ${gateId}`);
+    if (gate.status !== 'pending') throw new Error(`Gate ${gateId} is not pending (status: ${gate.status})`);
+    gate.status = outcome;
+    gate.outcome = outcome;
+    gate.resolvedAt = new Date().toISOString();
+    gate.resolvedBy = 'human';
+    gate.comment = comment || null;
+    this.gates.set(gateId, gate);
+    this._save();
+    return gate;
+  }
+
+  /** Get pending gates, optionally filtered by item */
+  getPendingGates(itemId) {
+    const pending = [];
+    for (const gate of this.gates.values()) {
+      if (gate.status !== 'pending') continue;
+      if (itemId && gate.itemId !== itemId) continue;
+      pending.push(gate);
+    }
+    return pending;
+  }
+
+  /** Get all gates for an item (any status) */
+  getGatesForItem(itemId) {
+    const result = [];
+    for (const gate of this.gates.values()) {
+      if (gate.itemId === itemId) result.push(gate);
+    }
+    return result;
   }
 }

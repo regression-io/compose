@@ -21,6 +21,9 @@
  *   POST   /api/vision/items/:id/lifecycle/complete
  *   GET    /api/vision/items/:id/artifacts
  *   POST   /api/vision/items/:id/artifacts/scaffold
+ *   GET    /api/vision/gates
+ *   GET    /api/vision/gates/:id
+ *   POST   /api/vision/gates/:id/resolve
  */
 
 import fs from 'node:fs';
@@ -153,6 +156,19 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     try {
       const { targetPhase, outcome } = req.body;
       const result = lifecycleManager.advancePhase(req.params.id, targetPhase, outcome);
+
+      if (result.status === 'pending_approval') {
+        broadcastMessage({
+          type: 'gatePending',
+          gateId: result.gateId,
+          itemId: req.params.id,
+          fromPhase: result.fromPhase,
+          toPhase: result.toPhase,
+          timestamp: new Date().toISOString(),
+        });
+        return res.status(202).json(result);
+      }
+
       scheduleBroadcast();
       broadcastMessage({
         type: 'lifecycleTransition',
@@ -173,6 +189,19 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     try {
       const { targetPhase, reason } = req.body;
       const result = lifecycleManager.skipPhase(req.params.id, targetPhase, reason);
+
+      if (result.status === 'pending_approval') {
+        broadcastMessage({
+          type: 'gatePending',
+          gateId: result.gateId,
+          itemId: req.params.id,
+          fromPhase: result.fromPhase,
+          toPhase: result.toPhase,
+          timestamp: new Date().toISOString(),
+        });
+        return res.status(202).json(result);
+      }
+
       scheduleBroadcast();
       broadcastMessage({
         type: 'lifecycleTransition',
@@ -258,6 +287,47 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });
+    }
+  });
+
+  // ── Gate endpoints ─────────────────────────────────────────────────
+
+  app.get('/api/vision/gates', (req, res) => {
+    try {
+      const itemId = req.query.itemId || undefined;
+      const gates = store.getPendingGates(itemId);
+      res.json({ gates });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/vision/gates/:id', (req, res) => {
+    try {
+      const gate = store.gates.get(req.params.id);
+      if (!gate) return res.status(404).json({ error: `Gate not found: ${req.params.id}` });
+      res.json(gate);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/gates/:id/resolve', (req, res) => {
+    try {
+      const { outcome, comment } = req.body;
+      if (!outcome) return res.status(400).json({ error: 'outcome is required' });
+      const result = lifecycleManager.approveGate(req.params.id, { outcome, comment });
+      scheduleBroadcast();
+      broadcastMessage({
+        type: 'gateResolved',
+        gateId: req.params.id,
+        outcome,
+        timestamp: new Date().toISOString(),
+      });
+      res.json(result);
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: err.message });
     }
   });
 

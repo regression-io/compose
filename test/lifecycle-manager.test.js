@@ -41,6 +41,19 @@ function cleanup(tmpDir) {
   rmSync(tmpDir, { recursive: true, force: true });
 }
 
+/** Set all policies to 'skip' so existing state-machine tests bypass gates. */
+function bypassPolicy(store, itemId) {
+  const item = store.items.get(itemId);
+  if (item?.lifecycle) {
+    item.lifecycle.policyOverrides = {
+      prd: 'skip', architecture: 'skip', blueprint: 'skip',
+      verification: 'skip', plan: 'skip', execute: 'skip',
+      report: 'skip', docs: 'skip', ship: 'skip',
+    };
+    store.updateLifecycle(itemId, item.lifecycle);
+  }
+}
+
 /** Advance a lifecycle through a sequence of phases, skipping skippable ones. */
 function advanceThrough(manager, itemId, phases) {
   for (const phase of phases) {
@@ -108,6 +121,7 @@ describe('advancePhase — full happy path', () => {
   beforeEach(() => {
     ctx = setup();
     ctx.manager.startLifecycle(ctx.item.id, 'TEST-1');
+    bypassPolicy(ctx.store, ctx.item.id);
   });
   afterEach(() => cleanup(ctx.tmpDir));
 
@@ -140,6 +154,7 @@ describe('skipPhase', () => {
   beforeEach(() => {
     ctx = setup();
     ctx.manager.startLifecycle(ctx.item.id, 'TEST-1');
+    bypassPolicy(ctx.store, ctx.item.id);
   });
   afterEach(() => cleanup(ctx.tmpDir));
 
@@ -176,6 +191,7 @@ describe('revision loop', () => {
   beforeEach(() => {
     ctx = setup();
     ctx.manager.startLifecycle(ctx.item.id, 'TEST-1');
+    bypassPolicy(ctx.store, ctx.item.id);
     ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
     ctx.manager.advancePhase(ctx.item.id, 'verification', 'approved');
   });
@@ -195,6 +211,7 @@ describe('killFeature', () => {
   beforeEach(() => {
     ctx = setup();
     ctx.manager.startLifecycle(ctx.item.id, 'TEST-1');
+    bypassPolicy(ctx.store, ctx.item.id);
   });
   afterEach(() => cleanup(ctx.tmpDir));
 
@@ -221,6 +238,7 @@ describe('error paths', () => {
   beforeEach(() => {
     ctx = setup();
     ctx.manager.startLifecycle(ctx.item.id, 'TEST-1');
+    bypassPolicy(ctx.store, ctx.item.id);
   });
   afterEach(() => cleanup(ctx.tmpDir));
 
@@ -315,6 +333,7 @@ describe('reconcile', () => {
   beforeEach(() => {
     ctx = setup();
     ctx.manager.startLifecycle(ctx.item.id, 'TEST-1');
+    bypassPolicy(ctx.store, ctx.item.id);
   });
   afterEach(() => cleanup(ctx.tmpDir));
 
@@ -415,5 +434,242 @@ describe('store integration', () => {
     ctx.store.updateLifecycle(ctx.item.id, lifecycle);
     const item = ctx.store.items.get(ctx.item.id);
     assert.deepEqual(item.lifecycle, lifecycle);
+  });
+
+  test('deleteItem removes associated gates', () => {
+    // Create some gates for the item
+    ctx.store.createGate({ id: 'gate-1', itemId: ctx.item.id, status: 'pending' });
+    ctx.store.createGate({ id: 'gate-2', itemId: ctx.item.id, status: 'approved' });
+    // Create a gate for a different item to ensure it survives
+    const other = ctx.store.createItem({ type: 'feature', title: 'Other' });
+    ctx.store.createGate({ id: 'gate-3', itemId: other.id, status: 'pending' });
+
+    ctx.store.deleteItem(ctx.item.id);
+
+    assert.equal(ctx.store.gates.has('gate-1'), false);
+    assert.equal(ctx.store.gates.has('gate-2'), false);
+    assert.equal(ctx.store.gates.has('gate-3'), true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Policy enforcement
+// ---------------------------------------------------------------------------
+
+describe('policy enforcement', () => {
+  let ctx;
+  beforeEach(() => {
+    ctx = setup();
+    ctx.manager.startLifecycle(ctx.item.id, 'TEST-1');
+  });
+  afterEach(() => cleanup(ctx.tmpDir));
+
+  test('gate creation on advance to gated phase', () => {
+    // blueprint is gated by default
+    const result = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    assert.equal(result.status, 'pending_approval');
+    assert.ok(result.gateId);
+    assert.equal(result.fromPhase, 'explore_design');
+    assert.equal(result.toPhase, 'blueprint');
+    assert.equal(result.operation, 'advance');
+    // Phase should NOT have changed
+    assert.equal(ctx.manager.getPhase(ctx.item.id), 'explore_design');
+  });
+
+  test('gate creation on skip into gated phase', () => {
+    // Advance to prd (skip-policy, so it proceeds), then skip prd to blueprint (gated)
+    ctx.manager.advancePhase(ctx.item.id, 'prd', 'approved');
+    const result = ctx.manager.skipPhase(ctx.item.id, 'blueprint', 'Internal feature');
+    assert.equal(result.status, 'pending_approval');
+    assert.ok(result.gateId);
+    assert.equal(result.operation, 'skip');
+    assert.equal(ctx.manager.getPhase(ctx.item.id), 'prd');
+  });
+
+  test('gate approval replays advance', () => {
+    const gateResult = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    const result = ctx.manager.approveGate(gateResult.gateId, { outcome: 'approved' });
+    assert.equal(result.from, 'explore_design');
+    assert.equal(result.to, 'blueprint');
+    assert.equal(result.gateOutcome, 'approved');
+    assert.equal(ctx.manager.getPhase(ctx.item.id), 'blueprint');
+  });
+
+  test('gate approval replays skip', () => {
+    ctx.manager.advancePhase(ctx.item.id, 'prd', 'approved');
+    const gateResult = ctx.manager.skipPhase(ctx.item.id, 'blueprint', 'Too small');
+    const result = ctx.manager.approveGate(gateResult.gateId, { outcome: 'approved' });
+    assert.equal(result.from, 'prd');
+    assert.equal(result.to, 'blueprint');
+    assert.equal(result.gateOutcome, 'approved');
+    assert.equal(ctx.manager.getPhase(ctx.item.id), 'blueprint');
+  });
+
+  test('gate revised — phase unchanged, pendingGate cleared', () => {
+    const gateResult = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    const result = ctx.manager.approveGate(gateResult.gateId, { outcome: 'revised', comment: 'Needs more detail' });
+    assert.equal(result.gateOutcome, 'revised');
+    assert.equal(result.comment, 'Needs more detail');
+    assert.equal(ctx.manager.getPhase(ctx.item.id), 'explore_design');
+    const item = ctx.store.items.get(ctx.item.id);
+    assert.equal(item.lifecycle.pendingGate, null);
+  });
+
+  test('gate killed — feature killed', () => {
+    const gateResult = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    const result = ctx.manager.approveGate(gateResult.gateId, { outcome: 'killed', comment: 'No longer needed' });
+    assert.equal(result.gateOutcome, 'killed');
+    assert.equal(ctx.manager.getPhase(ctx.item.id), 'killed');
+    const item = ctx.store.items.get(ctx.item.id);
+    assert.equal(item.status, 'killed');
+  });
+
+  test('flag mode — transition proceeds with flag', () => {
+    // Get to execute (flagged). Need to go through gated phases first.
+    const g1 = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    ctx.manager.approveGate(g1.gateId, { outcome: 'approved' });
+    const g2 = ctx.manager.advancePhase(ctx.item.id, 'verification', 'approved');
+    ctx.manager.approveGate(g2.gateId, { outcome: 'approved' });
+    const g3 = ctx.manager.advancePhase(ctx.item.id, 'plan', 'approved');
+    ctx.manager.approveGate(g3.gateId, { outcome: 'approved' });
+
+    // execute is flagged
+    const result = ctx.manager.advancePhase(ctx.item.id, 'execute', 'approved');
+    assert.equal(result.flagged, true);
+    assert.ok(result.flagId);
+    assert.equal(result.from, 'plan');
+    assert.equal(result.to, 'execute');
+    assert.equal(ctx.manager.getPhase(ctx.item.id), 'execute');
+  });
+
+  test('skip-policy mode — transition completes silently', () => {
+    // prd has skip policy
+    const result = ctx.manager.advancePhase(ctx.item.id, 'prd', 'approved');
+    assert.equal(result.from, 'explore_design');
+    assert.equal(result.to, 'prd');
+    assert.equal(result.flagged, undefined);
+    assert.equal(ctx.manager.getPhase(ctx.item.id), 'prd');
+  });
+
+  test('policyLog populated after transitions', () => {
+    // Skip-policy advance to prd
+    ctx.manager.advancePhase(ctx.item.id, 'prd', 'approved');
+    // Gate on blueprint
+    const g = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    ctx.manager.approveGate(g.gateId, { outcome: 'approved' });
+
+    const item = ctx.store.items.get(ctx.item.id);
+    const log = item.lifecycle.policyLog;
+    assert.ok(log.length >= 2);
+    assert.ok(log.some(e => e.type === 'skip'));
+    assert.ok(log.some(e => e.type === 'gate'));
+  });
+
+  test('pendingGate blocks advance to any target', () => {
+    // Create a gate for blueprint
+    ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    // Try to advance to prd (skip-policy, different target) — should still be blocked
+    assert.throws(
+      () => ctx.manager.advancePhase(ctx.item.id, 'prd', 'approved'),
+      /gate .* is pending/,
+    );
+  });
+
+  test('pendingGate blocks skip transitions', () => {
+    // Advance to prd (skip-policy, proceeds)
+    ctx.manager.advancePhase(ctx.item.id, 'prd', 'approved');
+    // Create gate for blueprint via skip
+    ctx.manager.skipPhase(ctx.item.id, 'blueprint', 'reason');
+    // Try to skip to architecture — blocked
+    assert.throws(
+      () => ctx.manager.skipPhase(ctx.item.id, 'architecture', 'reason'),
+      /gate .* is pending/,
+    );
+  });
+
+  test('approveGate rejects stale gate', () => {
+    const gateResult = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    // Manually clear pendingGate to simulate stale state
+    const item = ctx.store.items.get(ctx.item.id);
+    item.lifecycle.pendingGate = null;
+    ctx.store.updateLifecycle(ctx.item.id, item.lifecycle);
+
+    assert.throws(
+      () => ctx.manager.approveGate(gateResult.gateId, { outcome: 'approved' }),
+      /not the active gate/,
+    );
+  });
+
+  test('double resolve rejected', () => {
+    const gateResult = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    ctx.manager.approveGate(gateResult.gateId, { outcome: 'approved' });
+    assert.throws(
+      () => ctx.manager.approveGate(gateResult.gateId, { outcome: 'approved' }),
+      /not pending/,
+    );
+  });
+
+  test('policyLog gate entry updated on resolution', () => {
+    const gateResult = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    ctx.manager.approveGate(gateResult.gateId, { outcome: 'approved', comment: 'Looks good' });
+
+    const item = ctx.store.items.get(ctx.item.id);
+    const gateEntry = item.lifecycle.policyLog.find(e => e.id === gateResult.gateId);
+    assert.ok(gateEntry);
+    assert.ok(gateEntry.resolvedAt);
+    assert.equal(gateEntry.outcome, 'approved');
+    assert.equal(gateEntry.comment, 'Looks good');
+  });
+
+  test('approveGate with malformed gate operation throws', () => {
+    // Manually create a gate with bogus operation
+    const gateId = 'gate-bogus-test';
+    ctx.store.createGate({
+      id: gateId,
+      itemId: ctx.item.id,
+      operation: 'bogus',
+      operationArgs: { targetPhase: 'blueprint' },
+      fromPhase: 'explore_design',
+      toPhase: 'blueprint',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+      resolvedBy: null,
+      outcome: null,
+      comment: null,
+      artifactAssessment: null,
+    });
+    const item = ctx.store.items.get(ctx.item.id);
+    item.lifecycle.pendingGate = gateId;
+    ctx.store.updateLifecycle(ctx.item.id, item.lifecycle);
+
+    assert.throws(
+      () => ctx.manager.approveGate(gateId, { outcome: 'approved' }),
+      /Unknown gate operation: bogus/,
+    );
+  });
+
+  test('killFeature resolves pending gate and clears pendingGate', () => {
+    const gateResult = ctx.manager.advancePhase(ctx.item.id, 'blueprint', 'approved');
+    assert.equal(gateResult.status, 'pending_approval');
+
+    // Kill the feature while gate is pending
+    const killResult = ctx.manager.killFeature(ctx.item.id, 'No longer needed');
+    assert.equal(killResult.phase, 'explore_design');
+
+    // Gate should be resolved as killed
+    const gate = ctx.store.gates.get(gateResult.gateId);
+    assert.equal(gate.status, 'killed');
+    assert.equal(gate.outcome, 'killed');
+    assert.ok(gate.resolvedAt);
+
+    // pendingGate should be cleared
+    const item = ctx.store.items.get(ctx.item.id);
+    assert.equal(item.lifecycle.pendingGate, null);
+
+    // policyLog gate entry should be resolved
+    const gateEntry = item.lifecycle.policyLog.find(e => e.id === gateResult.gateId);
+    assert.equal(gateEntry.outcome, 'killed');
+    assert.ok(gateEntry.resolvedAt);
   });
 });

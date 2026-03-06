@@ -7,40 +7,13 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { v4 as uuidv4 } from 'uuid';
+import { evaluatePolicy, VALID_GATE_OUTCOMES } from './policy-engine.js';
+import { ArtifactManager, ARTIFACT_SCHEMAS } from './artifact-manager.js';
 
-// ---------------------------------------------------------------------------
-// Constants (exported for tests)
-// ---------------------------------------------------------------------------
-
-export const PHASES = [
-  'explore_design', 'prd', 'architecture', 'blueprint',
-  'verification', 'plan', 'execute', 'report', 'docs', 'ship',
-];
-
-export const TERMINAL = new Set(['complete', 'killed']);
-export const SKIPPABLE = new Set(['prd', 'architecture', 'report']);
-
-export const TRANSITIONS = {
-  explore_design: ['prd', 'architecture', 'blueprint'],
-  prd:            ['architecture', 'blueprint'],
-  architecture:   ['blueprint'],
-  blueprint:      ['verification'],
-  verification:   ['plan', 'blueprint'],  // blueprint = revision loop
-  plan:           ['execute'],
-  execute:        ['report', 'docs'],
-  report:         ['docs'],
-  docs:           ['ship'],
-  ship:           [],  // terminal via completeFeature()
-};
-
-export const PHASE_ARTIFACTS = {
-  explore_design: 'design.md',
-  prd:            'prd.md',
-  architecture:   'architecture.md',
-  blueprint:      'blueprint.md',
-  plan:           'plan.md',
-  report:         'report.md',
-};
+// Re-export constants from shared module (preserves existing import paths)
+export { PHASES, TERMINAL, SKIPPABLE, TRANSITIONS, PHASE_ARTIFACTS } from './lifecycle-constants.js';
+import { PHASES, TERMINAL, SKIPPABLE, TRANSITIONS, PHASE_ARTIFACTS } from './lifecycle-constants.js';
 
 // ---------------------------------------------------------------------------
 // LifecycleManager
@@ -49,10 +22,12 @@ export const PHASE_ARTIFACTS = {
 export class LifecycleManager {
   #store;
   #featureRoot;
+  #artifactManager;
 
   constructor(store, featureRoot) {
     this.#store = store;
     this.#featureRoot = featureRoot;
+    this.#artifactManager = new ArtifactManager(featureRoot);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -75,6 +50,9 @@ export class LifecycleManager {
       killedAt: null,
       killReason: null,
       reconcileWarning: null,
+      policyLog: [],
+      pendingGate: null,
+      policyOverrides: null,
     };
 
     this.#store.updateLifecycle(itemId, lifecycle);
@@ -85,63 +63,50 @@ export class LifecycleManager {
     const { item, lifecycle } = this.#getLifecycle(itemId);
     const from = lifecycle.currentPhase;
 
-    if (TERMINAL.has(from)) {
-      throw new Error(`Cannot advance from terminal state: ${from}`);
-    }
-    const valid = TRANSITIONS[from];
-    if (!valid || !valid.includes(targetPhase)) {
-      throw new Error(`Invalid transition: ${from} → ${targetPhase}`);
-    }
-    if (outcome !== 'approved' && outcome !== 'revised') {
-      throw new Error(`Invalid outcome: ${outcome} (must be approved or revised)`);
-    }
-    if (outcome === 'revised') {
-      const fromIdx = PHASES.indexOf(from);
-      const toIdx = PHASES.indexOf(targetPhase);
-      if (toIdx >= fromIdx) {
-        throw new Error(`'revised' outcome requires backward transition, but ${from} → ${targetPhase} is forward`);
-      }
+    if (lifecycle.pendingGate) {
+      throw new Error(`Cannot advance: gate ${lifecycle.pendingGate} is pending for item ${itemId}`);
     }
 
-    const now = new Date().toISOString();
-    this.#closeCurrentEntry(lifecycle, outcome, now);
-    lifecycle.phaseHistory.push({ phase: targetPhase, enteredAt: now, exitedAt: null, outcome: null });
-    lifecycle.currentPhase = targetPhase;
+    const policy = evaluatePolicy(targetPhase, lifecycle.policyOverrides);
 
-    // Update artifact for the new phase
-    const artifactName = PHASE_ARTIFACTS[targetPhase];
-    if (artifactName) {
-      lifecycle.artifacts[artifactName] = fs.existsSync(
-        path.join(this.#featureRoot, lifecycle.featureCode, artifactName),
-      );
+    if (policy === 'gate') {
+      return this.#createGate(itemId, 'advance', { targetPhase, outcome }, from, targetPhase);
     }
 
-    lifecycle.reconcileWarning = null;
-    this.#store.updateLifecycle(itemId, lifecycle);
-    return { from, to: targetPhase, outcome };
+    const result = this.#executeAdvance(itemId, targetPhase, outcome);
+
+    if (policy === 'flag') {
+      const flagId = this.#recordPolicyEntry(itemId, 'flag', from, targetPhase);
+      return { ...result, flagged: true, flagId };
+    }
+
+    this.#recordPolicyEntry(itemId, 'skip', from, targetPhase);
+    return result;
   }
 
   skipPhase(itemId, targetPhase, reason) {
     const { item, lifecycle } = this.#getLifecycle(itemId);
     const from = lifecycle.currentPhase;
 
-    if (TERMINAL.has(from)) {
-      throw new Error(`Cannot skip from terminal state: ${from}`);
-    }
-    if (!SKIPPABLE.has(from)) {
-      throw new Error(`Phase ${from} is not skippable`);
-    }
-    const valid = TRANSITIONS[from];
-    if (!valid || !valid.includes(targetPhase)) {
-      throw new Error(`Invalid transition: ${from} → ${targetPhase}`);
+    if (lifecycle.pendingGate) {
+      throw new Error(`Cannot skip: gate ${lifecycle.pendingGate} is pending for item ${itemId}`);
     }
 
-    const now = new Date().toISOString();
-    this.#closeCurrentEntry(lifecycle, 'skipped', now, reason);
-    lifecycle.phaseHistory.push({ phase: targetPhase, enteredAt: now, exitedAt: null, outcome: null });
-    lifecycle.currentPhase = targetPhase;
-    this.#store.updateLifecycle(itemId, lifecycle);
-    return { from, to: targetPhase, outcome: 'skipped', reason };
+    const policy = evaluatePolicy(targetPhase, lifecycle.policyOverrides);
+
+    if (policy === 'gate') {
+      return this.#createGate(itemId, 'skip', { targetPhase, reason }, from, targetPhase);
+    }
+
+    const result = this.#executeSkip(itemId, targetPhase, reason);
+
+    if (policy === 'flag') {
+      const flagId = this.#recordPolicyEntry(itemId, 'flag', from, targetPhase);
+      return { ...result, flagged: true, flagId };
+    }
+
+    this.#recordPolicyEntry(itemId, 'skip', from, targetPhase);
+    return result;
   }
 
   killFeature(itemId, reason) {
@@ -150,6 +115,13 @@ export class LifecycleManager {
 
     if (TERMINAL.has(from)) {
       throw new Error(`Cannot kill from terminal state: ${from}`);
+    }
+
+    // Resolve any pending gate before killing
+    if (lifecycle.pendingGate) {
+      const gateId = lifecycle.pendingGate;
+      this.#store.resolveGate(gateId, { outcome: 'killed', comment: reason || 'Feature killed' });
+      this.#resolveGatePolicyEntry(itemId, gateId, 'killed', reason || 'Feature killed');
     }
 
     const now = new Date().toISOString();
@@ -186,6 +158,48 @@ export class LifecycleManager {
   getHistory(itemId) {
     const { lifecycle } = this.#getLifecycle(itemId);
     return lifecycle.phaseHistory;
+  }
+
+  approveGate(gateId, { outcome, comment }) {
+    const gate = this.#store.gates.get(gateId);
+    if (!gate) throw new Error(`Gate not found: ${gateId}`);
+    if (gate.status !== 'pending') throw new Error(`Gate ${gateId} is not pending (status: ${gate.status})`);
+    if (!VALID_GATE_OUTCOMES.includes(outcome)) {
+      throw new Error(`Invalid gate outcome: ${outcome} (must be ${VALID_GATE_OUTCOMES.join(', ')})`);
+    }
+
+    const { lifecycle } = this.#getLifecycle(gate.itemId);
+    if (lifecycle.pendingGate !== gateId) {
+      throw new Error(`Gate ${gateId} is not the active gate for item ${gate.itemId} (active: ${lifecycle.pendingGate})`);
+    }
+
+    if (outcome === 'approved') {
+      let result;
+      if (gate.operation === 'advance') {
+        result = this.#executeAdvance(gate.itemId, gate.operationArgs.targetPhase, gate.operationArgs.outcome);
+      } else if (gate.operation === 'skip') {
+        result = this.#executeSkip(gate.itemId, gate.operationArgs.targetPhase, gate.operationArgs.reason);
+      } else {
+        throw new Error(`Unknown gate operation: ${gate.operation}`);
+      }
+
+      this.#store.resolveGate(gateId, { outcome, comment });
+      this.#resolveGatePolicyEntry(gate.itemId, gateId, outcome, comment);
+      return { ...result, gateId, gateOutcome: outcome };
+    }
+
+    if (outcome === 'revised') {
+      this.#store.resolveGate(gateId, { outcome, comment });
+      this.#resolveGatePolicyEntry(gate.itemId, gateId, outcome, comment);
+      return { gateId, gateOutcome: outcome, comment };
+    }
+
+    if (outcome === 'killed') {
+      this.#store.resolveGate(gateId, { outcome, comment });
+      this.#resolveGatePolicyEntry(gate.itemId, gateId, outcome, comment);
+      const killResult = this.killFeature(gate.itemId, comment || 'Killed at gate');
+      return { ...killResult, gateId, gateOutcome: outcome };
+    }
   }
 
   reconcile(itemId) {
@@ -253,7 +267,147 @@ export class LifecycleManager {
     };
   }
 
+  // ── Policy private methods ─────────────────────────────────────────────
+
+  #executeAdvance(itemId, targetPhase, outcome) {
+    const { item, lifecycle } = this.#getLifecycle(itemId);
+    const from = lifecycle.currentPhase;
+
+    if (TERMINAL.has(from)) {
+      throw new Error(`Cannot advance from terminal state: ${from}`);
+    }
+    const valid = TRANSITIONS[from];
+    if (!valid || !valid.includes(targetPhase)) {
+      throw new Error(`Invalid transition: ${from} → ${targetPhase}`);
+    }
+    if (outcome !== 'approved' && outcome !== 'revised') {
+      throw new Error(`Invalid outcome: ${outcome} (must be approved or revised)`);
+    }
+    if (outcome === 'revised') {
+      const fromIdx = PHASES.indexOf(from);
+      const toIdx = PHASES.indexOf(targetPhase);
+      if (toIdx >= fromIdx) {
+        throw new Error(`'revised' outcome requires backward transition, but ${from} → ${targetPhase} is forward`);
+      }
+    }
+
+    const now = new Date().toISOString();
+    this.#closeCurrentEntry(lifecycle, outcome, now);
+    lifecycle.phaseHistory.push({ phase: targetPhase, enteredAt: now, exitedAt: null, outcome: null });
+    lifecycle.currentPhase = targetPhase;
+
+    const artifactName = PHASE_ARTIFACTS[targetPhase];
+    if (artifactName) {
+      lifecycle.artifacts[artifactName] = fs.existsSync(
+        path.join(this.#featureRoot, lifecycle.featureCode, artifactName),
+      );
+    }
+
+    lifecycle.reconcileWarning = null;
+    this.#store.updateLifecycle(itemId, lifecycle);
+    return { from, to: targetPhase, outcome };
+  }
+
+  #executeSkip(itemId, targetPhase, reason) {
+    const { item, lifecycle } = this.#getLifecycle(itemId);
+    const from = lifecycle.currentPhase;
+
+    if (TERMINAL.has(from)) {
+      throw new Error(`Cannot skip from terminal state: ${from}`);
+    }
+    if (!SKIPPABLE.has(from)) {
+      throw new Error(`Phase ${from} is not skippable`);
+    }
+    const valid = TRANSITIONS[from];
+    if (!valid || !valid.includes(targetPhase)) {
+      throw new Error(`Invalid transition: ${from} → ${targetPhase}`);
+    }
+
+    const now = new Date().toISOString();
+    this.#closeCurrentEntry(lifecycle, 'skipped', now, reason);
+    lifecycle.phaseHistory.push({ phase: targetPhase, enteredAt: now, exitedAt: null, outcome: null });
+    lifecycle.currentPhase = targetPhase;
+    this.#store.updateLifecycle(itemId, lifecycle);
+    return { from, to: targetPhase, outcome: 'skipped', reason };
+  }
+
+  #createGate(itemId, operation, operationArgs, fromPhase, toPhase) {
+    const { lifecycle } = this.#getLifecycle(itemId);
+
+    if (lifecycle.pendingGate) {
+      throw new Error(`Gate already pending for item ${itemId}: ${lifecycle.pendingGate}`);
+    }
+
+    const gateId = `gate-${uuidv4()}`;
+
+    let artifactAssessment = null;
+    const artifactName = PHASE_ARTIFACTS[fromPhase];
+    if (artifactName && ARTIFACT_SCHEMAS[artifactName]) {
+      try {
+        artifactAssessment = this.#artifactManager.assessOne(lifecycle.featureCode, artifactName);
+      } catch {
+        artifactAssessment = null;
+      }
+    }
+
+    const gate = {
+      id: gateId,
+      itemId,
+      operation,
+      operationArgs,
+      fromPhase,
+      toPhase,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+      resolvedBy: null,
+      outcome: null,
+      comment: null,
+      artifactAssessment,
+    };
+
+    this.#store.createGate(gate);
+
+    lifecycle.pendingGate = gateId;
+    this.#store.updateLifecycle(itemId, lifecycle);
+
+    this.#recordPolicyEntry(itemId, 'gate', fromPhase, toPhase, gateId);
+
+    return { status: 'pending_approval', gateId, fromPhase, toPhase, operation };
+  }
+
+  #recordPolicyEntry(itemId, type, fromPhase, toPhase, gateId) {
+    const { lifecycle } = this.#getLifecycle(itemId);
+    if (!lifecycle.policyLog) lifecycle.policyLog = [];
+    const entry = {
+      type,
+      id: gateId || uuidv4(),
+      itemId,
+      fromPhase,
+      toPhase,
+      createdAt: new Date().toISOString(),
+    };
+    lifecycle.policyLog.push(entry);
+    this.#store.updateLifecycle(itemId, lifecycle);
+    return entry.id;
+  }
+
+  #resolveGatePolicyEntry(itemId, gateId, outcome, comment) {
+    const { lifecycle } = this.#getLifecycle(itemId);
+    if (lifecycle.policyLog) {
+      const entry = lifecycle.policyLog.find(e => e.id === gateId && e.type === 'gate');
+      if (entry) {
+        entry.resolvedAt = new Date().toISOString();
+        entry.outcome = outcome;
+        entry.comment = comment || null;
+      }
+    }
+    lifecycle.pendingGate = null;
+    this.#store.updateLifecycle(itemId, lifecycle);
+  }
+
   // ── Private helpers ─────────────────────────────────────────────────────
+
 
   #getItem(itemId) {
     const item = this.#store.items.get(itemId);

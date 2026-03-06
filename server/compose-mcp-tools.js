@@ -25,7 +25,7 @@ export function loadVisionState() {
     const raw = fs.readFileSync(VISION_FILE, 'utf-8');
     return JSON.parse(raw);
   } catch {
-    return { items: [], connections: [] };
+    return { items: [], connections: [], gates: [] };
   }
 }
 
@@ -207,6 +207,33 @@ function _postLifecycle(itemId, action, body) {
   });
 }
 
+function _postGate(gateId, action, body) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const url = new URL(`${_getComposeApi()}/api/vision/gates/${gateId}/${action}`);
+    const req = http.request(
+      { hostname: url.hostname, port: url.port, path: url.pathname, method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } },
+      (res) => {
+        let buf = '';
+        res.on('data', (chunk) => buf += chunk);
+        res.on('end', () => {
+          let parsed;
+          try { parsed = JSON.parse(buf); }
+          catch { parsed = { error: buf }; }
+          if (res.statusCode >= 400) {
+            reject(new Error(parsed.error || `HTTP ${res.statusCode}: ${buf}`));
+          } else {
+            resolve(parsed);
+          }
+        });
+      },
+    );
+    req.on('error', (err) => reject(new Error(`Compose server unreachable: ${err.message}`)));
+    req.end(data);
+  });
+}
+
 export function toolGetFeatureLifecycle({ id }) {
   const { items } = loadVisionState();
   const item = items.find(i => i.id === id || i.semanticId === id || i.slug === id);
@@ -245,4 +272,19 @@ export function toolScaffoldFeature({ featureCode, only }) {
   const featureRoot = path.join(PROJECT_ROOT, 'docs', 'features');
   const manager = new ArtifactManager(featureRoot);
   return manager.scaffold(featureCode, only ? { only } : undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Gate tools — mutations delegate to Compose REST API
+// ---------------------------------------------------------------------------
+
+export async function toolApproveGate({ gateId, outcome, comment }) {
+  return _postGate(gateId, 'resolve', { outcome, comment });
+}
+
+export function toolGetPendingGates({ itemId }) {
+  const { gates } = loadVisionState();
+  if (!gates) return { count: 0, gates: [] };
+  const pending = gates.filter(g => g.status === 'pending' && (!itemId || g.itemId === itemId));
+  return { count: pending.length, gates: pending };
 }
