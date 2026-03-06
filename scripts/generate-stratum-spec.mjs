@@ -4,6 +4,11 @@
  * from contracts/lifecycle.json.
  *
  * Usage: node scripts/generate-stratum-spec.mjs
+ *
+ * Design constraint: the generated spec has exactly one function and one step
+ * per contract phase, with step id and function id equal to the phase id.
+ * Revision edges (back-edges in the transition graph) are documented as
+ * comments — they are handled at runtime, not modeled in the DAG.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -26,41 +31,19 @@ w('# Do not edit manually — regenerate with: node scripts/generate-stratum-spe
 w();
 
 // ---------------------------------------------------------------------------
-// Detect revision edges (back-edges in the transition graph).
+// Detect revision edges for documentation purposes.
 // A revision edge is A → B where B comes before A in phase order.
-// These become compound steps with retries in the Stratum spec.
+// These are handled at runtime, not in the Stratum DAG.
 // ---------------------------------------------------------------------------
 
 const phaseIndex = Object.fromEntries(contract.phases.map((p, i) => [p.id, i]));
 
-// Map: target → [sources] for back-edges (revision loops)
-const revisionEdges = {};
+const revisionEdges = []; // [{ from, to }]
 for (const [from, targets] of Object.entries(contract.transitions)) {
   for (const target of targets) {
     if (phaseIndex[from] > phaseIndex[target]) {
-      if (!revisionEdges[target]) revisionEdges[target] = [];
-      revisionEdges[target].push(from);
+      revisionEdges.push({ from, to: target });
     }
-  }
-}
-
-// Group phases into compound steps where revision edges exist.
-// E.g., verification → blueprint means blueprint + verification become one compound step.
-// A compound step includes the revision target and all phases up to (including) the revision source.
-const compoundGroups = []; // [{ phases: [...], revisionFrom, revisionTo }]
-const inCompound = new Set();
-
-for (const [target, sources] of Object.entries(revisionEdges)) {
-  for (const source of sources) {
-    const startIdx = phaseIndex[target];
-    const endIdx = phaseIndex[source];
-    const grouped = contract.phases.slice(startIdx, endIdx + 1);
-    compoundGroups.push({
-      phases: grouped,
-      revisionFrom: source,
-      revisionTo: target,
-    });
-    for (const p of grouped) inCompound.add(p.id);
   }
 }
 
@@ -72,7 +55,7 @@ w('    artifact:  {type: string}');
 w('    outcome:   {type: string}');
 w();
 
-// Functions — one per phase, plus compound functions for revision loops
+// Functions — exactly one per phase
 w('functions:');
 for (const phase of contract.phases) {
   w(`  ${phase.id}:`);
@@ -86,95 +69,41 @@ for (const phase of contract.phases) {
     w('    ensure:');
     w(`      - "file_exists('docs/features/' + input.featureCode + '/${phase.artifact}')"`);
   }
-  w('    retries: 2');
+  // Phases that are revision targets get extra retries for the loop
+  const isRevisionTarget = revisionEdges.some(e => e.to === phase.id);
+  w(`    retries: ${isRevisionTarget ? 3 : 2}`);
   w();
 }
 
-// Compound functions for revision loops
-for (const group of compoundGroups) {
-  const ids = group.phases.map(p => p.id);
-  const compoundId = ids.join('_and_');
-  const artifacts = group.phases.filter(p => p.artifact);
-  w(`  ${compoundId}:`);
-  w('    mode: compute');
-  w(`    intent: >-`);
-  w(`      Compound step: ${ids.join(' → ')} with revision loop`);
-  w(`      (${group.revisionFrom} may loop back to ${group.revisionTo}).`);
-  for (const phase of group.phases) {
-    w(`      ${phase.id}: ${phase.description}.`);
-  }
-  w('    input:');
-  w('      featureCode: {type: string}');
-  w('      description: {type: string}');
-  w('    output: PhaseResult');
-  if (artifacts.length > 0) {
-    w('    ensure:');
-    for (const a of artifacts) {
-      w(`      - "file_exists('docs/features/' + input.featureCode + '/${a.artifact}')"`);
-    }
-  }
-  w(`    # Revision edge: ${group.revisionFrom} → ${group.revisionTo}`);
-  w('    retries: 3');
-  w();
-}
-
-// Flow — emit steps respecting compound groups
+// Flow — exactly one step per phase, depends_on from forward transitions
 w('flows:');
 w('  compose_feature:');
 w('    input:');
 w('      featureCode: {type: string}');
 w('      description: {type: string}');
 w('    output: PhaseResult');
-w('    steps:');
 
-let lastStepId = null;
+if (revisionEdges.length > 0) {
+  w('    # Revision edges (handled at runtime, not in DAG):');
+  for (const edge of revisionEdges) {
+    w(`    #   ${edge.from} → ${edge.to}`);
+  }
+}
+
+w('    steps:');
 
 for (let i = 0; i < contract.phases.length; i++) {
   const phase = contract.phases[i];
 
-  // Check if this phase starts a compound group
-  const group = compoundGroups.find(g => g.phases[0].id === phase.id);
-  if (group) {
-    const ids = group.phases.map(p => p.id);
-    const compoundId = ids.join('_and_');
-
-    // Find forward predecessors for the first phase in the group
-    const forwardPreds = [];
-    for (const [from, targets] of Object.entries(contract.transitions)) {
-      if (targets.includes(phase.id) && phaseIndex[from] < i && !inCompound.has(from)) {
-        forwardPreds.push(from);
-      }
-    }
-    forwardPreds.sort((a, b) => phaseIndex[a] - phaseIndex[b]);
-
-    w(`      - id: ${compoundId}`);
-    w(`        function: ${compoundId}`);
-    w(`        # Revision loop: ${group.revisionFrom} → ${group.revisionTo}`);
-    w('        inputs:');
-    w('          featureCode: "$.input.featureCode"');
-    w('          description: "$.input.description"');
-    const dep = forwardPreds.length > 0 ? forwardPreds[0] : lastStepId;
-    if (dep) {
-      w(`        depends_on: [${dep}]`);
-    }
-    w();
-
-    lastStepId = compoundId;
-    // Skip the remaining phases in this compound group
-    i += group.phases.length - 1;
-    continue;
-  }
-
-  // Skip phases that are interior to a compound group (handled above)
-  if (inCompound.has(phase.id)) continue;
-
-  // Regular step
+  // Find forward predecessors: phases that transition TO this phase
+  // and appear earlier in phase order (forward edges only)
   const forwardPreds = [];
   for (const [from, targets] of Object.entries(contract.transitions)) {
     if (targets.includes(phase.id) && phaseIndex[from] < i) {
       forwardPreds.push(from);
     }
   }
+  // Sort by phase index — use earliest predecessor to preserve skip paths
   forwardPreds.sort((a, b) => phaseIndex[a] - phaseIndex[b]);
 
   w(`      - id: ${phase.id}`);
@@ -183,20 +112,24 @@ for (let i = 0; i < contract.phases.length; i++) {
   w('          featureCode: "$.input.featureCode"');
   w('          description: "$.input.description"');
 
-  // Remap depends_on: if a predecessor is inside a compound group, use the compound step ID
-  let dep = forwardPreds.length > 0 ? forwardPreds[0] : null;
-  if (dep && inCompound.has(dep)) {
-    const ownerGroup = compoundGroups.find(g => g.phases.some(p => p.id === dep));
-    if (ownerGroup) dep = ownerGroup.phases.map(p => p.id).join('_and_');
+  if (forwardPreds.length > 0) {
+    w(`        depends_on: [${forwardPreds[0]}]`);
   }
-  if (dep) {
-    w(`        depends_on: [${dep}]`);
-  } else if (lastStepId) {
-    w(`        depends_on: [${lastStepId}]`);
+
+  // Annotate revision edges involving this step
+  const revFrom = revisionEdges.filter(e => e.from === phase.id);
+  const revTo = revisionEdges.filter(e => e.to === phase.id);
+  if (revFrom.length > 0) {
+    for (const edge of revFrom) {
+      w(`        # Revision: may loop back to ${edge.to}`);
+    }
+  }
+  if (revTo.length > 0) {
+    for (const edge of revTo) {
+      w(`        # Revision target: ${edge.from} may loop back here`);
+    }
   }
   w();
-
-  lastStepId = phase.id;
 }
 
 writeFileSync(OUTPUT, lines.join('\n'));

@@ -46,7 +46,7 @@ function bypassPolicy(store, itemId) {
   const item = store.items.get(itemId);
   if (item?.lifecycle) {
     item.lifecycle.policyOverrides = {
-      explore_design: 'skip', prd: 'skip', architecture: 'skip', blueprint: 'skip',
+      prd: 'skip', architecture: 'skip', blueprint: 'skip',
       verification: 'skip', plan: 'skip', execute: 'skip',
       report: 'skip', docs: 'skip', ship: 'skip',
     };

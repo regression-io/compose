@@ -12,8 +12,8 @@ const { DEFAULT_POLICIES, VALID_GATE_OUTCOMES, evaluatePolicy } =
   await import(`${REPO_ROOT}/server/policy-engine.js`);
 
 describe('DEFAULT_POLICIES', () => {
-  test('has explore_design key with gate policy', () => {
-    assert.equal(DEFAULT_POLICIES.explore_design, 'gate');
+  test('has no explore_design key (entry phase, defaultPolicy null)', () => {
+    assert.equal(DEFAULT_POLICIES.explore_design, undefined);
   });
 
   test('all values are valid modes', () => {
@@ -23,8 +23,8 @@ describe('DEFAULT_POLICIES', () => {
     }
   });
 
-  test('has 10 entries', () => {
-    assert.equal(Object.keys(DEFAULT_POLICIES).length, 10);
+  test('has 9 entries', () => {
+    assert.equal(Object.keys(DEFAULT_POLICIES).length, 9);
   });
 });
 
@@ -41,12 +41,9 @@ describe('evaluatePolicy', () => {
     assert.equal(evaluatePolicy('report'), 'skip');
   });
 
-  test('returns skip for unknown phases', () => {
+  test('returns skip for unknown phases and null-policy phases', () => {
     assert.equal(evaluatePolicy('nonexistent'), 'skip');
-  });
-
-  test('returns gate for explore_design (entry phase)', () => {
-    assert.equal(evaluatePolicy('explore_design'), 'gate');
+    assert.equal(evaluatePolicy('explore_design'), 'skip');
   });
 
   test('override map overrides default', () => {

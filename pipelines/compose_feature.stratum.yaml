@@ -53,7 +53,7 @@ functions:
     output: PhaseResult
     ensure:
       - "file_exists('docs/features/' + input.featureCode + '/blueprint.md')"
-    retries: 2
+    retries: 3
 
   verification:
     mode: compute
@@ -113,28 +113,14 @@ functions:
     output: PhaseResult
     retries: 2
 
-  blueprint_and_verification:
-    mode: compute
-    intent: >-
-      Compound step: blueprint → verification with revision loop
-      (verification may loop back to blueprint).
-      blueprint: Implementation blueprint with file:line references.
-      verification: Verify all blueprint references against actual code.
-    input:
-      featureCode: {type: string}
-      description: {type: string}
-    output: PhaseResult
-    ensure:
-      - "file_exists('docs/features/' + input.featureCode + '/blueprint.md')"
-    # Revision edge: verification → blueprint
-    retries: 3
-
 flows:
   compose_feature:
     input:
       featureCode: {type: string}
       description: {type: string}
     output: PhaseResult
+    # Revision edges (handled at runtime, not in DAG):
+    #   verification → blueprint
     steps:
       - id: explore_design
         function: explore_design
@@ -156,20 +142,28 @@ flows:
           description: "$.input.description"
         depends_on: [explore_design]
 
-      - id: blueprint_and_verification
-        function: blueprint_and_verification
-        # Revision loop: verification → blueprint
+      - id: blueprint
+        function: blueprint
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
         depends_on: [explore_design]
+        # Revision target: verification may loop back here
+
+      - id: verification
+        function: verification
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [blueprint]
+        # Revision: may loop back to blueprint
 
       - id: plan
         function: plan
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
-        depends_on: [blueprint_and_verification]
+        depends_on: [verification]
 
       - id: execute
         function: execute

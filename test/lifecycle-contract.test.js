@@ -117,12 +117,6 @@ describe('contract schema', () => {
     }
   });
 
-  test('every phase has a non-null defaultPolicy', () => {
-    for (const phase of contract.phases) {
-      assert.ok(phase.defaultPolicy !== null && phase.defaultPolicy !== undefined,
-        `phase "${phase.id}" must have a non-null defaultPolicy`);
-    }
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -191,7 +185,6 @@ describe('policy-engine re-exports', () => {
   });
 
   test('evaluatePolicy still works with derived defaults', () => {
-    assert.equal(policyEngine.evaluatePolicy('explore_design'), 'gate');
     assert.equal(policyEngine.evaluatePolicy('blueprint'), 'gate');
     assert.equal(policyEngine.evaluatePolicy('prd'), 'skip');
     assert.equal(policyEngine.evaluatePolicy('execute'), 'flag');
@@ -215,66 +208,24 @@ describe('Stratum spec parity', () => {
     assert.ok(stratumSpec.steps.length > 0, 'spec should have steps');
   });
 
-  test('every contract phase is represented in a spec step', () => {
-    // Phases may be individual steps or grouped into compound steps
-    const coveredPhases = new Set();
-    for (const step of stratumSpec.steps) {
-      // Compound step IDs use _and_ to join phase IDs
-      for (const part of step.id.split('_and_')) {
-        coveredPhases.add(part);
-      }
-    }
-    for (const phase of contract.phases) {
-      assert.ok(coveredPhases.has(phase.id),
-        `phase "${phase.id}" not covered by any spec step`);
-    }
-  });
-
-  test('revision edges are modeled as compound steps', () => {
-    const phaseIdx = Object.fromEntries(contract.phases.map((p, i) => [p.id, i]));
-
-    // Find all revision edges in contract
-    const revisionEdges = [];
-    for (const [from, targets] of Object.entries(contract.transitions)) {
-      for (const target of targets) {
-        if (phaseIdx[from] > phaseIdx[target]) {
-          revisionEdges.push({ from, to: target });
-        }
-      }
-    }
-
-    assert.ok(revisionEdges.length > 0, 'contract should have at least one revision edge');
-
-    // Each revision edge should produce a compound step containing both phases
-    for (const edge of revisionEdges) {
-      const compoundStep = stratumSpec.steps.find(s => {
-        if (!s.id.includes('_and_')) return false;
-        const parts = s.id.split('_and_');
-        return parts.includes(edge.to) && parts.includes(edge.from);
-      });
-      assert.ok(compoundStep,
-        `revision edge ${edge.from} → ${edge.to} should be a compound step, ` +
-        `found steps: ${stratumSpec.steps.map(s => s.id).join(', ')}`);
-    }
+  test('exactly one step per contract phase, id matches phase id', () => {
+    const stepIds = stratumSpec.steps.map(s => s.id);
+    const phaseIds = contract.phases.map(p => p.id);
+    assert.deepEqual(stepIds, phaseIds,
+      'spec steps must be 1:1 with contract phases in order');
   });
 
   test('forward skip paths are preserved in depends_on', () => {
-    const phaseIdx = Object.fromEntries(contract.phases.map((p, i) => [p.id, i]));
-
     // Phases reachable directly from explore_design (skip paths)
     const skipTargets = contract.transitions.explore_design || [];
 
     for (const target of skipTargets) {
-      // Find the step that covers this target phase
-      const step = stratumSpec.steps.find(s =>
-        s.id === target || s.id.split('_and_').includes(target)
-      );
+      const step = stratumSpec.steps.find(s => s.id === target);
       if (!step) continue;
 
-      // This step should depend on explore_design (preserving the skip path)
       if (step.depends_on.length > 0) {
         assert.equal(step.depends_on[0], 'explore_design',
-          `step "${step.id}" (covering "${target}") should depend on explore_design ` +
+          `step "${step.id}" should depend on explore_design ` +
           `to preserve skip path, got [${step.depends_on}]`);
       }
     }
