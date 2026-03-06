@@ -1,0 +1,190 @@
+version: "0.1"
+
+# compose_feature pipeline
+# Generated from contracts/lifecycle.json v1.0.0
+# Do not edit manually — regenerate with: node scripts/generate-stratum-spec.mjs
+
+contracts:
+  PhaseResult:
+    phase:     {type: string}
+    artifact:  {type: string}
+    outcome:   {type: string}
+
+functions:
+  explore_design:
+    mode: compute
+    intent: "Entry phase — codebase exploration and design doc"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    ensure:
+      - "file_exists('docs/features/' + input.featureCode + '/design.md')"
+    retries: 2
+
+  prd:
+    mode: compute
+    intent: "Product requirements document"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    ensure:
+      - "file_exists('docs/features/' + input.featureCode + '/prd.md')"
+    retries: 2
+
+  architecture:
+    mode: compute
+    intent: "Architecture doc with competing proposals"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    ensure:
+      - "file_exists('docs/features/' + input.featureCode + '/architecture.md')"
+    retries: 2
+
+  blueprint:
+    mode: compute
+    intent: "Implementation blueprint with file:line references"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    ensure:
+      - "file_exists('docs/features/' + input.featureCode + '/blueprint.md')"
+    retries: 2
+
+  verification:
+    mode: compute
+    intent: "Verify all blueprint references against actual code"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    retries: 2
+
+  plan:
+    mode: compute
+    intent: "Ordered task list with dependencies"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    ensure:
+      - "file_exists('docs/features/' + input.featureCode + '/plan.md')"
+    retries: 2
+
+  execute:
+    mode: compute
+    intent: "TDD execution + E2E + review loop + coverage sweep"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    retries: 2
+
+  report:
+    mode: compute
+    intent: "Post-implementation report"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    ensure:
+      - "file_exists('docs/features/' + input.featureCode + '/report.md')"
+    retries: 2
+
+  docs:
+    mode: compute
+    intent: "Update CHANGELOG, README, ROADMAP, CLAUDE.md"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    retries: 2
+
+  ship:
+    mode: compute
+    intent: "Final verification and commit"
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    retries: 2
+
+flows:
+  compose_feature:
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    steps:
+      - id: explore_design
+        function: explore_design
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+
+      - id: prd
+        function: prd
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [explore_design]
+
+      - id: architecture
+        function: architecture
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [prd]
+
+      - id: blueprint
+        function: blueprint
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [architecture]
+
+      - id: verification
+        function: verification
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [blueprint]
+
+      - id: plan
+        function: plan
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [verification]
+
+      - id: execute
+        function: execute
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [plan]
+
+      - id: report
+        function: report
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [execute]
+
+      - id: docs
+        function: docs
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [report]
+
+      - id: ship
+        function: ship
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        depends_on: [docs]

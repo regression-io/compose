@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_source": "L1 — Feature Lifecycle State Machine",
+  "_roadmap": "Item 22",
+  "version": "1.0.0",
+  "phases": [
+    {
+      "id": "explore_design",
+      "label": "Explore & Design",
+      "artifact": "design.md",
+      "skippable": false,
+      "defaultPolicy": null,
+      "description": "Entry phase — codebase exploration and design doc"
+    },
+    {
+      "id": "prd",
+      "label": "PRD",
+      "artifact": "prd.md",
+      "skippable": true,
+      "defaultPolicy": "skip",
+      "description": "Product requirements document"
+    },
+    {
+      "id": "architecture",
+      "label": "Architecture",
+      "artifact": "architecture.md",
+      "skippable": true,
+      "defaultPolicy": "skip",
+      "description": "Architecture doc with competing proposals"
+    },
+    {
+      "id": "blueprint",
+      "label": "Blueprint",
+      "artifact": "blueprint.md",
+      "skippable": false,
+      "defaultPolicy": "gate",
+      "description": "Implementation blueprint with file:line references"
+    },
+    {
+      "id": "verification",
+      "label": "Blueprint Verification",
+      "artifact": null,
+      "skippable": false,
+      "defaultPolicy": "gate",
+      "description": "Verify all blueprint references against actual code"
+    },
+    {
+      "id": "plan",
+      "label": "Implementation Plan",
+      "artifact": "plan.md",
+      "skippable": false,
+      "defaultPolicy": "gate",
+      "description": "Ordered task list with dependencies"
+    },
+    {
+      "id": "execute",
+      "label": "Execute",
+      "artifact": null,
+      "skippable": false,
+      "defaultPolicy": "flag",
+      "description": "TDD execution + E2E + review loop + coverage sweep"
+    },
+    {
+      "id": "report",
+      "label": "Implementation Report",
+      "artifact": "report.md",
+      "skippable": true,
+      "defaultPolicy": "skip",
+      "description": "Post-implementation report"
+    },
+    {
+      "id": "docs",
+      "label": "Update Docs",
+      "artifact": null,
+      "skippable": false,
+      "defaultPolicy": "flag",
+      "description": "Update CHANGELOG, README, ROADMAP, CLAUDE.md"
+    },
+    {
+      "id": "ship",
+      "label": "Ship",
+      "artifact": null,
+      "skippable": false,
+      "defaultPolicy": "gate",
+      "description": "Final verification and commit"
+    }
+  ],
+  "transitions": {
+    "explore_design": ["prd", "architecture", "blueprint"],
+    "prd": ["architecture", "blueprint"],
+    "architecture": ["blueprint"],
+    "blueprint": ["verification"],
+    "verification": ["plan", "blueprint"],
+    "plan": ["execute"],
+    "execute": ["report", "docs"],
+    "report": ["docs"],
+    "docs": ["ship"],
+    "ship": []
+  },
+  "terminal": ["complete", "killed"],
+  "gateOutcomes": ["approved", "revised", "killed"],
+  "policyModes": ["gate", "flag", "skip"],
+  "iterationDefaults": {
+    "review": { "maxIterations": 10 },
+    "coverage": { "maxIterations": 15 }
+  }
+}
