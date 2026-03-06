@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, createContext } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef, createContext } from 'react';
 
 export const VisionChangesContext = createContext({ newIds: new Set(), changedIds: new Set() });
 import { useVisionStore } from './useVisionStore.js';
@@ -10,17 +10,23 @@ import GraphView from './GraphView.jsx';
 import RoadmapView from './RoadmapView.jsx';
 import DocsView from './DocsView.jsx';
 import AttentionView from './AttentionView.jsx';
+import GateView from './GateView.jsx';
+import GateToast from './GateToast.jsx';
 import ItemDetailPanel from './ItemDetailPanel.jsx';
 import ChallengeModal from './ChallengeModal.jsx';
+import SettingsPanel from './SettingsPanel.jsx';
 
 export default function VisionTracker() {
   const {
     items, connections, connected, uiCommand, clearUICommand, recentChanges,
     createItem, updateItem, deleteItem, createConnection, deleteConnection,
     agentActivity, agentErrors, sessionState, registerSnapshotProvider,
+    gates, gateEvent, resolveGate,
+    settings, updateSettings, resetSettings,
   } = useVisionStore();
 
   const [selectedItemId, setSelectedItemId] = useState(() => sessionStorage.getItem('vision-selectedItemId') || null);
+  const hadSessionView = useRef(!!sessionStorage.getItem('vision-activeView'));
   const [activeView, setActiveView] = useState(() => sessionStorage.getItem('vision-activeView') || 'roadmap');
   const [selectedPhase, setSelectedPhase] = useState(() => sessionStorage.getItem('vision-selectedPhase') || null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,6 +42,15 @@ export default function VisionTracker() {
     if (selectedItemId) sessionStorage.setItem('vision-selectedItemId', selectedItemId);
     else sessionStorage.removeItem('vision-selectedItemId');
   }, [selectedItemId]);
+
+  // Apply settings defaultView on first WS connect (only on fresh sessions)
+  const defaultViewApplied = useRef(false);
+  useEffect(() => {
+    if (settings?.ui?.defaultView && !defaultViewApplied.current && !hadSessionView.current) {
+      setActiveView(settings.ui.defaultView);
+      defaultViewApplied.current = true;
+    }
+  }, [settings]);
 
   // UI commands from server
   useEffect(() => {
@@ -66,6 +81,8 @@ export default function VisionTracker() {
     const ids = new Set(filteredItems.map(i => i.id));
     return connections.filter(c => ids.has(c.fromId) && ids.has(c.toId));
   }, [connections, filteredItems, selectedPhase, searchQuery]);
+
+  const pendingGateCount = useMemo(() => gates.filter(g => g.status === 'pending').length, [gates]);
 
   // Register snapshot provider so the store can capture UI state on demand
   useEffect(() => {
@@ -134,6 +151,9 @@ export default function VisionTracker() {
         agentActivity={agentActivity}
         agentErrors={agentErrors}
         sessionState={sessionState}
+        pendingGateCount={pendingGateCount}
+        onSelectItem={handleSelect}
+        onThemeChange={updateSettings}
       />
 
       {/* Main content */}
@@ -206,6 +226,21 @@ export default function VisionTracker() {
             onSelect={handleSelect}
           />
         )}
+        {activeView === 'gates' && (
+          <GateView
+            gates={gates}
+            items={items}
+            onResolve={resolveGate}
+            onSelect={handleSelect}
+          />
+        )}
+        {activeView === 'settings' && (
+          <SettingsPanel
+            settings={settings}
+            onSettingsChange={updateSettings}
+            onReset={resetSettings}
+          />
+        )}
       </div>
 
       {/* Detail panel */}
@@ -214,6 +249,7 @@ export default function VisionTracker() {
           item={selectedItem}
           items={items}
           connections={connections}
+          gates={gates}
           onUpdate={handleUpdate}
           onDelete={handleDelete}
           onCreateConnection={handleCreateConnection}
@@ -221,6 +257,7 @@ export default function VisionTracker() {
           onSelect={handleSelect}
           onClose={() => setSelectedItemId(null)}
           onPressureTest={setChallengeItemId}
+          onResolveGate={resolveGate}
         />
       )}
 
@@ -238,6 +275,11 @@ export default function VisionTracker() {
           />
         );
       })()}
+      <GateToast
+        event={gateEvent}
+        items={items}
+        onNavigate={() => setActiveView('gates')}
+      />
     </div>
     </VisionChangesContext.Provider>
   );

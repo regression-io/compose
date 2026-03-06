@@ -9,7 +9,7 @@
  * Terminal.jsx and vision-server.js).
  */
 
-const API_SERVER = 'http://127.0.0.1:3001';
+const API_SERVER = `http://127.0.0.1:${process.env.PORT || 3001}`;
 
 /** Semantic category for each Claude Code tool */
 export const TOOL_CATEGORIES = {

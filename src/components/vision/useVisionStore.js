@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { handleVisionMessage } from './visionMessageHandler.js';
 
 /**
  * Walk the DOM and produce a compact accessibility-style snapshot.
@@ -79,12 +80,20 @@ export function useVisionStore() {
   const [agentActivity, setAgentActivity] = useState([]);
   const [agentErrors, setAgentErrors] = useState([]);
   const [sessionState, setSessionState] = useState(null);
+  const [gates, setGates] = useState([]);
+  const [gateEvent, setGateEvent] = useState(null);
+  const [settings, setSettings] = useState(null);
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const snapshotProviderRef = useRef(null);
   const prevItemMapRef = useRef(null);
   const changeTimerRef = useRef(null);
   const sessionEndTimerRef = useRef(null);
+  const gatesRef = useRef([]);
+  const pendingResolveIdsRef = useRef(new Set());
+
+  // Keep gatesRef in sync for use inside the WS handler closure
+  useEffect(() => { gatesRef.current = gates; }, [gates]);
 
   useEffect(() => {
     function connect() {
@@ -97,91 +106,14 @@ export function useVisionStore() {
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.type === 'visionState') {
-            const incoming = msg.items || [];
-
-            // Diff for animations (skip initial load)
-            if (prevItemMapRef.current) {
-              const prev = prevItemMapRef.current;
-              const added = new Set();
-              const changed = new Set();
-              for (const item of incoming) {
-                const old = prev.get(item.id);
-                if (!old) {
-                  added.add(item.id);
-                } else if (old.status !== item.status || old.confidence !== item.confidence || old.title !== item.title) {
-                  changed.add(item.id);
-                }
-              }
-              if (added.size > 0 || changed.size > 0) {
-                setRecentChanges({ newIds: added, changedIds: changed });
-                if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
-                changeTimerRef.current = setTimeout(() => setRecentChanges(EMPTY_CHANGES), 800);
-              }
-            }
-            prevItemMapRef.current = new Map(incoming.map(i => [i.id, i]));
-
-            setItems(incoming);
-            setConnections(msg.connections || []);
-          } else if (msg.type === 'visionUI') {
-            setUICommand(msg);
-          } else if (msg.type === 'agentActivity') {
-            setAgentActivity(prev => {
-              const next = [...prev, {
-                tool: msg.tool, category: msg.category || null, detail: msg.detail,
-                items: msg.items || [], error: msg.error || null, timestamp: msg.timestamp,
-              }];
-              return next.length > 20 ? next.slice(-20) : next;
-            });
-            // Optimistic session tool count increment
-            setSessionState(prev => prev?.active ? { ...prev, toolCount: (prev.toolCount || 0) + 1 } : prev);
-          } else if (msg.type === 'sessionStart') {
-            if (sessionEndTimerRef.current) clearTimeout(sessionEndTimerRef.current);
-            setSessionState(prev => {
-              // If hydration already set this session, preserve accumulated counts
-              if (prev && prev.id === msg.sessionId) return { ...prev, active: true };
-              return {
-                id: msg.sessionId, active: true, startedAt: msg.timestamp,
-                source: msg.source, toolCount: 0, errorCount: 0, summaries: [],
-              };
-            });
-          } else if (msg.type === 'sessionEnd') {
-            if (sessionEndTimerRef.current) clearTimeout(sessionEndTimerRef.current);
-            setSessionState(prev => prev ? {
-              ...prev, active: false, endedAt: msg.timestamp,
-              toolCount: msg.toolCount, duration: msg.duration,
-              journalSpawned: msg.journalSpawned,
-            } : null);
-            // Clear ended session display after 15s
-            sessionEndTimerRef.current = setTimeout(() => setSessionState(null), 15000);
-          } else if (msg.type === 'sessionSummary') {
-            setSessionState(prev => prev ? {
-              ...prev, summaries: [...(prev.summaries || []), {
-                summary: msg.summary, intent: msg.intent, component: msg.component,
-                timestamp: msg.timestamp,
-              }].slice(-5),
-            } : prev);
-          } else if (msg.type === 'agentError') {
-            setAgentErrors(prev => {
-              const next = [...prev, {
-                errorType: msg.errorType, severity: msg.severity, message: msg.message,
-                tool: msg.tool, detail: msg.detail, items: msg.items || [],
-                timestamp: msg.timestamp || new Date().toISOString(),
-              }];
-              return next.length > 10 ? next.slice(-10) : next;
-            });
-            // Increment session error count
-            setSessionState(prev => prev?.active ? { ...prev, errorCount: (prev.errorCount || 0) + 1 } : prev);
-          } else if (msg.type === 'snapshotRequest' && msg.requestId) {
-            // Collect UI state from provider and DOM, send back
-            const uiState = snapshotProviderRef.current ? snapshotProviderRef.current() : {};
-            const domSnapshot = collectDOMSnapshot();
-            ws.send(JSON.stringify({
-              type: 'snapshotResponse',
-              requestId: msg.requestId,
-              snapshot: { ...uiState, dom: domSnapshot, timestamp: new Date().toISOString() },
-            }));
-          }
+          handleVisionMessage(msg, {
+            prevItemMapRef, snapshotProviderRef, gatesRef, pendingResolveIdsRef,
+            changeTimerRef, sessionEndTimerRef, wsRef, collectDOMSnapshot,
+          }, {
+            setItems, setConnections, setGates, setGateEvent,
+            setRecentChanges, setUICommand, setAgentActivity,
+            setAgentErrors, setSessionState, setSettings, EMPTY_CHANGES,
+          });
         } catch {
           // ignore
         }
@@ -216,6 +148,10 @@ export function useVisionStore() {
             id: data.session.id, active: true, startedAt: data.session.startedAt,
             source: data.session.source || 'hydrated', toolCount: data.session.toolCount || 0,
             errorCount: data.session.errorCount || 0, summaries: data.session.summaries || [],
+            featureCode: data.session.featureCode || null,
+            featureItemId: data.session.featureItemId || null,
+            phaseAtBind: data.session.phaseAtBind || null,
+            boundAt: data.session.boundAt || null,
           });
         }
       })
@@ -281,6 +217,41 @@ export function useVisionStore() {
     snapshotProviderRef.current = provider;
   }, []);
 
+  const resolveGate = useCallback(async (gateId, outcome, comment) => {
+    pendingResolveIdsRef.current.add(gateId);
+    try {
+      const res = await fetch(`/api/vision/gates/${gateId}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcome, comment }),
+      });
+      const data = await handleResponse(res);
+      if (data.error) pendingResolveIdsRef.current.delete(gateId);
+      return data;
+    } catch {
+      pendingResolveIdsRef.current.delete(gateId);
+      return { error: 'Network error' };
+    }
+  }, [handleResponse]);
+
+  const updateSettings = useCallback(async (patch) => {
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    return handleResponse(res);
+  }, [handleResponse]);
+
+  const resetSettings = useCallback(async (section) => {
+    const res = await fetch('/api/settings/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(section ? { section } : {}),
+    });
+    return handleResponse(res);
+  }, [handleResponse]);
+
   return {
     items,
     connections,
@@ -298,5 +269,11 @@ export function useVisionStore() {
     agentErrors,
     sessionState,
     registerSnapshotProvider,
+    gates,
+    gateEvent,
+    resolveGate,
+    settings,
+    updateSettings,
+    resetSettings,
   };
 }

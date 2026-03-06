@@ -149,7 +149,7 @@ Stratum must expose the primitives Compose needs before L1 can be built.
 
 | # | Layer | Status |
 |---|-------|--------|
-| 21 | **L0 — User Preferences Inventory:** full preferences system — gate/flag/skip defaults, artifact versioning, agent model, UI prefs. Deferred until L3–L6 reveal what actually needs configuring. | PARKED |
+| 21 | **L0 — User Preferences Inventory:** full preferences system — `data/settings.json`, REST API (`GET/PATCH /api/settings`, `POST /api/settings/reset`), WS broadcast, Settings panel in sidebar. Policy engine + lifecycle manager use settings as middle fallback. Agent server reads model from disk. | COMPLETE |
 | 22 | **L1 — Feature Lifecycle State Machine:** `contracts/lifecycle.json` (single source of truth); `lifecycle-constants.js` derives all exports; `policy-engine.js` validates against contract; `compose_feature.stratum.yaml` generated from contract with compound steps for revision loops; 28 contract parity tests; `currentPhase` + `phaseHistory` on feature items; centralized state in `vision-state.json`. | COMPLETE |
 | 23 | **L2 — Artifact Awareness:** feature folder creation, artifact presence detection, phase-appropriate templates, artifact ↔ tracker item linking. | COMPLETE |
 | 24 | **L3 — Policy Enforcement Runtime:** gate/flag/skip dials that structurally block phase transitions. Policy inheritance through work hierarchy. Override at any level. Hardcoded defaults until L0 lands. | COMPLETE |
@@ -159,7 +159,6 @@ Stratum must expose the primitives Compose needs before L1 can be built.
 
 **Key architectural decision (2026-03-05):** Compose does not build a lifecycle engine. Stratum is
 the engine. Compose is a workflow spec. L1 is a Stratum spec + contract, not a new backend service.
-L0 deferred — design it after L3–L6 reveal what actually needs to be configurable.
 
 **L3 is the core new build.** It is the difference between "the skill says gate" and "Compose won't let you proceed without approval."
 

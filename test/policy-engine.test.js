@@ -65,6 +65,15 @@ describe('evaluatePolicy', () => {
   test('handles undefined overrides without crash', () => {
     assert.equal(evaluatePolicy('blueprint', undefined), 'gate');
   });
+
+  test('settings policies used as middle fallback', () => {
+    // settingsPolicies overrides contract default
+    assert.equal(evaluatePolicy('prd', null, { prd: 'gate' }), 'gate');
+    // feature override > settings
+    assert.equal(evaluatePolicy('prd', { prd: 'flag' }, { prd: 'gate' }), 'flag');
+    // settings present but no entry for this phase — falls to contract default
+    assert.equal(evaluatePolicy('blueprint', null, { prd: 'gate' }), 'gate');
+  });
 });
 
 describe('VALID_GATE_OUTCOMES', () => {

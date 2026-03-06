@@ -1,5 +1,5 @@
 import React from 'react';
-import { List, Columns3, GitBranch, Network, Map, FileText, Search, CircleDot, Sun, Moon, Bell } from 'lucide-react';
+import { List, Columns3, GitBranch, Network, Map, FileText, Search, CircleDot, Sun, Moon, Bell, ShieldCheck, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Input } from '@/components/ui/input.jsx';
@@ -10,12 +10,14 @@ import AgentPanel from './AgentPanel.jsx';
 
 const VIEWS = [
   { key: 'attention', label: 'Attention', icon: Bell },
+  { key: 'gates', label: 'Gates', icon: ShieldCheck },
   { key: 'roadmap', label: 'Roadmap', icon: Map },
   { key: 'list', label: 'All Items', icon: List },
   { key: 'board', label: 'Board', icon: Columns3 },
   { key: 'tree', label: 'Tree', icon: GitBranch },
   { key: 'graph', label: 'Graph', icon: Network },
   { key: 'docs', label: 'Docs', icon: FileText },
+  { key: 'settings', label: 'Settings', icon: Settings2 },
 ];
 
 function phaseStats(items, phaseKey) {
@@ -77,6 +79,9 @@ function AppSidebar({
   agentActivity,
   agentErrors,
   sessionState,
+  pendingGateCount,
+  onSelectItem,
+  onThemeChange,
 }) {
   const total = items.length;
   const inProgressCount = items.filter(i => i.status === 'in_progress').length;
@@ -94,10 +99,12 @@ function AppSidebar({
 
   const toggleTheme = React.useCallback(() => {
     const next = !isDark;
+    const theme = next ? 'dark' : 'light';
     document.documentElement.classList.toggle('dark', next);
-    localStorage.setItem('compose:theme', next ? 'dark' : 'light');
+    localStorage.setItem('compose:theme', theme);
     setIsDark(next);
-  }, [isDark]);
+    if (onThemeChange) onThemeChange({ ui: { theme } });
+  }, [isDark, onThemeChange]);
 
   return (
     <aside className="w-52 shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border">
@@ -138,6 +145,7 @@ function AppSidebar({
         agentActivity={agentActivity}
         agentErrors={agentErrors}
         sessionState={sessionState}
+        onSelectItem={onSelectItem}
       />
 
       {/* Search */}
@@ -174,7 +182,11 @@ function AppSidebar({
             >
               <Icon className="h-4 w-4 shrink-0" />
               <span>{view.label}</span>
-              {view.key === 'attention' && attentionCount > 0 ? (
+              {view.key === 'gates' && pendingGateCount > 0 ? (
+                <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 h-4 text-amber-400 border-amber-400/30">
+                  {pendingGateCount}
+                </Badge>
+              ) : view.key === 'attention' && attentionCount > 0 ? (
                 <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 h-4 text-destructive border-destructive/30">
                   {attentionCount}
                 </Badge>

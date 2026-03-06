@@ -23,11 +23,13 @@ export class LifecycleManager {
   #store;
   #featureRoot;
   #artifactManager;
+  #settingsStore;
 
-  constructor(store, featureRoot) {
+  constructor(store, featureRoot, settingsStore) {
     this.#store = store;
     this.#featureRoot = featureRoot;
     this.#artifactManager = new ArtifactManager(featureRoot);
+    this.#settingsStore = settingsStore || null;
   }
 
   // ── Public API ──────────────────────────────────────────────────────────
@@ -72,7 +74,7 @@ export class LifecycleManager {
       throw new Error(`Cannot leave execute phase: iteration loop ${lifecycle.iterationState.loopId} is still active`);
     }
 
-    const policy = evaluatePolicy(targetPhase, lifecycle.policyOverrides);
+    const policy = evaluatePolicy(targetPhase, lifecycle.policyOverrides, this.#settingsStore?.get()?.policies);
 
     if (policy === 'gate') {
       return this.#createGate(itemId, 'advance', { targetPhase, outcome }, from, targetPhase);
@@ -101,7 +103,7 @@ export class LifecycleManager {
       throw new Error(`Cannot leave execute phase: iteration loop ${lifecycle.iterationState.loopId} is still active`);
     }
 
-    const policy = evaluatePolicy(targetPhase, lifecycle.policyOverrides);
+    const policy = evaluatePolicy(targetPhase, lifecycle.policyOverrides, this.#settingsStore?.get()?.policies);
 
     if (policy === 'gate') {
       return this.#createGate(itemId, 'skip', { targetPhase, reason }, from, targetPhase);
@@ -224,13 +226,14 @@ export class LifecycleManager {
     const defaults = ITERATION_DEFAULTS[loopType];
     if (!defaults) throw new Error(`Unknown loop type: ${loopType}`);
 
+    const settingsMax = this.#settingsStore?.get()?.iterations?.[loopType]?.maxIterations;
     const loopId = `iter-${uuidv4()}`;
     lifecycle.iterationState = {
       loopType,
       loopId,
       phase: 'execute',
       count: 0,
-      maxIterations: maxIterations || defaults.maxIterations,
+      maxIterations: maxIterations || settingsMax || defaults.maxIterations,
       startedAt: new Date().toISOString(),
       completedAt: null,
       outcome: null,

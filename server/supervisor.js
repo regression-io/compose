@@ -38,7 +38,7 @@ const PROCESSES = [
   {
     name: 'vite',
     command: path.join(PROJECT_ROOT, 'node_modules', '.bin', 'vite'),
-    port: 5173,
+    port: process.env.VITE_PORT || 5173,
     type: 'spawn',
   },
 ];

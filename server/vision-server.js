@@ -15,6 +15,9 @@ import { attachAgentSpawnRoutes } from './agent-spawn.js';
 import { attachVisionRoutes } from './vision-routes.js';
 import { attachSessionRoutes } from './session-routes.js';
 import { attachActivityRoutes } from './activity-routes.js';
+import { SettingsStore } from './settings-store.js';
+import { attachSettingsRoutes } from './settings-routes.js';
+import { CONTRACT } from './lifecycle-constants.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -31,12 +34,22 @@ export class VisionServer {
   }
 
   attach(httpServer, app) {
+    // ── Settings store ────────────────────────────────────────────────────
+    this.settingsStore = new SettingsStore(undefined, CONTRACT);
+
+    // ── Settings routes ───────────────────────────────────────────────────
+    attachSettingsRoutes(app, {
+      settingsStore: this.settingsStore,
+      broadcastMessage: (msg) => this.broadcastMessage(msg),
+    });
+
     // ── Vision CRUD + plan/parse routes ────────────────────────────────────
     attachVisionRoutes(app, {
       store: this.store,
       scheduleBroadcast: () => this.scheduleBroadcast(),
       broadcastMessage: (msg) => this.broadcastMessage(msg),
       projectRoot: PROJECT_ROOT,
+      settingsStore: this.settingsStore,
     });
 
     // ── Activity + error routes ─────────────────────────────────────────────
@@ -55,6 +68,7 @@ export class VisionServer {
       broadcastMessage: (msg) => this.broadcastMessage(msg),
       spawnJournalAgent,
       projectRoot: PROJECT_ROOT,
+      store: this.store,
     });
 
     // ── Snapshot route (stays inline: uses this._pendingSnapshots + this.clients) ──
@@ -129,6 +143,7 @@ export class VisionServer {
 
       try {
         ws.send(JSON.stringify({ type: 'visionState', ...this.store.getState() }));
+        ws.send(JSON.stringify({ type: 'settingsState', settings: this.settingsStore.get() }));
       } catch (err) {
         console.error('[vision] Error sending initial state:', err.message);
       }

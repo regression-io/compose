@@ -97,9 +97,6 @@ function loadFontSize() {
   } catch { return DEFAULT_FONT_SIZE; }
 }
 
-function loadTheme() {
-  return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-}
 
 export default function App() {
   return (
@@ -125,15 +122,28 @@ function AppInner() {
   const [isDragging, setIsDragging] = useState(false);
   const [rightTab, setRightTab] = useState('Canvas');
   const [fontSize, setFontSize] = useState(loadFontSize);
-  const [theme, setTheme] = useState(loadTheme);
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
   const containerRef = useRef(null);
 
+  // Sync isDark from DOM mutations (sidebar/settings panel may toggle the class)
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   const toggleTheme = useCallback(() => {
-    const next = theme === 'dark' ? 'light' : 'dark';
+    const next = isDark ? 'light' : 'dark';
     document.documentElement.classList.toggle('dark', next === 'dark');
     localStorage.setItem(THEME_KEY, next);
-    setTheme(next);
-  }, [theme]);
+    fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ui: { theme: next } }),
+    }).catch(() => {});
+  }, [isDark]);
 
   const changeFontSize = useCallback((delta) => {
     setFontSize(prev => {
@@ -195,9 +205,9 @@ function AppInner() {
           <button
             className="compose-btn-icon"
             onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {theme === 'dark' ? '\u2600' : '\u263E'}
+            {isDark ? '\u2600' : '\u263E'}
           </button>
           <div className="flex items-center gap-1">
             <button

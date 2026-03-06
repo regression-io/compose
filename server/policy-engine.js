@@ -18,12 +18,14 @@ const VALID_MODES = new Set(CONTRACT.policyModes);
  * Evaluate the policy mode for entering a target phase.
  *
  * @param {string} targetPhase — the phase being entered
- * @param {object|null|undefined} overrides — per-phase mode overrides
+ * @param {object|null|undefined} overrides — per-feature policy overrides
+ * @param {object|null|undefined} settingsPolicies — user settings policies (middle fallback)
  * @returns {'gate'|'flag'|'skip'}
  */
-export function evaluatePolicy(targetPhase, overrides) {
+export function evaluatePolicy(targetPhase, overrides, settingsPolicies) {
   const ov = overrides || {};
-  const mode = ov[targetPhase] ?? DEFAULT_POLICIES[targetPhase] ?? 'skip';
+  const sp = settingsPolicies || {};
+  const mode = ov[targetPhase] ?? sp[targetPhase] ?? DEFAULT_POLICIES[targetPhase] ?? 'skip';
   if (!VALID_MODES.has(mode)) {
     throw new Error(`Invalid policy mode: ${mode}`);
   }

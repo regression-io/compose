@@ -42,7 +42,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
  * @param {object} app — Express app
  * @param {{ store: object, scheduleBroadcast: function, broadcastMessage: function, projectRoot: string }} deps
  */
-export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMessage, projectRoot = PROJECT_ROOT }) {
+export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMessage, projectRoot = PROJECT_ROOT, settingsStore }) {
   // GET /api/vision/items — full state
   app.get('/api/vision/items', (_req, res) => {
     res.json(store.getState());
@@ -118,7 +118,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
   });
 
   // ── Lifecycle endpoints ────────────────────────────────────────────────
-  const lifecycleManager = new LifecycleManager(store, path.join(projectRoot, 'docs', 'features'));
+  const lifecycleManager = new LifecycleManager(store, path.join(projectRoot, 'docs', 'features'), settingsStore);
 
   app.get('/api/vision/items/:id/lifecycle', (req, res) => {
     try {

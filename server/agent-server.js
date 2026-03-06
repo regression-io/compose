@@ -11,6 +11,7 @@
  */
 
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -23,6 +24,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 const PORT = process.env.AGENT_PORT || 3002;
+const SETTINGS_FILE = path.join(PROJECT_ROOT, 'data', 'settings.json');
+
+function _readModelSetting() {
+  try {
+    const raw = readFileSync(SETTINGS_FILE, 'utf-8');
+    return JSON.parse(raw)?.models?.interactive || null;
+  } catch {
+    return null;
+  }
+}
 
 const app = express();
 app.use(cors({ origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/ }));
@@ -153,7 +164,7 @@ app.get('/api/agent/session/status', (_req, res) => {
 function _buildOptions(prompt, resumeId) {
   return {
     cwd: PROJECT_ROOT,
-    model: 'claude-sonnet-4-6',
+    model: _readModelSetting() || 'claude-sonnet-4-6',
     permissionMode: 'acceptEdits',
     settingSources: ['project'],
     tools: { type: 'preset', preset: 'claude_code' },

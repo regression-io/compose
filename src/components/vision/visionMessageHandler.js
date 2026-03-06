@@ -14,7 +14,7 @@ export function handleVisionMessage(msg, refs, setters) {
   const {
     setItems, setConnections, setGates, setGateEvent,
     setRecentChanges, setUICommand, setAgentActivity,
-    setAgentErrors, setSessionState, EMPTY_CHANGES,
+    setAgentErrors, setSessionState, setSettings, EMPTY_CHANGES,
   } = setters;
 
   if (msg.type === 'visionState') {
@@ -172,6 +172,9 @@ export function handleVisionMessage(msg, refs, setters) {
       });
       setSessionState(prev => prev?.active ? { ...prev, errorCount: (prev.errorCount || 0) + 1 } : prev);
     }
+
+  } else if (msg.type === 'settingsState' || msg.type === 'settingsUpdated') {
+    if (setSettings) setSettings(msg.settings || null);
 
   } else if (msg.type === 'snapshotRequest' && msg.requestId) {
     // Collect UI state from provider and DOM, send back

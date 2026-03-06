@@ -265,3 +265,59 @@ describe('getIterationStatus', () => {
     assert.equal(result.loopType, 'coverage');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Settings override for iteration limits
+// ---------------------------------------------------------------------------
+
+describe('iteration limits from settingsStore', () => {
+  test('settingsStore maxIterations used as middle fallback', () => {
+    const fakeSettingsStore = {
+      get: () => ({
+        policies: {},
+        iterations: { review: { maxIterations: 7 }, coverage: { maxIterations: 20 } },
+        models: {},
+        ui: {},
+      }),
+    };
+    const tmpDir = mkdtempSync(join(tmpdir(), 'iter-settings-'));
+    const dataDir = join(tmpDir, 'data');
+    mkdirSync(dataDir, { recursive: true });
+    const featureRoot = join(tmpDir, 'docs', 'features');
+    mkdirSync(join(featureRoot, 'TEST-S'), { recursive: true });
+
+    const store = new VisionStore(dataDir);
+    const item = store.createItem({ type: 'feature', title: 'Settings Iter Test' });
+    const mgr = new LifecycleManager(store, featureRoot, fakeSettingsStore);
+    mgr.startLifecycle(item.id, 'TEST-S');
+    advanceToExecute(store, mgr, item.id);
+
+    const result = mgr.startIterationLoop(item.id, 'review');
+    assert.equal(result.maxIterations, 7);
+  });
+
+  test('explicit maxIterations overrides settings', () => {
+    const fakeSettingsStore = {
+      get: () => ({
+        policies: {},
+        iterations: { review: { maxIterations: 7 } },
+        models: {},
+        ui: {},
+      }),
+    };
+    const tmpDir = mkdtempSync(join(tmpdir(), 'iter-settings2-'));
+    const dataDir = join(tmpDir, 'data');
+    mkdirSync(dataDir, { recursive: true });
+    const featureRoot = join(tmpDir, 'docs', 'features');
+    mkdirSync(join(featureRoot, 'TEST-S2'), { recursive: true });
+
+    const store = new VisionStore(dataDir);
+    const item = store.createItem({ type: 'feature', title: 'Settings Override Test' });
+    const mgr = new LifecycleManager(store, featureRoot, fakeSettingsStore);
+    mgr.startLifecycle(item.id, 'TEST-S2');
+    advanceToExecute(store, mgr, item.id);
+
+    const result = mgr.startIterationLoop(item.id, 'review', { maxIterations: 3 });
+    assert.equal(result.maxIterations, 3);
+  });
+});
