@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireSensitiveToken } from './security.js';
 import { spawnJournalAgent, extractSlugFromPath } from './vision-utils.js';
-import { attachSpeckitRoutes } from './speckit-helpers.js';
+import { attachFeatureScanRoutes } from './feature-scan.js';
 import { StratumSync, attachStratumRoutes } from './stratum-sync.js';
 import { createStratumRouter } from './stratum-api.js';
 import { attachAgentSpawnRoutes } from './agent-spawn.js';
@@ -109,9 +109,8 @@ export class VisionServer {
       requireSensitiveToken,
     });
 
-    // ── Speckit routes ──────────────────────────────────────────────────────
-    attachSpeckitRoutes(app, {
-      projectRoot: PROJECT_ROOT,
+    // ── Feature scan routes ────────────────────────────────────────────────
+    attachFeatureScanRoutes(app, {
       store: this.store,
       scheduleBroadcast: () => this.scheduleBroadcast(),
     });

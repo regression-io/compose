@@ -118,7 +118,7 @@ describe('loadProjectConfig (via fresh subprocess)', () => {
     mkdirSync(join(dir, '.compose'), { recursive: true });
     writeFileSync(join(dir, '.compose', 'compose.json'), JSON.stringify({
       version: 1,
-      capabilities: { stratum: false, speckit: true, lifecycle: true },
+      capabilities: { stratum: false, lifecycle: true },
       paths: { docs: 'documentation', features: 'documentation/features', journal: 'documentation/journal' },
     }));
 
@@ -134,7 +134,7 @@ describe('loadProjectConfig (via fresh subprocess)', () => {
     });
     const config = JSON.parse(result.trim());
     assert.equal(config.capabilities.stratum, false);
-    assert.equal(config.capabilities.speckit, true);
+
     assert.equal(config.paths.docs, 'documentation');
     assert.equal(config.paths.features, 'documentation/features');
   });
@@ -166,7 +166,7 @@ describe('loadProjectConfig (via fresh subprocess)', () => {
     mkdirSync(join(dir, '.compose'), { recursive: true });
     writeFileSync(join(dir, '.compose', 'compose.json'), JSON.stringify({
       version: 1,
-      capabilities: { stratum: true, speckit: false, lifecycle: true },
+      capabilities: { stratum: true, lifecycle: true },
       paths: { docs: 'docs', features: 'docs/features', journal: 'docs/journal' },
     }));
 
@@ -194,7 +194,7 @@ describe('loadProjectConfig (via fresh subprocess)', () => {
     mkdirSync(join(dir, '.compose'), { recursive: true });
     writeFileSync(join(dir, '.compose', 'compose.json'), JSON.stringify({
       version: 1,
-      capabilities: { stratum: false, speckit: false, lifecycle: true },
+      capabilities: { stratum: false, lifecycle: true },
       paths: { docs: 'my-docs', features: 'my-docs/feat', journal: 'my-docs/log' },
     }));
 

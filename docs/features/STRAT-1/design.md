@@ -1,6 +1,6 @@
 # STRAT-1: Stratum Process Engine Completion
 
-**Date:** 2026-03-06
+**Date:** 2026-03-07
 **Status:** Design
 **Related:** [Stratum Audit](../../plans/2026-03-05-stratum-audit.md), [Lifecycle Engine Roadmap](../../plans/2026-02-15-lifecycle-engine-roadmap.md)
 
@@ -13,6 +13,13 @@ The stated architecture is: "Stratum is the engine, Compose is the workflow spec
 ## Goal
 
 Complete Stratum as a general-purpose process engine using Compose's working implementations as the reference spec. Then Compose expresses its lifecycle as a Stratum spec and delegates execution.
+
+After STRAT-1:
+- `pip install compose` installs both Compose and Stratum (dependency)
+- `compose init` is the single entry point — questionnaire, agent detection, optional UI
+- `compose roadmap` decomposes a project into features with specs
+- `compose build` executes features through the lifecycle
+- The lifecycle is a `.stratum.yaml` spec, not bespoke code
 
 ## Separation of Concerns
 
@@ -30,56 +37,129 @@ Complete Stratum as a general-purpose process engine using Compose's working imp
 | Pending mutex | One gate per entity at a time | `lifecycle-manager.js:69` pendingGate |
 | Reconciliation | Infer state from external signals | `lifecycle-manager.js` reconcile() |
 | Audit trail | Full trace per round | `lifecycle-manager.js` policyLog |
+| Agent dispatch | Per-step agent assignment | `connectors/` (Claude, Codex) |
+| Workflow composition | Sub-workflow invocation via `flow:` | `pipelines/*.stratum.yaml` |
 
 **Compose owns the workspace** — what's going on and where things live:
 
 | Concern | What it does |
 |---|---|
-| Lifecycle definition | The 10-phase spec expressed as `.stratum.yaml` |
-| Phase names & artifacts | `explore_design`, `design.md`, etc. — Compose vocabulary |
-| Feature folders | `docs/features/<code>/` structure and templates |
+| Lifecycle definition | The `.stratum.yaml` spec — Compose's opinion on how features get built |
+| Feature folders | `docs/features/<code>/` with `spec.md`, `design.md`, `plan.md` |
 | Artifact assessment | Markdown quality checks, section validation |
 | Vision Surface | Items, connections, graphs, views |
 | Sessions | Working session tracking, feature binding |
 | Project config | `.compose/compose.json`, paths, capabilities |
-| Agent dispatch | Connectors to Claude, Codex |
+| Agent routing | Which agent is available, skill installation — Compose detects, spec assigns |
 | The UI | Terminal, sidebar, canvas, gate approval panel |
+| CLI | `compose init`, `compose roadmap`, `compose build`, `compose status` |
 
 ## What Stratum Gets (IR v0.2)
 
-Four additions to the `.stratum.yaml` format, each informed by Compose's working code:
+### 1. Simplified step format
 
-### 1. Gate step type
+Steps declare intent inline. No separate `functions:` block required.
+
+```yaml
+steps:
+  - id: design
+    agent: claude
+    intent: "Explore codebase and write design.md."
+    ensure:
+      - "file_exists('docs/features/' + input.featureCode + '/design.md')"
+    retries: 2
+
+  - id: review
+    agent: codex
+    intent: "Review implementation against blueprint."
+    ensure:
+      - "result.clean == true"
+    on_fail: fix
+
+  - id: fix
+    agent: claude
+    intent: "Fix all findings from review."
+    inputs:
+      findings: "$.steps.review.output.findings"
+    next: review
+```
+
+- `id` — step name, unique in the flow
+- `agent` — which agent executes (claude, codex, gemini, etc.)
+- `intent` — what to do (the prompt)
+- `ensure` — postconditions (existing)
+- `retries` — max retries on ensure failure (existing)
+- `on_fail` — route to another step on ensure failure (new — enables cross-agent loops)
+- `next` — explicit next step override (new — for loop-back routing)
+- `inputs` — data from prior steps (existing)
+- `depends_on` — DAG dependencies (existing)
+
+The old `functions:` block is still supported for reusable function definitions, but not required.
+
+### 2. Workflow composition
+
+A step can invoke a sub-workflow instead of running inline:
+
+```yaml
+flows:
+  review_fix:
+    input: { task: string, blueprint: string }
+    steps:
+      - id: review
+        agent: codex
+        intent: "Review against blueprint. Return {clean, findings}."
+        ensure: "result.clean == true"
+        on_fail: fix
+      - id: fix
+        agent: claude
+        intent: "Fix all findings."
+        next: review
+
+  compose_feature:
+    steps:
+      - id: implement
+        agent: claude
+        intent: "Execute the plan."
+
+      - id: review
+        flow: review_fix
+        inputs:
+          task: "$.steps.implement.output.summary"
+          blueprint: "$.input.blueprint"
+        depends_on: [implement]
+```
+
+`flow:` instead of `agent:` + `intent:` — Stratum creates a sub-execution with its own step graph and audit trail, inheriting the parent's working directory.
+
+Reusable workflows (review-fix, coverage-sweep, security-audit) become a shared library across projects.
+
+### 3. Gate step type
 
 **Reference:** `lifecycle-manager.js` gate subsystem
 
 ```yaml
-functions:
-  approval_gate:
-    mode: gate                    # new mode — suspends until resolution
-    output: GateDecision          # { outcome, rationale, resolved_by }
-    timeout: 3600                 # optional auto-kill
-
 steps:
   - id: design_gate
-    function: approval_gate
-    on_approve: blueprint         # next step
-    on_revise: explore            # roll back target
-    on_kill: killed               # terminal step
+    mode: gate
+    on_approve: blueprint
+    on_revise: explore
+    on_kill: killed
+    timeout: 3600
 ```
 
 New MCP tool: `stratum_gate_resolve(flow_id, step_id, outcome, rationale, resolved_by)`
 
 The deferred-operation pattern from Compose becomes native: the gate freezes the flow, resolution routes it.
 
-### 2. Policy layer
+### 4. Policy layer
 
 **Reference:** `policy-engine.js` — directly portable, zero Compose knowledge
 
 ```yaml
 steps:
   - id: prd
-    function: write_prd
+    agent: claude
+    intent: "Write PRD."
     policy: gate                  # gate | flag | skip
     policy_fallback: skip         # if no runtime override
 ```
@@ -88,21 +168,22 @@ Three-level resolution: step-level override → flow-level settings → spec def
 
 `flag` mode is novel — Stratum has nothing like it today. Proceed but record the governance decision in the audit trail.
 
-### 3. Skip
+### 5. Skip
 
 **Reference:** `lifecycle-manager.js` skipPhase()
 
 ```yaml
 steps:
   - id: prd
-    function: write_prd
+    agent: claude
+    intent: "Write PRD."
     skip_if: "$.input.skip_prd == true"
     skip_reason: "PRD not required for internal features"
 ```
 
 Or explicit: `stratum_skip_step(flow_id, step_id, reason)` — records the skip in the audit trace instead of silently omitting it.
 
-### 4. Round tracking
+### 6. Round tracking
 
 **Reference:** `lifecycle-manager.js` phaseHistory, iteration loops
 
@@ -116,115 +197,286 @@ flows:
 - `rounds[]` archive on flow state — prior round trace entries preserved
 - Per-step iteration tracking: `max_iterations`, `exit_criterion`, `iteration_history[]`
 
-## Implementation Phases
+### 7. Cross-agent loop routing
 
-### Phase 1: IR v0.2 Schema (Stratum repo)
+The `on_fail` + `next` fields enable loops across different agents:
 
-Add the new types to `spec.py`:
-- `mode: gate` on functions
-- `on_approve`, `on_revise`, `on_kill` on steps
-- `policy`, `policy_fallback` on steps
-- `skip_if`, `skip_reason` on steps
+```yaml
+steps:
+  - id: review
+    agent: codex
+    intent: "Review. Return {clean: boolean, findings: []}."
+    ensure: "result.clean == true"
+    on_fail: fix
+
+  - id: fix
+    agent: claude
+    intent: "Fix all findings."
+    inputs:
+      findings: "$.steps.review.output.findings"
+    next: review
+```
+
+Codex reviews → fails ensure → routes to claude for fix → claude fixes → routes back to codex → repeat until clean or max retries. Stratum orchestrates, each agent sees only its step.
+
+## Stratum Skill Prompt
+
+A single document that ships with Compose and gets installed per detected agent. Teaches any agent how to author and execute `.stratum.yaml` specs.
+
+**Contents:**
+- IR v0.2 format reference (inline steps, `agent`, `flow:`, `ensure`, `on_fail`/`next`)
+- MCP tool reference: `stratum_plan`, `stratum_step_done`, `stratum_gate_resolve`, `stratum_audit`
+- How to read a spec and understand what each step expects
+- How to report structured results that satisfy `ensure` expressions
+- Example specs: simple linear, review loop, multi-agent, composed workflows
+
+**Installation:** `compose init` detects available agents and installs the skill to each:
+- Claude Code: `~/.claude/skills/stratum/SKILL.md`
+- Codex: `~/.codex/skills/stratum/SKILL.md`
+- Gemini: equivalent path
+
+The skill is agent-agnostic — same content for all agents. Each agent learns to be a participant in Stratum workflows, not just a standalone tool.
+
+## Compose CLI
+
+After STRAT-1, the Compose CLI is the primary interface:
+
+```
+compose init          # one-time setup with questionnaire
+compose roadmap       # create/import roadmap, decompose into features + specs
+compose build [FEAT-1]  # execute next feature (or named) through lifecycle
+compose start         # launch UI daemon (optional)
+compose status        # what's in flight, blocked, next
+compose review        # cross-feature consistency check
+```
+
+### `compose init`
+
+```
+Project name (my-project):
+Artifact root (.compose/):
+Enable lifecycle gates? (Y/n):
+Install Compose UI? (Y/n):
+
+Detecting agents...
+  ✓ Claude Code — skill installed
+  ✓ Codex — skill installed
+  ✗ Gemini — not found
+
+Installing UI dependencies... npm install
+Starting Compose UI daemon...
+  ✓ UI running at http://localhost:3001
+  ✓ LaunchAgent registered — starts on login
+
+Done. Next: compose roadmap
+```
+
+### `compose roadmap`
+
+Separate session for project decomposition. Could be quick ("import my ROADMAP.md") or involved brainstorming. Produces `ROADMAP.md` and `spec.md` per feature.
+
+### `compose build`
+
+Picks up next unstarted feature from roadmap (or named feature). Reads `spec.md`, enriches into `design.md` via codebase exploration, executes the lifecycle through the `.stratum.yaml` spec.
+
+## Implementation: Three Milestone Gates
+
+Nothing ships until each gate passes. Each milestone produces a usable deliverable, not just internal progress.
+
+---
+
+### Milestone 1: Stratum Engine Complete
+
+**Gate:** Stratum IR v0.2 parses, validates, and executes a multi-step spec with gates, policy, skip, rounds, loops, composition, and per-step agent assignment. Proven with Stratum's own test suite.
+
+#### M1.1: Full IR v0.2 Schema (Stratum repo)
+
+All new fields at once in `spec.py` — one schema pass:
+
+**Inline steps:**
+- `agent` — which agent executes the step
+- `intent` — what to do (prompt), inline on step
+- `on_fail` — route to named step on ensure failure
+- `next` — explicit next-step override for loop-back
+
+**Workflow composition:**
+- `flow:` reference on steps — invoke a sub-workflow
+
+**Gates:**
+- `mode: gate` on steps — suspends until resolution
+- `on_approve`, `on_revise`, `on_kill` — routing on gate outcome
+- `timeout` — optional auto-kill
+
+**Policy:**
+- `policy` — gate | flag | skip
+- `policy_fallback` — default if no runtime override
+
+**Skip:**
+- `skip_if` — expression-based conditional skip
+- `skip_reason` — recorded in audit trail
+
+**Rounds:**
 - `max_rounds` on flows
 - `round`, `iterations` on StepRecord
 
-**Reference:** `contracts/lifecycle.json` for the structural envelope pattern.
+**Backward compat:** `functions:` block still supported, `function:` reference on steps still works.
+
 **Validation:** `stratum_validate` catches invalid specs.
+**Reference:** `contracts/lifecycle.json` for the structural envelope pattern.
 
-### Phase 2: Gate Executor (Stratum repo)
+#### M1.2: Full Executor (Stratum repo)
 
-Implement gate resolution in `executor.py`:
-- `stratum_gate_resolve` MCP tool
-- On approve → advance to `on_approve` step
-- On revise → archive trace, clear state from `on_revise` target onward, increment round, resume
-- On kill → route to `on_kill` terminal step
-- Pending-gate mutex (one per flow)
+One pass through `executor.py`, built in four internal strata. Each builds on the prior one's state model, reducing rework.
 
-**Reference:** `lifecycle-manager.js:424-497` (gate creation), `lifecycle-manager.js:174-215` (gate approval with deferred-op replay).
+**Stratum 1 — Execution state model:**
+- `StepRecord` with all new fields (agent, round, iteration_history)
+- `FlowState` with rounds[], pending_gate, audit trail
+- Agent field passthrough — caller knows who to invoke
+- Audit trail infrastructure — all subsequent strata write to it
 
-### Phase 3: Policy Engine (Stratum repo)
+**Stratum 2 — Gates, policy, skip:**
+- Gate resolution: `stratum_gate_resolve` MCP tool, pending-gate mutex, on_approve/revise/kill routing
+- Policy evaluation: three-level resolution (step → flow → spec default), flag audit entries
+- Skip evaluation: `skip_if` expressions, `stratum_skip_step` explicit tool
 
-Implement three-level policy resolution in the executor:
-- Read `policy` from step spec
-- Accept runtime overrides via `stratum_set_policy(flow_id, step_id, mode)`
-- Evaluate before step dispatch: gate → create gate step; flag → log and proceed; skip → skip with reason
-- `flag` creates audit entry but does not suspend
+**Stratum 3 — Loops and rounds:**
+- Round tracking: counter increment on revise, `max_rounds` enforcement, `rounds[]` archive
+- Per-step iteration tracking: `max_iterations`, `exit_criterion`, `iteration_history[]`
 
-**Reference:** `policy-engine.js` — can be ported almost line-for-line.
+**Stratum 4 — Routing and composition:**
+- `on_fail` → route to named step on ensure failure
+- `next` → explicit next-step override for loop-back
+- `flow:` sub-execution creation, result propagation, nested audit trails
 
-### Phase 4: Skip & Round Tracking (Stratum repo)
+**Audit:** `stratum_audit` reports per-round breakdown with all primitive decisions.
 
-- `skip_if` evaluation in executor (Python expression, same as `ensure`)
-- `stratum_skip_step` explicit tool
-- Round counter increment on revise, `max_rounds` enforcement
-- `rounds[]` archive with per-round trace entries
-- `stratum_audit` reports per-round breakdown
+**References:**
+- `lifecycle-manager.js:424-497` (gate creation), `lifecycle-manager.js:174-215` (gate approval)
+- `policy-engine.js` — portable almost line-for-line
+- `lifecycle-constants.js` SKIPPABLE set, `lifecycle-manager.js` phaseHistory
 
-**Reference:** `lifecycle-constants.js` SKIPPABLE set, `lifecycle-manager.js` phaseHistory round tracking.
+#### M1.3: Contract Freeze
 
-### Phase 5: Compose Integration (Compose repo)
+Freeze the Stratum contract before Compose integration. Without this, integration thrashes.
 
-Replace Compose's bespoke lifecycle code with Stratum primitives while preserving the existing REST and WebSocket contracts that the UI and tests depend on.
+**Freeze deliverables:**
+- **Spec shape:** final `.stratum.yaml` schema with all v0.2 fields, validated by `stratum_validate`
+- **MCP tool names and payloads:** exact signatures for `stratum_plan`, `stratum_step_done`, `stratum_gate_resolve`, `stratum_skip_step`, `stratum_set_policy`, `stratum_iteration_start`, `stratum_iteration_report`, `stratum_audit`
+- **Flow state output:** exact shape of flow state JSON (steps, rounds, gates, iterations, audit trail)
+- **Audit output:** exact shape of `stratum_audit` response
 
-**Gate API migration:**
+Published as a contract document in `docs/features/STRAT-1/stratum-contract.md`. Compose codes against this. Post-freeze changes require both sides to update.
 
-The current gate transport contract:
+---
+
+### Milestone 2: Headless Compose Runner
+
+**Gate:** `compose build FEAT-X` reads a spec, invokes Stratum, dispatches agents, enforces gates, and produces artifacts in the feature folder. No UI, no server — CLI → Stratum → agents → disk.
+
+#### M2.1: Stratum Skill Prompt (starts during M1.1)
+
+Universal agent skill for authoring/executing `.stratum.yaml`:
+- IR v0.2 format reference with examples
+- MCP tool usage patterns
+- How to report structured results that satisfy `ensure` expressions
+- Example specs: simple linear, review loop, multi-agent, composed workflows
+- Install to all detected agent skill directories (Claude, Codex, Gemini)
+
+Test: give the skill to an agent, have it author a spec from scratch.
+
+#### M2.2: `compose build` — Headless Lifecycle Runner
+
+The core new code. Reads a `.stratum.yaml` spec, orchestrates execution:
+
+1. Load feature: read `spec.md` (or `design.md`) from feature folder
+2. Plan: call `stratum_plan` with the lifecycle spec and feature input
+3. Loop: for each step, dispatch to the assigned agent via connector
+4. Enforce: gates suspend and wait for resolution (CLI prompt or API call)
+5. Track: write artifacts to feature folder, update vision state on disk
+6. Audit: call `stratum_audit` on completion, write trace to feature folder
+
+**No server required.** Vision state writes directly to `data/vision-state.json`. Gate resolution via CLI prompt (headless) or REST API (if server is running).
+
+#### M2.3: `compose init` Questionnaire
+
+Upgrade existing `compose init` to interactive:
+- Project name, artifact root, gate preference
+- Agent auto-detection + skill installation
+- Optional UI install (`npm install` + daemon)
+
+#### M2.4: Compose Integration — Delete Bespoke Code
+
+Replace Compose's lifecycle engine with Stratum calls:
+
+**What gets deleted:**
+- `lifecycle-manager.js` state machine, gate subsystem, iteration subsystem
+- `policy-engine.js` (ported to Stratum)
+- Most of `lifecycle-constants.js` (execution primitives gone)
+
+**What becomes adapter code** (only needed when UI server runs):
+- Gate route handlers → thin proxy to `stratum_gate_resolve`
+- Iteration route handlers → thin proxy to `stratum_iteration_*`
+- WebSocket broadcasts → triggered by Stratum events
+
+**Preserved transport contracts** (no breaking change to UI):
+
+Gate API:
 - `GET /api/vision/gates` — list pending gates (filtered by itemId)
 - `GET /api/vision/gates/:id` — get gate detail
 - `POST /api/vision/gates/:id/resolve` — resolve with `{ outcome, comment }`
 - WebSocket broadcast: `gateResolved { gateId, itemId, outcome, timestamp }`
 
-These endpoints stay. The route handlers become a thin adapter layer:
-- `POST .../resolve` calls `stratum_gate_resolve(flow_id, step_id, outcome, ...)` instead of `lifecycleManager.approveGate()`
-- `GET .../gates` reads gate state from Stratum flow state instead of `store.gates`
-- WebSocket broadcasts are triggered by Stratum gate events, not lifecycle-manager side effects
-- Response shapes remain identical — no breaking change to the UI or MCP tools
-
-**Iteration migration:**
-
-Iteration loops (review/coverage within execute phase) are a **Stratum primitive**, not a Compose-local concern. The current transport contract:
+Iteration API:
 - `POST /api/vision/items/:id/lifecycle/iteration/start` — `{ loopType, maxIterations }`
 - `POST /api/vision/items/:id/lifecycle/iteration/report` — `{ clean, passing, summary, findings, failures }`
-- `GET /api/vision/items/:id/lifecycle/iteration` — current iteration status (loopType, count, maxIterations, active)
+- `GET /api/vision/items/:id/lifecycle/iteration` — current iteration status
 - WebSocket broadcasts: `iterationStarted`, `iterationUpdate`, `iterationComplete { loopType, outcome, finalCount }`
 
-These endpoints and events stay as an adapter layer. Stratum owns the loop execution:
-- `iteration/start` calls a new `stratum_iteration_start(flow_id, step_id, loopType, maxIterations)` tool
-- `iteration/report` calls `stratum_iteration_report(flow_id, step_id, result)` — Stratum evaluates exit criteria, increments count, enforces max
-- `iteration` GET reads loop state from Stratum flow state instead of `lifecycleManager.getIterationStatus()`
-- `iterationComplete` is broadcast when Stratum reports loop exit (clean completion or max_reached) — the client message handler and error detection depend on this signal
-- The phase-exit mutex (cannot leave execute while loop active) moves to Stratum's executor
-- Loop types and their exit criteria (`clean` for review, `passing` for coverage) are defined in the `.stratum.yaml` spec, not hardcoded in Compose
-
-**What gets deleted from Compose:**
-- `lifecycle-manager.js` state machine, gate subsystem, iteration subsystem (replaced by Stratum calls)
-- `policy-engine.js` (ported to Stratum)
-- Most of `lifecycle-constants.js` (phases still Compose-owned, but execution primitives gone)
-
-**What becomes adapter code in Compose:**
-- Gate route handlers → thin proxy to `stratum_gate_resolve`
-- Iteration route handlers → thin proxy to `stratum_iteration_*`
-- WebSocket broadcasts → triggered by Stratum events
-
-**What stays unchanged in Compose:**
+**What stays unchanged:**
 - Feature folder management, artifact assessment
 - The `.stratum.yaml` lifecycle spec (Compose's opinion)
 - Vision Surface, sessions, project config, UI
 - Gate approval panel UI (same REST contract, different backend)
-- All MCP tool signatures (same interface, Stratum backend)
 
-### Phase 6: Validation
+---
 
-- Compose's 410 tests adapted to use Stratum primitives
-- Stratum's own tests for gates, policy, skip, rounds
-- E2E: run `/compose` lifecycle through Stratum with a real feature
+### Milestone 3: Prove It — Run STRAT-1 Through Compose
+
+**Gate:** Compose builds its own Track B (Compose integration) using `compose build`. The headless runner reads the STRAT-1 spec, dispatches Claude to implement, dispatches Codex to review, loops until clean, enforces gates, produces artifacts. Dogfooding milestone D4.
+
+#### M3.1: Write STRAT-1 Spec
+
+`docs/features/STRAT-1/spec.md` — the input to `compose build STRAT-1`. Covers Track B only (Compose integration). Track A (Stratum engine) must be complete first.
+
+#### M3.2: Execute
+
+Run `compose build STRAT-1` headless. The runner:
+- Reads spec.md
+- Explores codebase, writes/updates design.md
+- Gates for human approval
+- Writes plan.md
+- Gates for human approval
+- Dispatches Claude for implementation
+- Dispatches Codex for review (cross-agent loop)
+- Loops until review clean
+- Runs coverage sweep
+- Writes report, updates docs, commits
+
+#### M3.3: Validate
+
+- All 410+ Compose tests pass with Stratum backend
+- Stratum's own tests for all v0.2 primitives
+- E2E audit trail: complete trace of the STRAT-1 execution
+- Cross-agent review loop proven (codex → claude → codex)
 
 ## Open Questions
 
 1. **Event model:** Should Stratum push events (WebSocket/SSE) or should Compose continue polling? Push would eliminate `stratum-sync.js` polling and enable real-time gate notifications.
 
-2. ~~**Iteration loops vs. revision rounds:**~~ **Resolved.** Iteration loops are a Stratum primitive (see Phase 5: Compose Integration). Stratum owns loop execution, count tracking, exit criteria evaluation, and max enforcement. Compose retains the REST/WS adapter layer and the loop type definitions in its `.stratum.yaml` spec.
+2. ~~**Iteration loops vs. revision rounds:**~~ **Resolved.** Iteration loops are a Stratum primitive (see Phase 6: Compose Integration). Stratum owns loop execution, count tracking, exit criteria evaluation, and max enforcement. Compose retains the REST/WS adapter layer and the loop type definitions in its `.stratum.yaml` spec.
 
 3. **Artifact awareness:** Reconciliation (infer phase from files on disk) is currently in Compose. Should Stratum have a generic "external signal reconciliation" primitive, or is this always workflow-specific?
 
-4. **Contract format:** Should `lifecycle.json` become a `.stratum.yaml` spec directly, or should Stratum support a separate "workflow contract" format that sits above individual specs?
+4. ~~**Contract format:**~~ **Resolved.** The lifecycle is a `.stratum.yaml` spec. `lifecycle.json` stays as Compose's source of truth for phase names and artifact mappings, but execution is Stratum-native.
+
+5. **Python packaging:** Compose becomes a `pip install` package with Stratum as a dependency. The Node UI server ships as a bundled asset or is installed on demand via `npm install` during `compose init`. Packaging strategy TBD.

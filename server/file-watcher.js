@@ -175,12 +175,19 @@ export class FileWatcherServer {
       }
     });
 
-    // Watch .specify/ — broadcast speckitChanged events (vision server will reseed)
-    watchDir(path.join(PROJECT_ROOT, '.specify'), '.specify', (relativePath) => {
-      this.broadcast({ type: 'speckitChanged', path: relativePath });
-      // Notify registered speckit callback (set by VisionServer.attachSpeckitWatch)
-      if (typeof this.onSpeckitChanged === 'function') {
-        this.onSpeckitChanged(relativePath);
+    // Watch features/ — notify for auto-reseed into vision store
+    const featuresPrefix = config.paths?.features || 'docs/features';
+    watchDir(path.join(PROJECT_ROOT, featuresPrefix), featuresPrefix, (relativePath) => {
+      // Also broadcast as fileChanged (features are docs)
+      const fullPath = path.join(PROJECT_ROOT, relativePath);
+      try {
+        if (fs.existsSync(fullPath)) {
+          const content = fs.readFileSync(fullPath, 'utf-8');
+          this.broadcast({ type: 'fileChanged', path: relativePath, content });
+        }
+      } catch { /* skip */ }
+      if (typeof this.onFeatureChanged === 'function') {
+        this.onFeatureChanged(relativePath);
       }
     });
   }

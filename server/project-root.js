@@ -47,7 +47,7 @@ export function ensureDataDir() {
 
 const DEFAULT_CONFIG = Object.freeze({
   version: 1,
-  capabilities: Object.freeze({ stratum: true, speckit: false, lifecycle: true }),
+  capabilities: Object.freeze({ stratum: true, lifecycle: true }),
   paths: Object.freeze({ docs: 'docs', features: 'docs/features', journal: 'docs/journal' }),
 });
 

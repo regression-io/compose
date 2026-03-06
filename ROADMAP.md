@@ -1,10 +1,10 @@
 # Compose Roadmap
 
 **Project:** Compose — a lifecycle runtime for AI-assisted feature development.
-Compose enforces the `/compose` skill structurally: gates that block, phases that are tracked,
-artifacts that are managed, iterations that are orchestrated.
+Compose orchestrates multi-agent workflows via Stratum specs: gates that block, policies that enforce,
+iterations that loop across agents, artifacts that are tracked.
 
-**Last updated:** 2026-03-06
+**Last updated:** 2026-03-07
 
 ---
 
@@ -103,52 +103,33 @@ See `docs/plans/2026-03-05-18h-acceptance-gate.md` for the acceptance test check
 
 ---
 
-## Phase 4.5 Support: Speckit + Stratum Sync — COMPLETE
+## Phase 4.5 Support: Stratum Sync + Feature Scan — COMPLETE
 
 Infrastructure that landed alongside Phase 4 connector work.
 
 | # | Item | Status |
 |---|------|--------|
-| — | Speckit: seed tracker from `.specify/` feature folders | COMPLETE |
+| — | Feature scan: seed tracker from `docs/features/` folders (replaced speckit) | COMPLETE |
 | — | Stratum sync: poll `~/.stratum/flows/`, sync flow status → item status | COMPLETE |
 | — | Stratum bind/audit routes: link flows to items, store audit traces | COMPLETE |
 | — | compose-mcp: 5 MCP tools for querying Vision Surface state | COMPLETE |
 
 ---
 
-## Phase 5: Standalone App — PARKED
+## Phase 5: Standalone App — SUPERSEDED by STRAT-1
 
-Deferred in favour of Phase 6. Packaging doesn't change what Compose is — the lifecycle engine does.
-Revisit once L3 (Policy Enforcement Runtime) is stable.
-
-| # | Item | Status |
-|---|------|--------|
-| 19 | macOS LaunchAgent: start on login, `KeepAlive: true`, `compose ui install/uninstall` | PARKED |
-| 20 | Version-aware restart: detect code updates, show banner, `/api/restart` | PARKED |
-| 21 | Suspend/resume watchdog: detect system sleep, restart on wake | PARKED |
-| 22 | CLI + package distribution: `npm install -g compose`, pre-built dist, no Vite in production | PARKED |
+Packaging is now part of STRAT-1. `pip install compose` replaces `npm install -g compose`.
+UI installation is handled by `compose init` questionnaire.
 
 ---
 
 ## Phase 6: Lifecycle Engine — PARTIAL
 
-Compose's lifecycle layers (L0–L6) are built and working. However, the process primitives
-(gates, policy, skip, rounds) currently live in Compose instead of Stratum. STRAT-1 completes
-the separation of concerns: push primitives into Stratum, replace Compose bespoke code with
-a `.stratum.yaml` spec.
+Compose's lifecycle layers (L0–L6) are built and working. The process primitives
+(gates, policy, skip, rounds) currently live in Compose. STRAT-1 moves them to Stratum
+and makes Compose a thin workflow layer.
 
-### Phase 6 Pre-work: Stratum Refactor → STRAT-1
-
-Stratum must expose the primitives Compose needs. Audit is complete. Refactor scoped as STRAT-1.
-
-| # | Item | Status |
-|---|------|--------|
-| 19 | Audit Stratum: inventory existing primitives, identify gaps | COMPLETE |
-| 20 | Stratum process engine completion (STRAT-1) | PLANNED |
-
-See `docs/features/STRAT-1/` for full design.
-
-### Phase 6 Layers
+### Phase 6 Layers (Compose-internal, all COMPLETE)
 
 | # | Layer | Status |
 |---|-------|--------|
@@ -159,11 +140,6 @@ See `docs/features/STRAT-1/` for full design.
 | 25 | **L4 — Gate UI:** sidebar surface for pending phase transitions — shows artifact, proposed next phase, rationale. Three actions: Approve / Revise / Kill. Gate history. | COMPLETE |
 | 26 | **L5 — Session-Lifecycle Binding:** sessions tagged to feature + phase. Activity grouped by feature. Transcripts auto-filed. Handoff context injected automatically. | COMPLETE |
 | 27 | **L6 — Iteration Orchestration:** review and coverage loops as Compose primitives. Compose dispatches, monitors for completion promises, enforces exit criteria. Agent cannot self-report done without Compose confirming. | COMPLETE |
-
-**Key architectural decision (2026-03-05):** Compose does not build a lifecycle engine. Stratum is
-the engine. Compose is a workflow spec. L1 is a Stratum spec + contract, not a new backend service.
-
-**L3 is the core new build.** It is the difference between "the skill says gate" and "Compose won't let you proceed without approval."
 
 **Exit (current):** Lifecycle layers work end-to-end with Compose-internal primitives. Gates block, policies inherit, iterations are orchestrated, artifacts are managed.
 
@@ -191,18 +167,54 @@ See `docs/features/INIT-1/` for design, blueprint, plan, and report.
 
 ---
 
-## Phase 7: Agent Abstraction — PLANNED (Post-V1)
+## STRAT-1: Stratum Process Engine + Compose MVP — IN_PROGRESS
 
-Agent-agnostic lifecycle. Claude Code, Codex, Gemini run the same pipeline through adapters.
+Three milestone gates. Each produces a usable deliverable. Nothing ships until each gate passes.
+
+### Milestone 1: Stratum Engine Complete
+
+Stratum IR v0.2 parses, validates, and executes specs with all primitives.
 
 | # | Item | Status |
 |---|------|--------|
-| 30 | Connector interface: plan, execute, review, iterate capabilities | PLANNED |
-| 31 | Claude Code adapter | PLANNED |
-| 32 | Codex adapter | PLANNED |
-| 33 | Agent capability negotiation: adapt lifecycle when agent lacks a capability | PLANNED |
+| 37 | Audit Stratum: inventory existing primitives, identify gaps | COMPLETE |
+| 38 | IR v0.2 schema: inline steps (`agent`, `intent`, `on_fail`, `next`), `flow:` composition, gates, policy, skip, rounds | PLANNED |
+| 39a | Executor stratum 1: execution state model (StepRecord, FlowState, agent passthrough, audit infra) | PLANNED |
+| 39b | Executor stratum 2: gates, policy, skip | PLANNED |
+| 39c | Executor stratum 3: loops and rounds | PLANNED |
+| 39d | Executor stratum 4: `on_fail`/`next` routing, `flow:` composition | PLANNED |
+| 39e | Contract freeze: spec shape, MCP tool signatures, flow state/audit output | PLANNED |
 
-**Exit:** The feature lifecycle is the same regardless of which agent runs it.
+**Gate:** Multi-step spec with gates, loops, and per-step agent assignment executes end-to-end in Stratum.
+
+### Milestone 2: Headless Compose Runner
+
+`compose build` works without UI. CLI → Stratum → agents → artifacts.
+
+| # | Item | Status |
+|---|------|--------|
+| 40 | Stratum skill prompt: universal agent skill for authoring/executing `.stratum.yaml` | PLANNED |
+| 41 | `compose build`: headless lifecycle runner (plan → dispatch → gate → loop → audit) | PLANNED |
+| 42 | `compose init` upgrade: questionnaire, agent detection, skill install, optional UI | PLANNED |
+| 43 | Delete bespoke code: replace lifecycle-manager/policy-engine with Stratum adapters | PLANNED |
+
+**Gate:** `compose build FEAT-X` reads a spec, dispatches agents, enforces gates, produces artifacts. No server required.
+
+### Milestone 3: Prove It
+
+Run STRAT-1's own Compose integration through `compose build`. Dogfooding milestone D4.
+
+| # | Item | Status |
+|---|------|--------|
+| 44 | Write STRAT-1 spec.md (Track B: Compose integration) | PLANNED |
+| 45 | Execute `compose build STRAT-1` headless — cross-agent review loop, gates, full lifecycle | PLANNED |
+| 46 | Validate: 410+ tests pass, Stratum test suite, E2E audit trail | PLANNED |
+
+**Gate:** Compose builds itself using `compose build`. Multi-agent, gated, audited.
+
+**Exit:** `pip install compose` → `compose init` → `compose build`. Compose is a thin layer: lifecycle spec + visibility + agent routing + optional UI.
+
+See `docs/features/STRAT-1/` for full design.
 
 ---
 
@@ -214,6 +226,7 @@ Agent-agnostic lifecycle. Claude Code, Codex, Gemini run the same pipeline throu
 | D1: Visible | Compose tracks its own development in the Vision Surface. Activity hooks fire during Compose development sessions. | COMPLETE |
 | D2: Self-hosting | A planning session for Compose happens entirely inside Compose — inline docs, decisions recorded, items created. | PARTIAL |
 | D3: Enforced | Phase transitions on Compose features are gated through Compose's own policy runtime. | PARTIAL |
+| D4: Multi-agent | A feature is built end-to-end using multiple agents dispatched by Compose via Stratum. | PLANNED |
 
 ---
 
@@ -221,6 +234,7 @@ Agent-agnostic lifecycle. Claude Code, Codex, Gemini run the same pipeline throu
 
 | Document | What it is |
 |---|---|
+| `docs/features/STRAT-1/design.md` | STRAT-1 full design — IR v0.2, executor, CLI, integration |
 | `docs/plans/2026-02-15-lifecycle-engine-roadmap.md` | Full Layer 0–7 design, dependency graph, open questions |
 | `docs/plans/2026-02-26-architecture-foundation-plan.md` | Phase 4 items 18a–18h detail |
 | `docs/plans/2026-03-05-18h-acceptance-gate.md` | Manual acceptance test checklist for Phase 4 gate |

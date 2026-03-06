@@ -49,7 +49,6 @@ function runInit(flags) {
 
   // 2. Detect capabilities
   const hasStratum = !noStratum && spawnSync('which', ['stratum-mcp'], { encoding: 'utf-8' }).status === 0
-  const hasSpeckit = existsSync(join(cwd, '.specify'))
   const hasLifecycle = !noLifecycle
 
   // 3. Write .compose/compose.json (merge with existing if present)
@@ -64,7 +63,6 @@ function runInit(flags) {
     capabilities: {
       ...(existing.capabilities || {}),
       stratum: hasStratum,
-      speckit: hasSpeckit,
       lifecycle: hasLifecycle,
     },
     paths: {
@@ -120,7 +118,6 @@ function runInit(flags) {
   console.log('')
   console.log('Compose initialized:')
   console.log(`  Stratum:   ${config.capabilities.stratum ? 'enabled' : 'disabled'}`)
-  console.log(`  Speckit:   ${config.capabilities.speckit ? 'detected' : 'not found'}`)
   console.log(`  Lifecycle: ${config.capabilities.lifecycle ? 'enabled' : 'disabled'}`)
 }
 

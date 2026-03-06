@@ -7,7 +7,7 @@ import { FileWatcherServer } from './file-watcher.js';
 import { VisionStore } from './vision-store.js';
 import { VisionServer } from './vision-server.js';
 import { SessionManager } from './session-manager.js';
-import { scanSpeckit, seedSpeckit } from './speckit-helpers.js';
+import { scanFeatures, seedFeatures } from './feature-scan.js';
 import { TARGET_ROOT, DATA_DIR, ensureDataDir, loadProjectConfig, resolveProjectPath } from './project-root.js';
 
 // Load project config and verify stratum capability matches reality
@@ -64,22 +64,22 @@ const sessionManager = new SessionManager({
 const visionServer = new VisionServer(visionStore, sessionManager, { config: projectConfig });
 visionServer.attach(server, app);
 
-// Seed .specify/ into vision store on startup
+// Seed feature folders into vision store on startup
 try {
-  const features = scanSpeckit(TARGET_ROOT);
-  if (features.length > 0) seedSpeckit(features, visionStore);
+  const features = scanFeatures();
+  if (features.length > 0) seedFeatures(features, visionStore);
 } catch (err) {
-  console.error('[compose] Speckit startup seed error:', err.message);
+  console.error('[compose] Feature scan startup error:', err.message);
 }
 
-// Wire .specify/ file changes → auto-reseed vision store
-fileWatcher.onSpeckitChanged = (_relativePath) => {
+// Wire feature folder changes → auto-reseed vision store
+fileWatcher.onFeatureChanged = (_relativePath) => {
   try {
-    const features = scanSpeckit(TARGET_ROOT);
-    seedSpeckit(features, visionStore);
+    const features = scanFeatures();
+    seedFeatures(features, visionStore);
     visionServer.scheduleBroadcast();
   } catch (err) {
-    console.error('[compose] Speckit reseed error:', err.message);
+    console.error('[compose] Feature reseed error:', err.message);
   }
 };
 

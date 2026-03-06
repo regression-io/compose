@@ -127,7 +127,7 @@ export class VisionStore {
       throw new Error(`Invalid phase: ${updates.phase}`);
     }
 
-    const allowed = ['type', 'title', 'description', 'confidence', 'status', 'phase', 'position', 'parentId', 'summary', 'files', 'speckitKey', 'stratumFlowId', 'evidence'];
+    const allowed = ['type', 'title', 'description', 'confidence', 'status', 'phase', 'position', 'parentId', 'summary', 'files', 'featureCode', 'stratumFlowId', 'evidence'];
     for (const key of allowed) {
       if (updates[key] !== undefined) {
         item[key] = updates[key];
