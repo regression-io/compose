@@ -37,6 +37,8 @@ import {
   toolSkipFeaturePhase,
   toolKillFeature,
   toolCompleteFeature,
+  toolAssessFeatureArtifacts,
+  toolScaffoldFeature,
 } from './compose-mcp-tools.js';
 
 // ---------------------------------------------------------------------------
@@ -176,6 +178,33 @@ const TOOLS = [
       required: ['id'],
     },
   },
+  {
+    name: 'assess_feature_artifacts',
+    description: 'Assess quality signals for all artifacts of a feature: section completeness, word count, last modified.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        featureCode: { type: 'string', description: 'Feature folder name (e.g. "artifact-awareness")' },
+      },
+      required: ['featureCode'],
+    },
+  },
+  {
+    name: 'scaffold_feature',
+    description: 'Create feature folder with template stubs for all phase artifacts. Existing files are never overwritten.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        featureCode: { type: 'string', description: 'Feature folder name' },
+        only: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Limit to specific artifacts (e.g. ["design.md", "blueprint.md"]). Omit for all.',
+        },
+      },
+      required: ['featureCode'],
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -207,6 +236,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'skip_feature_phase':       result = await toolSkipFeaturePhase(args); break;
       case 'kill_feature':             result = await toolKillFeature(args); break;
       case 'complete_feature':         result = await toolCompleteFeature(args); break;
+      case 'assess_feature_artifacts': result = toolAssessFeatureArtifacts(args); break;
+      case 'scaffold_feature':         result = toolScaffoldFeature(args); break;
       default:
         return {
           content: [{ type: 'text', text: `Unknown tool: ${name}` }],

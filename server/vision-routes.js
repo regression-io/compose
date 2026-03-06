@@ -19,6 +19,8 @@
  *   POST   /api/vision/items/:id/lifecycle/skip
  *   POST   /api/vision/items/:id/lifecycle/kill
  *   POST   /api/vision/items/:id/lifecycle/complete
+ *   GET    /api/vision/items/:id/artifacts
+ *   POST   /api/vision/items/:id/artifacts/scaffold
  */
 
 import fs from 'node:fs';
@@ -26,6 +28,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractFilePaths } from './vision-utils.js';
 import { LifecycleManager } from './lifecycle-manager.js';
+import { ArtifactManager } from './artifact-manager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -222,6 +225,39 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     } catch (err) {
       const status = err.message.includes('not found') ? 404 : 400;
       res.status(status).json({ error: err.message });
+    }
+  });
+
+  // ── Artifact endpoints ───────────────────────────────────────────────
+  const artifactManager = new ArtifactManager(path.join(projectRoot, 'docs', 'features'));
+
+  app.get('/api/vision/items/:id/artifacts', (req, res) => {
+    try {
+      const items = store.getState().items;
+      const item = items.find(i => i.id === req.params.id);
+      if (!item) return res.status(404).json({ error: `Item not found: ${req.params.id}` });
+      if (!item.lifecycle?.featureCode) {
+        return res.status(400).json({ error: 'Item has no lifecycle featureCode' });
+      }
+      const assessment = artifactManager.assess(item.lifecycle.featureCode);
+      res.json(assessment);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/items/:id/artifacts/scaffold', (req, res) => {
+    try {
+      const items = store.getState().items;
+      const item = items.find(i => i.id === req.params.id);
+      if (!item) return res.status(404).json({ error: `Item not found: ${req.params.id}` });
+      if (!item.lifecycle?.featureCode) {
+        return res.status(400).json({ error: 'Item has no lifecycle featureCode' });
+      }
+      const result = artifactManager.scaffold(item.lifecycle.featureCode, req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
     }
   });
 

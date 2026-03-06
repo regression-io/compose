@@ -94,13 +94,12 @@ Quality is assessed per-artifact, producing a signals object:
   },
   completeness: 1.0,         // found required / total required
   lastModified: '2026-03-05T10:00:00Z',
-  stale: false,              // true if modified before current phase entry
 }
 ```
 
 **Completeness** is `requiredSections found / requiredSections total`. A score of 1.0 means all required sections are present. This does NOT assess content quality — just structural presence.
 
-**Staleness** compares `lastModified` against the phase history entry's `enteredAt`. If the artifact was last modified before the feature entered the phase that produces it, it may be outdated from a previous attempt.
+**Staleness (deferred):** Originally planned as a `stale` boolean comparing `lastModified` against phase history `enteredAt`. Deferred because ArtifactManager is stateless — it has no access to lifecycle phase history. If staleness is needed, a future `assessWithLifecycle(featureCode, lifecycle)` method can accept phase history and compute it. Callers with lifecycle access can compare `lastModified` against `enteredAt` themselves.
 
 ---
 

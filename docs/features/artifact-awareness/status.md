@@ -1,5 +1,4 @@
-phase: design
+phase: complete
 outcome: approved
-next: blueprint
-date: 2026-03-05
-note: Skipping PRD (internal feature) and architecture (single module, design covers it). Next step is implementation blueprint.
+date: 2026-03-06
+note: Feature shipped. 26 tests pass (19 unit + 3 REST + 2 MCP wiring + 2 schema/runtime), all regression tests clean (42 lifecycle tests). Roadmap item 22 marked COMPLETE.

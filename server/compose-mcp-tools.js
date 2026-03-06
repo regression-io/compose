@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ArtifactManager } from './artifact-manager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -228,4 +229,20 @@ export async function toolKillFeature({ id, reason }) {
 
 export async function toolCompleteFeature({ id }) {
   return _postLifecycle(id, 'complete', {});
+}
+
+// ---------------------------------------------------------------------------
+// Artifact tools — read/write directly (no REST delegation needed)
+// ---------------------------------------------------------------------------
+
+export function toolAssessFeatureArtifacts({ featureCode }) {
+  const featureRoot = path.join(PROJECT_ROOT, 'docs', 'features');
+  const manager = new ArtifactManager(featureRoot);
+  return manager.assess(featureCode);
+}
+
+export function toolScaffoldFeature({ featureCode, only }) {
+  const featureRoot = path.join(PROJECT_ROOT, 'docs', 'features');
+  const manager = new ArtifactManager(featureRoot);
+  return manager.scaffold(featureCode, only ? { only } : undefined);
 }
