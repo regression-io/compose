@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { X, Link2, Pencil, Trash2, ChevronRight, ChevronDown, Search, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Separator } from '@/components/ui/separator.jsx';
 import { ScrollArea } from '@/components/ui/scroll-area.jsx';
-import { TYPE_COLORS, STATUS_COLORS, PHASES, PHASE_LABELS, STATUSES, CONFIDENCE_LABELS } from './constants.js';
+import { TYPE_COLORS, STATUS_COLORS, PHASES, PHASE_LABELS, STATUSES, CONFIDENCE_LABELS, LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS } from './constants.js';
 import ConnectionGraph from './ConnectionGraph.jsx';
 
 function ConfidenceControl({ level, onChange }) {
@@ -116,6 +116,43 @@ function formatTimestamp(dateStr) {
 }
 
 
+function SessionHistory({ featureCode }) {
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    fetch(`/api/session/history?featureCode=${encodeURIComponent(featureCode)}&limit=10`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => { if (!controller.signal.aborted) setSessions(data.sessions || []); })
+      .catch(e => { if (!controller.signal.aborted) setSessions([]); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [featureCode]);
+
+  if (loading || sessions.length === 0) return null;
+
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
+        Sessions ({sessions.length})
+      </div>
+      <div className="space-y-2">
+        {sessions.map(s => (
+          <div key={s.id} className="text-xs text-muted-foreground border-l-2 border-border pl-2">
+            <div className="font-medium text-foreground">
+              {s.phaseAtBind?.replace(/_/g, ' ') || '—'}
+              {s.phaseAtEnd && s.phaseAtEnd !== s.phaseAtBind && ` → ${s.phaseAtEnd.replace(/_/g, ' ')}`}
+            </div>
+            <div>{s.toolCount} tools · {Math.round((new Date(s.endedAt) - new Date(s.startedAt)) / 60000)}m</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const CONNECTION_TYPES = ['informs', 'supports', 'blocks', 'contradicts'];
 
 function ConnectPopover({ item, items, onCreateConnection, onDismiss }) {
@@ -185,7 +222,91 @@ function ConnectPopover({ item, items, onCreateConnection, onDismiss }) {
   );
 }
 
-export default function ItemDetailPanel({ item, items, connections, onUpdate, onDelete, onCreateConnection, onDeleteConnection, onSelect, onClose, onPressureTest }) {
+function GateBannerActions({ gate, onResolveGate }) {
+  const [expanded, setExpanded] = useState(null); // 'revise' | 'kill' | null
+  const [comment, setComment] = useState('');
+
+  const handleRevise = () => {
+    onResolveGate(gate.id, 'revised', comment || undefined);
+    setExpanded(null);
+    setComment('');
+  };
+
+  const handleKill = () => {
+    if (!comment.trim()) return;
+    onResolveGate(gate.id, 'killed', comment);
+    setExpanded(null);
+    setComment('');
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant="outline" size="sm"
+          className="h-6 text-[10px] gap-1 text-success border-success/30 hover:bg-success/10"
+          onClick={() => onResolveGate(gate.id, 'approved')}
+        >
+          Approve
+        </Button>
+        <Button
+          variant="outline" size="sm"
+          className={cn(
+            'h-6 text-[10px] gap-1 text-amber-400 border-amber-400/30 hover:bg-amber-400/10',
+            expanded === 'revise' && 'bg-amber-400/10',
+          )}
+          onClick={() => {
+            setExpanded(expanded === 'revise' ? null : 'revise');
+            setComment('');
+          }}
+        >
+          Revise
+        </Button>
+        <Button
+          variant="outline" size="sm"
+          className={cn(
+            'h-6 text-[10px] gap-1 text-destructive border-destructive/30 hover:bg-destructive/10',
+            expanded === 'kill' && 'bg-destructive/10',
+          )}
+          onClick={() => {
+            setExpanded(expanded === 'kill' ? null : 'kill');
+            setComment('');
+          }}
+        >
+          Kill
+        </Button>
+      </div>
+      {expanded && (
+        <div className="flex items-center gap-1.5">
+          <input
+            className="flex-1 text-xs bg-muted text-foreground px-2 py-1 rounded border border-border outline-none"
+            placeholder={expanded === 'revise' ? 'Feedback (optional)...' : 'Kill reason (required)...'}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (expanded === 'revise') handleRevise();
+                else handleKill();
+              }
+              if (e.key === 'Escape') setExpanded(null);
+            }}
+            autoFocus
+          />
+          <Button
+            variant="outline" size="sm"
+            className="h-6 text-[10px]"
+            disabled={expanded === 'kill' && !comment.trim()}
+            onClick={expanded === 'revise' ? handleRevise : handleKill}
+          >
+            {expanded === 'revise' ? 'Submit' : 'Confirm Kill'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ItemDetailPanel({ item, items, connections, gates, onUpdate, onDelete, onCreateConnection, onDeleteConnection, onSelect, onClose, onPressureTest, onResolveGate }) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [editingDesc, setEditingDesc] = useState(false);
@@ -357,6 +478,104 @@ export default function ItemDetailPanel({ item, items, connections, onUpdate, on
             onSelect={onSelect}
           />
 
+          {/* Session history for lifecycle-bound items */}
+          {item.lifecycle?.featureCode && (
+            <SessionHistory featureCode={item.lifecycle.featureCode} />
+          )}
+
+          {/* Lifecycle section — shows context even without gates */}
+          {(item.lifecycle || (gates && gates.some(g => g.itemId === item.id))) && (() => {
+            const lc = item.lifecycle;
+            const itemGates = gates ? gates.filter(g => g.itemId === item.id) : [];
+            const pending = itemGates.filter(g => g.status === 'pending');
+            const resolved = itemGates.filter(g => g.status !== 'pending');
+            return (
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">Lifecycle</p>
+                <div className="space-y-1.5">
+                  {/* Current phase + feature code */}
+                  {lc && (
+                    <div className="flex items-center gap-2 px-2 py-1 rounded bg-muted/30">
+                      <span className="text-[10px] text-muted-foreground">Phase:</span>
+                      <span className="text-[10px] text-foreground font-medium">
+                        {LIFECYCLE_PHASE_LABELS[lc.currentPhase] ?? lc.currentPhase}
+                      </span>
+                      {lc.featureCode && (
+                        <span className="text-[10px] text-muted-foreground ml-auto font-mono">{lc.featureCode}</span>
+                      )}
+                    </div>
+                  )}
+                  {/* Phase history (compact) */}
+                  {lc?.phaseHistory?.length > 1 && (
+                    <div className="px-2 py-1 rounded bg-muted/30">
+                      <p className="text-[10px] text-muted-foreground mb-0.5">History</p>
+                      <div className="flex flex-wrap gap-x-1 gap-y-0.5">
+                        {lc.phaseHistory.map((entry, i) => (
+                          <span key={i} className={cn(
+                            'text-[10px]',
+                            entry.phase === lc.currentPhase ? 'text-foreground font-medium' : 'text-muted-foreground',
+                          )}>
+                            {LIFECYCLE_PHASE_LABELS[entry.phase] ?? entry.phase}
+                            {entry.outcome && entry.outcome !== 'approved' && (
+                              <span className="text-amber-400"> ({entry.outcome})</span>
+                            )}
+                            {i < lc.phaseHistory.length - 1 && ' → '}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Pending gates */}
+                  {pending.map(gate => {
+                    const assessment = gate.artifactAssessment;
+                    const artifactName = LIFECYCLE_PHASE_ARTIFACTS[gate.fromPhase];
+                    return (
+                      <div key={gate.id} className="rounded bg-amber-400/10 border border-amber-400/20 px-2 py-1.5">
+                        <p className="text-[10px] text-amber-400 font-medium mb-1">
+                          Pending: {LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → {LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}
+                        </p>
+                        {assessment && assessment.exists && (
+                          <p className="text-[10px] text-muted-foreground mb-1">
+                            {artifactName && <span className="font-mono">{artifactName}</span>}
+                            {artifactName && ': '}
+                            {Math.round(assessment.completeness * 100)}% complete
+                            {' · '}{assessment.wordCount} words
+                            {assessment.sections?.missing?.length > 0 && (
+                              <span className="text-amber-400"> (missing: {assessment.sections.missing.join(', ')})</span>
+                            )}
+                            {!assessment.meetsMinWordCount && (
+                              <span className="text-amber-400"> (below min word count)</span>
+                            )}
+                          </p>
+                        )}
+                        {assessment && !assessment.exists && (
+                          <p className="text-[10px] text-muted-foreground mb-1">
+                            {artifactName ?? 'Artifact'} not found
+                          </p>
+                        )}
+                        {onResolveGate && <GateBannerActions gate={gate} onResolveGate={onResolveGate} />}
+                      </div>
+                    );
+                  })}
+                  {/* Resolved gates */}
+                  {resolved.map(gate => {
+                    const outcomeColors = { approved: 'text-success', revised: 'text-amber-400', killed: 'text-destructive' };
+                    return (
+                      <div key={gate.id} className="flex items-center gap-2 px-2 py-1 rounded bg-muted/30">
+                        <span className="text-[10px] text-muted-foreground">
+                          {LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → {LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}
+                        </span>
+                        <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-4 ml-auto', outcomeColors[gate.outcome] || '')}>
+                          {gate.outcome}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Evidence: Stratum ensure violations (T3-8 blocker evidence) */}
           {item.evidence?.stratumViolations?.length > 0 && (
             <div>
@@ -457,7 +676,26 @@ export default function ItemDetailPanel({ item, items, connections, onUpdate, on
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
-                onClick={() => onUpdate(item.id, { status: 'killed' })}
+                onClick={async () => {
+                  if (item.lifecycle) {
+                    // Use lifecycle kill path to properly update phase state and resolve pending gates
+                    try {
+                      const res = await fetch(`/api/vision/items/${item.id}/lifecycle/kill`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reason: 'Killed via UI' }),
+                      });
+                      if (!res.ok) {
+                        const data = await res.json();
+                        console.error('[vision] Lifecycle kill failed:', data.error);
+                      }
+                    } catch (err) {
+                      console.error('[vision] Lifecycle kill failed:', err.message);
+                    }
+                  } else {
+                    onUpdate(item.id, { status: 'killed' });
+                  }
+                }}
               >
                 <Trash2 className="h-3 w-3" /> Kill
               </Button>
