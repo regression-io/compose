@@ -144,7 +144,8 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 - [ ] `useVisionStore.js` line ~83: add `const [settings, setSettings] = useState(null)`
 - [ ] Lines 112-114: add `setSettings` to setters object
 - [ ] Add `updateSettings(patch)` useCallback: PATCH `/api/settings`, return json
-- [ ] Return object: add `settings` and `updateSettings`
+- [ ] Add `resetSettings(section?)` useCallback: POST `/api/settings/reset` with `{ section }`, return json
+- [ ] Return object: add `settings`, `updateSettings`, `resetSettings`
 
 **Tests (`test/settings-client.test.js`):**
 - [ ] `settingsState` message calls `setSettings` with settings payload
@@ -162,17 +163,34 @@ Tasks are sequential — each builds on the previous. Tests are written alongsid
 - [ ] `AppSidebar.jsx` line 2: add `Settings2` to lucide-react imports
 - [ ] `AppSidebar.jsx` line 19: add `{ key: 'settings', label: 'Settings', icon: Settings2 }` to VIEWS
 - [ ] Create `SettingsPanel.jsx`:
-  - Props: `settings`, `onSettingsChange(patch)`
+  - Props: `settings`, `onSettingsChange(patch)`, `onReset(section?)`
   - Section 1: Phase Policies — 10 rows, dropdown per phase (gate/flag/skip; null only for explore_design)
   - Section 2: Iteration Limits — 2 number inputs (review max, coverage max) with min=1 max=100
   - Section 3: Agent Models — 3 text inputs (interactive, agentRun, summarizer)
   - Section 4: Appearance — theme dropdown (light/dark/system), default view dropdown
   - Each field calls `onSettingsChange({ [section]: { [key]: value } })` immediately on change
   - Theme dropdown additionally applies DOM class and localStorage (same mechanism as App.jsx toggleTheme)
-  - Reset to Defaults button at bottom: calls `onSettingsChange` with POST to `/api/settings/reset`
+  - Reset to Defaults button at bottom: calls `onReset()` (no section = full reset) with confirmation dialog
 - [ ] `VisionTracker.jsx` line 13: import `SettingsPanel`
-- [ ] `VisionTracker.jsx` lines 23-24: destructure `settings`, `updateSettings` from `useVisionStore()`
-- [ ] After line 223 (after gates view): add `{activeView === 'settings' && <SettingsPanel settings={settings} onSettingsChange={updateSettings} />}`
+- [ ] `VisionTracker.jsx` lines 23-24: destructure `settings`, `updateSettings`, `resetSettings` from `useVisionStore()`
+- [ ] After line 223 (after gates view): add `{activeView === 'settings' && <SettingsPanel settings={settings} onSettingsChange={updateSettings} onReset={resetSettings} />}`
+- [ ] `VisionTracker.jsx` line 27 (activeView init): read `settings?.ui?.defaultView` as fallback when no sessionStorage value:
+  ```js
+  const [activeView, setActiveView] = useState(() =>
+    sessionStorage.getItem('vision-activeView') || 'roadmap'
+  );
+  ```
+  Add a one-time `useEffect` that applies `defaultView` from settings on first WS connect:
+  ```js
+  const defaultViewApplied = useRef(false);
+  useEffect(() => {
+    if (settings?.ui?.defaultView && !defaultViewApplied.current && !sessionStorage.getItem('vision-activeView')) {
+      setActiveView(settings.ui.defaultView);
+      defaultViewApplied.current = true;
+    }
+  }, [settings]);
+  ```
+  This respects sessionStorage (user's in-session choice) over settings, and only applies the default on fresh sessions where sessionStorage is empty.
 
 **Verify:** Run `npm run build` to confirm no JSX errors. Visual check in browser.
 
