@@ -153,9 +153,9 @@ Stratum must expose the primitives Compose needs before L1 can be built.
 | 22 | **L1 — Feature Lifecycle State Machine:** `contracts/lifecycle.json` (first contract); `compose_feature.stratum.yaml` rewritten as 10 sequential phase steps; `currentPhase` + `phaseHistory` on feature items; `phase-state.json` in feature folder; reconciliation on startup. | PLANNED |
 | 23 | **L2 — Artifact Awareness:** feature folder creation, artifact presence detection, phase-appropriate templates, artifact ↔ tracker item linking. | COMPLETE |
 | 24 | **L3 — Policy Enforcement Runtime:** gate/flag/skip dials that structurally block phase transitions. Policy inheritance through work hierarchy. Override at any level. Hardcoded defaults until L0 lands. | COMPLETE |
-| 25 | **L4 — Gate UI:** sidebar surface for pending phase transitions — shows artifact, proposed next phase, rationale. Three actions: Approve / Revise / Kill. Gate history. | PLANNED |
+| 25 | **L4 — Gate UI:** sidebar surface for pending phase transitions — shows artifact, proposed next phase, rationale. Three actions: Approve / Revise / Kill. Gate history. | COMPLETE |
 | 26 | **L5 — Session-Lifecycle Binding:** sessions tagged to feature + phase. Activity grouped by feature. Transcripts auto-filed. Handoff context injected automatically. | PLANNED |
-| 27 | **L6 — Iteration Orchestration:** review and coverage loops as Compose primitives. Compose dispatches, monitors for completion promises, enforces exit criteria. Agent cannot self-report done without Compose confirming. | PLANNED |
+| 27 | **L6 — Iteration Orchestration:** review and coverage loops as Compose primitives. Compose dispatches, monitors for completion promises, enforces exit criteria. Agent cannot self-report done without Compose confirming. | COMPLETE |
 
 **Key architectural decision (2026-03-05):** Compose does not build a lifecycle engine. Stratum is
 the engine. Compose is a workflow spec. L1 is a Stratum spec + contract, not a new backend service.
@@ -191,7 +191,7 @@ Agent-agnostic lifecycle. Claude Code, Codex, Gemini run the same pipeline throu
 | D0: Bootstrap | Compose built manually, out-of-band. | COMPLETE |
 | D1: Visible | Compose tracks its own development in the Vision Surface. Activity hooks fire during Compose development sessions. | COMPLETE |
 | D2: Self-hosting | A planning session for Compose happens entirely inside Compose — inline docs, decisions recorded, items created. | PARTIAL |
-| D3: Enforced | Phase transitions on Compose features are gated through Compose's own policy runtime. | PLANNED |
+| D3: Enforced | Phase transitions on Compose features are gated through Compose's own policy runtime. | PARTIAL |
 
 ---
 

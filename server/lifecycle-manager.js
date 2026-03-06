@@ -12,8 +12,8 @@ import { evaluatePolicy, VALID_GATE_OUTCOMES } from './policy-engine.js';
 import { ArtifactManager, ARTIFACT_SCHEMAS } from './artifact-manager.js';
 
 // Re-export constants from shared module (preserves existing import paths)
-export { PHASES, TERMINAL, SKIPPABLE, TRANSITIONS, PHASE_ARTIFACTS } from './lifecycle-constants.js';
-import { PHASES, TERMINAL, SKIPPABLE, TRANSITIONS, PHASE_ARTIFACTS } from './lifecycle-constants.js';
+export { PHASES, TERMINAL, SKIPPABLE, TRANSITIONS, PHASE_ARTIFACTS, ITERATION_DEFAULTS } from './lifecycle-constants.js';
+import { PHASES, TERMINAL, SKIPPABLE, TRANSITIONS, PHASE_ARTIFACTS, ITERATION_DEFAULTS } from './lifecycle-constants.js';
 
 // ---------------------------------------------------------------------------
 // LifecycleManager
@@ -53,6 +53,7 @@ export class LifecycleManager {
       policyLog: [],
       pendingGate: null,
       policyOverrides: null,
+      iterationState: null,
     };
 
     this.#store.updateLifecycle(itemId, lifecycle);
@@ -65,6 +66,10 @@ export class LifecycleManager {
 
     if (lifecycle.pendingGate) {
       throw new Error(`Cannot advance: gate ${lifecycle.pendingGate} is pending for item ${itemId}`);
+    }
+
+    if (from === 'execute' && lifecycle.iterationState && !lifecycle.iterationState.completedAt) {
+      throw new Error(`Cannot leave execute phase: iteration loop ${lifecycle.iterationState.loopId} is still active`);
     }
 
     const policy = evaluatePolicy(targetPhase, lifecycle.policyOverrides);
@@ -90,6 +95,10 @@ export class LifecycleManager {
 
     if (lifecycle.pendingGate) {
       throw new Error(`Cannot skip: gate ${lifecycle.pendingGate} is pending for item ${itemId}`);
+    }
+
+    if (from === 'execute' && lifecycle.iterationState && !lifecycle.iterationState.completedAt) {
+      throw new Error(`Cannot leave execute phase: iteration loop ${lifecycle.iterationState.loopId} is still active`);
     }
 
     const policy = evaluatePolicy(targetPhase, lifecycle.policyOverrides);
@@ -200,6 +209,84 @@ export class LifecycleManager {
       const killResult = this.killFeature(gate.itemId, comment || 'Killed at gate');
       return { ...killResult, gateId, gateOutcome: outcome };
     }
+  }
+
+  // ── Iteration loop management ───────────────────────────────────────────
+
+  startIterationLoop(itemId, loopType, { maxIterations } = {}) {
+    const { lifecycle } = this.#getLifecycle(itemId);
+    if (lifecycle.currentPhase !== 'execute') {
+      throw new Error(`Cannot start iteration loop outside execute phase (current: ${lifecycle.currentPhase})`);
+    }
+    if (lifecycle.iterationState && !lifecycle.iterationState.completedAt) {
+      throw new Error(`Iteration loop already active: ${lifecycle.iterationState.loopId}`);
+    }
+    const defaults = ITERATION_DEFAULTS[loopType];
+    if (!defaults) throw new Error(`Unknown loop type: ${loopType}`);
+
+    const loopId = `iter-${uuidv4()}`;
+    lifecycle.iterationState = {
+      loopType,
+      loopId,
+      phase: 'execute',
+      count: 0,
+      maxIterations: maxIterations || defaults.maxIterations,
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+      outcome: null,
+      iterations: [],
+    };
+    this.#store.updateLifecycle(itemId, lifecycle);
+    return { loopId, loopType, maxIterations: lifecycle.iterationState.maxIterations };
+  }
+
+  reportIterationResult(itemId, { clean, passing, summary, findings, failures }) {
+    const { lifecycle } = this.#getLifecycle(itemId);
+    const state = lifecycle.iterationState;
+    if (!state || state.completedAt) {
+      throw new Error('No active iteration loop');
+    }
+
+    const n = state.count + 1;
+    const now = new Date().toISOString();
+
+    const exitCriteriaMet = state.loopType === 'review' ? (clean === true) : (passing === true);
+
+    state.iterations.push({
+      n,
+      startedAt: state.iterations.length > 0 ? state.iterations[state.iterations.length - 1].completedAt || now : state.startedAt,
+      completedAt: now,
+      result: { clean, passing, summary, findings, failures },
+    });
+    state.count = n;
+
+    let continueLoop = true;
+    if (exitCriteriaMet) {
+      state.completedAt = now;
+      state.outcome = 'clean';
+      continueLoop = false;
+    } else if (n >= state.maxIterations) {
+      state.completedAt = now;
+      state.outcome = 'max_reached';
+      continueLoop = false;
+    }
+
+    this.#store.updateLifecycle(itemId, lifecycle);
+
+    return {
+      loopId: state.loopId,
+      loopType: state.loopType,
+      count: n,
+      maxIterations: state.maxIterations,
+      exitCriteriaMet,
+      continueLoop,
+      outcome: state.outcome,
+    };
+  }
+
+  getIterationStatus(itemId) {
+    const { lifecycle } = this.#getLifecycle(itemId);
+    return lifecycle.iterationState || null;
   }
 
   reconcile(itemId) {

@@ -41,6 +41,10 @@ import {
   toolScaffoldFeature,
   toolApproveGate,
   toolGetPendingGates,
+  toolBindSession,
+  toolStartIterationLoop,
+  toolReportIterationResult,
+  toolGetIterationStatus,
 } from './compose-mcp-tools.js';
 
 // ---------------------------------------------------------------------------
@@ -117,7 +121,20 @@ const TOOLS = [
     description: 'Get the most recent session: tool count, items touched, error count, and recent Haiku summaries of what was accomplished.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        featureCode: { type: 'string', description: 'Optional: get context for a specific feature' },
+      },
+    },
+  },
+  {
+    name: 'bind_session',
+    description: 'Bind the current agent session to a lifecycle feature. Call once per session after creating/identifying the feature. Binding is one-shot — calling again on a bound session returns already_bound.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        featureCode: { type: 'string', description: 'The feature code (e.g., "gate-ui")' },
+      },
+      required: ['featureCode'],
     },
   },
   {
@@ -230,6 +247,46 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: 'start_iteration_loop',
+    description: 'Start a review or coverage iteration loop within the execute phase. Returns loop ID and max iterations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Vision item ID' },
+        loopType: { type: 'string', enum: ['review', 'coverage'], description: 'Type of iteration loop' },
+        maxIterations: { type: 'number', description: 'Override max iterations (default: 10 review, 15 coverage)' },
+      },
+      required: ['id', 'loopType'],
+    },
+  },
+  {
+    name: 'report_iteration_result',
+    description: 'Report one iteration result. Returns whether to continue the loop or exit.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Vision item ID' },
+        clean: { type: 'boolean', description: 'Review loop: true if no actionable findings remain' },
+        passing: { type: 'boolean', description: 'Coverage loop: true if all tests pass' },
+        summary: { type: 'string', description: 'Brief summary of this iteration' },
+        findings: { type: 'array', items: { type: 'string' }, description: 'Review findings (strings)' },
+        failures: { type: 'array', items: { type: 'string' }, description: 'Test failures (strings)' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'get_iteration_status',
+    description: 'Get the current iteration loop state for a feature item.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Vision item ID' },
+      },
+      required: ['id'],
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -255,7 +312,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'get_item_detail':     result = toolGetItemDetail(args); break;
       case 'get_phase_summary':   result = toolGetPhasesSummary(args); break;
       case 'get_blocked_items':   result = toolGetBlockedItems(); break;
-      case 'get_current_session': result = toolGetCurrentSession(); break;
+      case 'get_current_session': result = await toolGetCurrentSession(args); break;
+      case 'bind_session':             result = await toolBindSession(args); break;
       case 'get_feature_lifecycle':    result = toolGetFeatureLifecycle(args); break;
       case 'advance_feature_phase':    result = await toolAdvanceFeaturePhase(args); break;
       case 'skip_feature_phase':       result = await toolSkipFeaturePhase(args); break;
@@ -265,6 +323,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'scaffold_feature':         result = toolScaffoldFeature(args); break;
       case 'approve_gate':             result = await toolApproveGate(args); break;
       case 'get_pending_gates':        result = toolGetPendingGates(args); break;
+      case 'start_iteration_loop':    result = await toolStartIterationLoop(args); break;
+      case 'report_iteration_result': result = await toolReportIterationResult(args); break;
+      case 'get_iteration_status':    result = toolGetIterationStatus(args); break;
       default:
         return {
           content: [{ type: 'text', text: `Unknown tool: ${name}` }],

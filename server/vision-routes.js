@@ -316,14 +316,85 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     try {
       const { outcome, comment } = req.body;
       if (!outcome) return res.status(400).json({ error: 'outcome is required' });
+      // Capture itemId before resolve (not all result paths include it)
+      const gate = store.gates.get(req.params.id);
       const result = lifecycleManager.approveGate(req.params.id, { outcome, comment });
       scheduleBroadcast();
       broadcastMessage({
         type: 'gateResolved',
         gateId: req.params.id,
+        itemId: gate?.itemId ?? null,
         outcome,
         timestamp: new Date().toISOString(),
       });
+      res.json(result);
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  // ── Iteration endpoints ─────────────────────────────────────────────────
+
+  app.post('/api/vision/items/:id/lifecycle/iteration/start', (req, res) => {
+    try {
+      const { loopType, maxIterations } = req.body;
+      if (!loopType) return res.status(400).json({ error: 'loopType is required' });
+      const result = lifecycleManager.startIterationLoop(req.params.id, loopType, { maxIterations });
+      scheduleBroadcast();
+      broadcastMessage({
+        type: 'iterationStarted',
+        itemId: req.params.id,
+        loopId: result.loopId,
+        loopType,
+        maxIterations: result.maxIterations,
+        timestamp: new Date().toISOString(),
+      });
+      res.json(result);
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/items/:id/lifecycle/iteration/report', (req, res) => {
+    try {
+      const result = lifecycleManager.reportIterationResult(req.params.id, req.body);
+      scheduleBroadcast();
+      const now = new Date().toISOString();
+      broadcastMessage({
+        type: 'iterationUpdate',
+        itemId: req.params.id,
+        loopId: result.loopId,
+        loopType: result.loopType,
+        count: result.count,
+        maxIterations: result.maxIterations,
+        exitCriteriaMet: result.exitCriteriaMet,
+        continueLoop: result.continueLoop,
+        timestamp: now,
+      });
+      if (!result.continueLoop) {
+        broadcastMessage({
+          type: 'iterationComplete',
+          itemId: req.params.id,
+          loopId: result.loopId,
+          loopType: result.loopType,
+          outcome: result.outcome,
+          finalCount: result.count,
+          timestamp: now,
+        });
+      }
+      res.json(result);
+    } catch (err) {
+      const status = err.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/vision/items/:id/lifecycle/iteration', (req, res) => {
+    try {
+      const result = lifecycleManager.getIterationStatus(req.params.id);
+      if (!result) return res.status(404).json({ error: 'No iteration state' });
       res.json(result);
     } catch (err) {
       const status = err.message.includes('not found') ? 404 : 400;

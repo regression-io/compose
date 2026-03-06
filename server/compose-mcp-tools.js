@@ -145,7 +145,26 @@ export function toolGetBlockedItems() {
   return { count: blocked.length, blocked };
 }
 
-export function toolGetCurrentSession() {
+export async function toolGetCurrentSession({ featureCode } = {}) {
+  if (featureCode) {
+    // Delegate to REST API for live session + lifecycle context
+    return new Promise((resolve, reject) => {
+      const url = new URL(`${_getComposeApi()}/api/session/current?featureCode=${encodeURIComponent(featureCode)}`);
+      const req = http.request(
+        { hostname: url.hostname, port: url.port, path: `${url.pathname}${url.search}`, method: 'GET' },
+        (res) => {
+          let buf = '';
+          res.on('data', chunk => buf += chunk);
+          res.on('end', () => {
+            try { resolve(JSON.parse(buf)); } catch { resolve({ session: null }); }
+          });
+        },
+      );
+      req.on('error', () => resolve({ session: null }));
+      req.end();
+    });
+  }
+  // Existing disk-read path (keep as-is)
   const sessions = loadSessions();
   if (sessions.length === 0) return { session: null };
 
@@ -170,6 +189,33 @@ export function toolGetCurrentSession() {
       recentSummaries: allSummaries.slice(-5),
     },
   };
+}
+
+export async function toolBindSession({ featureCode }) {
+  const postData = JSON.stringify({ featureCode });
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${_getComposeApi()}/api/session/bind`);
+    const req = http.request(
+      { hostname: url.hostname, port: url.port, path: url.pathname, method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) } },
+      (res) => {
+        let buf = '';
+        res.on('data', chunk => buf += chunk);
+        res.on('end', () => {
+          let parsed;
+          try { parsed = JSON.parse(buf); } catch { parsed = { error: buf }; }
+          if (res.statusCode >= 400) {
+            reject(new Error(parsed.error || `HTTP ${res.statusCode}: ${buf}`));
+          } else {
+            resolve(parsed);
+          }
+        });
+      },
+    );
+    req.on('error', (err) => reject(new Error(`Compose server unreachable: ${err.message}`)));
+    req.write(postData);
+    req.end();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -287,4 +333,27 @@ export function toolGetPendingGates({ itemId }) {
   if (!gates) return { count: 0, gates: [] };
   const pending = gates.filter(g => g.status === 'pending' && (!itemId || g.itemId === itemId));
   return { count: pending.length, gates: pending };
+}
+
+// ---------------------------------------------------------------------------
+// Iteration tools
+// ---------------------------------------------------------------------------
+
+export async function toolStartIterationLoop({ id, loopType, maxIterations }) {
+  if (!id) throw new Error('id is required');
+  if (!loopType) throw new Error('loopType is required');
+  return _postLifecycle(id, 'iteration/start', { loopType, maxIterations });
+}
+
+export async function toolReportIterationResult({ id, clean, passing, summary, findings, failures }) {
+  if (!id) throw new Error('id is required');
+  return _postLifecycle(id, 'iteration/report', { clean, passing, summary, findings, failures });
+}
+
+export function toolGetIterationStatus({ id }) {
+  if (!id) throw new Error('id is required');
+  const { items } = loadVisionState();
+  const item = items.find(i => i.id === id || i.semanticId === id || i.slug === id);
+  if (!item) return { error: `Item not found: ${id}` };
+  return item.lifecycle?.iterationState || { error: 'No iteration state' };
 }

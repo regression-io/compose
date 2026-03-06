@@ -26,6 +26,11 @@ export const TRANSITIONS = {
   ship:           [],  // terminal via completeFeature()
 };
 
+export const ITERATION_DEFAULTS = {
+  review:   { maxIterations: 10 },
+  coverage: { maxIterations: 15 },
+};
+
 export const PHASE_ARTIFACTS = {
   explore_design: 'design.md',
   prd:            'prd.md',
