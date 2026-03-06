@@ -33,8 +33,9 @@ import { extractFilePaths } from './vision-utils.js';
 import { LifecycleManager } from './lifecycle-manager.js';
 import { ArtifactManager } from './artifact-manager.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+import { TARGET_ROOT, resolveProjectPath, loadProjectConfig } from './project-root.js';
+
+const PROJECT_ROOT = TARGET_ROOT;
 
 /**
  * Attach vision CRUD and plan/parse REST routes to an Express app.
@@ -118,7 +119,10 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
   });
 
   // ── Lifecycle endpoints ────────────────────────────────────────────────
-  const lifecycleManager = new LifecycleManager(store, path.join(projectRoot, 'docs', 'features'), settingsStore);
+  const featuresPath = projectRoot !== PROJECT_ROOT
+    ? path.join(projectRoot, loadProjectConfig().paths?.features || 'docs/features')
+    : resolveProjectPath('features');
+  const lifecycleManager = new LifecycleManager(store, featuresPath, settingsStore);
 
   app.get('/api/vision/items/:id/lifecycle', (req, res) => {
     try {
@@ -258,7 +262,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
   });
 
   // ── Artifact endpoints ───────────────────────────────────────────────
-  const artifactManager = new ArtifactManager(path.join(projectRoot, 'docs', 'features'));
+  const artifactManager = new ArtifactManager(featuresPath);
 
   app.get('/api/vision/items/:id/artifacts', (req, res) => {
     try {

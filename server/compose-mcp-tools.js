@@ -8,13 +8,12 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { ArtifactManager } from './artifact-manager.js';
+import { TARGET_ROOT, DATA_DIR, resolveProjectPath } from './project-root.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const PROJECT_ROOT = path.resolve(__dirname, '..');
-export const VISION_FILE = path.join(PROJECT_ROOT, 'data', 'vision-state.json');
-export const SESSIONS_FILE = path.join(PROJECT_ROOT, 'data', 'sessions.json');
+export const PROJECT_ROOT = TARGET_ROOT;
+export const VISION_FILE = path.join(DATA_DIR, 'vision-state.json');
+export const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 
 // ---------------------------------------------------------------------------
 // Data access
@@ -309,13 +308,13 @@ export async function toolCompleteFeature({ id }) {
 // ---------------------------------------------------------------------------
 
 export function toolAssessFeatureArtifacts({ featureCode }) {
-  const featureRoot = path.join(PROJECT_ROOT, 'docs', 'features');
+  const featureRoot = resolveProjectPath('features');
   const manager = new ArtifactManager(featureRoot);
   return manager.assess(featureCode);
 }
 
 export function toolScaffoldFeature({ featureCode, only }) {
-  const featureRoot = path.join(PROJECT_ROOT, 'docs', 'features');
+  const featureRoot = resolveProjectPath('features');
   const manager = new ArtifactManager(featureRoot);
   return manager.scaffold(featureCode, only ? { only } : undefined);
 }

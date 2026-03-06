@@ -1,26 +1,25 @@
 import express from 'express';
 import cors from 'cors';
 import http from 'node:http';
+import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { FileWatcherServer } from './file-watcher.js';
 import { VisionStore } from './vision-store.js';
 import { VisionServer } from './vision-server.js';
 import { SessionManager } from './session-manager.js';
 import { scanSpeckit, seedSpeckit } from './speckit-helpers.js';
+import { TARGET_ROOT, DATA_DIR, ensureDataDir, loadProjectConfig, resolveProjectPath } from './project-root.js';
 
-// Stratum is a hard requirement — compose agents need stratum-mcp tools to function.
-try {
-  execFileSync('which', ['stratum-mcp'], { stdio: 'ignore' });
-} catch {
-  console.error('');
-  console.error('╔══════════════════════════════════════════════════════╗');
-  console.error('║  MISSING REQUIREMENT: stratum-mcp not found          ║');
-  console.error('║                                                        ║');
-  console.error('║  Install:  pip install stratum                        ║');
-  console.error('║  Register: compose install                            ║');
-  console.error('╚══════════════════════════════════════════════════════╝');
-  console.error('');
-  process.exit(1);
+// Load project config and verify stratum capability matches reality
+const projectConfig = loadProjectConfig();
+if (projectConfig.capabilities.stratum) {
+  try {
+    execFileSync('which', ['stratum-mcp'], { stdio: 'ignore' });
+  } catch {
+    console.warn('[compose] stratum-mcp not found — Stratum features disabled');
+    console.warn('[compose] Install: pip install stratum && stratum-mcp install');
+    projectConfig.capabilities.stratum = false;
+  }
 }
 
 // Handle unexpected errors — fatal startup errors exit (supervisor retries),
@@ -53,14 +52,21 @@ app.get('/api/status', (_req, res) => res.json({ session: 2, phase: '0.4-brainst
 const server = http.createServer(app);
 const fileWatcher = new FileWatcherServer();
 fileWatcher.attach(server, app);
-const visionStore = new VisionStore();
-const sessionManager = new SessionManager();
-const visionServer = new VisionServer(visionStore, sessionManager);
+ensureDataDir();
+const visionStore = new VisionStore(DATA_DIR);
+const sessionManager = new SessionManager({
+  getFeaturePhase: (featureCode) => {
+    const item = visionStore.getItemByFeatureCode(featureCode);
+    return item?.lifecycle?.currentPhase || null;
+  },
+  featureRoot: resolveProjectPath('features'),
+});
+const visionServer = new VisionServer(visionStore, sessionManager, { config: projectConfig });
 visionServer.attach(server, app);
 
 // Seed .specify/ into vision store on startup
 try {
-  const features = scanSpeckit();
+  const features = scanSpeckit(TARGET_ROOT);
   if (features.length > 0) seedSpeckit(features, visionStore);
 } catch (err) {
   console.error('[compose] Speckit startup seed error:', err.message);
@@ -69,7 +75,7 @@ try {
 // Wire .specify/ file changes → auto-reseed vision store
 fileWatcher.onSpeckitChanged = (_relativePath) => {
   try {
-    const features = scanSpeckit();
+    const features = scanSpeckit(TARGET_ROOT);
     seedSpeckit(features, visionStore);
     visionServer.scheduleBroadcast();
   } catch (err) {

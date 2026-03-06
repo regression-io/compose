@@ -1,6 +1,8 @@
 ## Stratum Execution Model
 
-For non-trivial tasks, use Stratum internally:
+Stratum is optional. If `capabilities.stratum` is false in `.compose/compose.json` (or stratum-mcp is not installed), skip Stratum steps and use flat prompt chains instead.
+
+For non-trivial tasks when Stratum is available, use it internally:
 1. Write a `.stratum.yaml` spec — never show it to the user
 2. Call `stratum_plan` to validate and get the first step
 3. Narrate progress in plain English as you execute each step

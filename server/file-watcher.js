@@ -9,8 +9,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+import { TARGET_ROOT, loadProjectConfig } from './project-root.js';
+
+const PROJECT_ROOT = TARGET_ROOT;
 
 export class FileWatcherServer {
   constructor() {
@@ -48,9 +49,11 @@ export class FileWatcherServer {
 
     // REST endpoint: GET /api/files — list markdown files in docs/
     app.get('/api/files', (_req, res) => {
-      const docsDir = path.join(PROJECT_ROOT, 'docs');
+      const config = loadProjectConfig();
+      const docsPrefix = config.paths?.docs || 'docs';
+      const docsDir = path.join(PROJECT_ROOT, docsPrefix);
       try {
-        const files = this.listMarkdownFiles(docsDir, 'docs');
+        const files = this.listMarkdownFiles(docsDir, docsPrefix);
         res.json({ files });
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -160,7 +163,9 @@ export class FileWatcherServer {
     };
 
     // Watch docs/ — broadcast fileChanged events
-    watchDir(path.join(PROJECT_ROOT, 'docs'), 'docs', (relativePath, fullPath) => {
+    const config = loadProjectConfig();
+    const docsPrefix = config.paths?.docs || 'docs';
+    watchDir(path.join(PROJECT_ROOT, docsPrefix), docsPrefix, (relativePath, fullPath) => {
       try {
         if (!fs.existsSync(fullPath)) return;
         const content = fs.readFileSync(fullPath, 'utf-8');

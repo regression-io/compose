@@ -19,13 +19,15 @@ import { SettingsStore } from './settings-store.js';
 import { attachSettingsRoutes } from './settings-routes.js';
 import { CONTRACT } from './lifecycle-constants.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+import { TARGET_ROOT } from './project-root.js';
+
+const PROJECT_ROOT = TARGET_ROOT;
 
 export class VisionServer {
-  constructor(store, sessionManager = null) {
+  constructor(store, sessionManager = null, { config } = {}) {
     this.store = store;
     this.sessionManager = sessionManager;
+    this._config = config || { capabilities: { stratum: true } };
     this.clients = new Set();
     this.wss = null;
     this._broadcastTimer = null;
@@ -114,18 +116,23 @@ export class VisionServer {
       scheduleBroadcast: () => this.scheduleBroadcast(),
     });
 
-    // ── Stratum pipeline monitor + gate routes ──────────────────────────────
-    app.use('/api/stratum', createStratumRouter());
-
-    // ── Stratum vision-sync poller + bind/audit routes ──────────────────────
-    this._stratumSync = new StratumSync(this.store, () => this.scheduleBroadcast());
-    attachStratumRoutes(app, {
-      store: this.store,
-      scheduleBroadcast: () => this.scheduleBroadcast(),
-      broadcastMessage: (msg) => this.broadcastMessage(msg),
-      sync: this._stratumSync,
-    });
-    this._stratumSync.start();
+    // ── Stratum (conditional) ────────────────────────────────────────────
+    if (this._config.capabilities?.stratum) {
+      app.use('/api/stratum', createStratumRouter());
+      this._stratumSync = new StratumSync(this.store, () => this.scheduleBroadcast());
+      attachStratumRoutes(app, {
+        store: this.store,
+        scheduleBroadcast: () => this.scheduleBroadcast(),
+        broadcastMessage: (msg) => this.broadcastMessage(msg),
+        sync: this._stratumSync,
+      });
+      this._stratumSync.start();
+      console.log('[vision] Stratum sync enabled');
+    } else {
+      app.use('/api/stratum', (_req, res) => {
+        res.status(503).json({ error: 'Stratum not enabled', hint: 'pip install stratum && compose init' });
+      });
+    }
 
     // ── Haiku summary broadcast ─────────────────────────────────────────────
     if (this.sessionManager) {

@@ -10,8 +10,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+import { TARGET_ROOT, loadProjectConfig } from './project-root.js';
+
+const PROJECT_ROOT = TARGET_ROOT;
 
 // ---------------------------------------------------------------------------
 // Error detection
@@ -70,6 +71,9 @@ export function detectError(tool, input, responseText) {
  * @param {string} [projectRoot] — defaults to PROJECT_ROOT
  */
 export function spawnJournalAgent(session, transcriptPath, projectRoot = PROJECT_ROOT) {
+  const config = loadProjectConfig();
+  const journalRel = config.paths?.journal || 'docs/journal';
+
   const itemSummaries = Object.entries(session.items || {})
     .map(([_id, data]) => `- ${data.title}: ${data.writes} writes, ${data.reads} reads. ${(data.summaries || []).map(s => s.summary || '').filter(Boolean).join('. ')}`)
     .join('\n');
@@ -84,7 +88,7 @@ export function spawnJournalAgent(session, transcriptPath, projectRoot = PROJECT
   const today = new Date().toISOString().slice(0, 10);
   let sessionNum = 0;
   try {
-    const entries = fs.readdirSync(path.join(projectRoot, 'docs', 'journal'));
+    const entries = fs.readdirSync(path.join(projectRoot, journalRel));
     for (const f of entries) {
       const m = f.match(new RegExp(`^${today}-session-(\\d+)`));
       if (m) sessionNum = Math.max(sessionNum, parseInt(m[1]) + 1);
@@ -93,14 +97,14 @@ export function spawnJournalAgent(session, transcriptPath, projectRoot = PROJECT
 
   const prompt = `You are writing a developer journal entry for the Compose project.
 Read the transcript at: ${transcriptPath}
-Write a journal entry at docs/journal/${today}-session-${sessionNum}-<slug>.md following the exact format of existing entries in docs/journal/. Use first person plural ("we"). Be honest about failures.
+Write a journal entry at ${journalRel}/${today}-session-${sessionNum}-<slug>.md following the exact format of existing entries in ${journalRel}/. Use first person plural ("we"). Be honest about failures.
 Session data:
 - Duration: ${durationSec}s (${Math.round(durationSec / 60)} minutes)
 - Tool uses: ${session.toolCount}
 - Items worked on:\n${itemSummaries || '(none resolved)'}
 - Work blocks:\n${blockSummaries || '(single block)'}
 - Commits: ${(session.commits || []).join(', ') || '(none)'}
-After writing the entry, update docs/journal/README.md with the new entry row.
+After writing the entry, update ${journalRel}/README.md with the new entry row.
 Then commit both files.`;
 
   const cleanEnv = { ...process.env, NO_COLOR: '1' };

@@ -168,6 +168,24 @@ See `docs/plans/2026-02-15-lifecycle-engine-roadmap.md` for full layer detail.
 
 ---
 
+## INIT-1: Project Bootstrap — COMPLETE
+
+Make Compose portable across any project, not just its own repo.
+
+| # | Item | Status |
+|---|------|--------|
+| 28 | `compose init` command: creates `.compose/`, writes manifest, detects capabilities | COMPLETE |
+| 29 | Project manifest: `.compose/compose.json` with version, capabilities, paths | COMPLETE |
+| 34 | Stratum graceful degradation: soft-fail when stratum-mcp not installed | COMPLETE |
+| 35 | Config-driven paths: all server modules read docs/features/journal from manifest | COMPLETE |
+| 36 | Target binding: `compose start` resolves project root via parent traversal | COMPLETE |
+
+**Exit:** `compose init` in any repo bootstraps Compose. Server starts against that project. No hard dependency on stratum. All paths configurable.
+
+See `docs/features/INIT-1/` for design, blueprint, plan, and report.
+
+---
+
 ## Phase 7: Agent Abstraction — PLANNED (Post-V1)
 
 Agent-agnostic lifecycle. Claude Code, Codex, Gemini run the same pipeline through adapters.
