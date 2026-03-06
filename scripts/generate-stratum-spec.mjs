@@ -60,19 +60,33 @@ w('      description: {type: string}');
 w('    output: PhaseResult');
 w('    steps:');
 
-// Steps are linear — each depends on the previous phase in order.
-// Transition graph includes backward edges (verification → blueprint) for
-// revision loops, but Stratum steps are sequential. Revision is handled by
-// retries, not circular depends_on.
+// Derive depends_on from the contract transition graph.
+// For each phase, find all forward predecessors (phases that transition to it,
+// excluding back-edges like verification → blueprint). Then depends_on is
+// the earliest predecessor — this preserves skip paths (e.g. explore_design
+// can skip prd/architecture and go directly to blueprint).
+const phaseIndex = Object.fromEntries(contract.phases.map((p, i) => [p.id, i]));
+
 for (let i = 0; i < contract.phases.length; i++) {
   const phase = contract.phases[i];
+
+  // Find forward predecessors: phases before this one that list it as a target
+  const forwardPreds = [];
+  for (const [from, targets] of Object.entries(contract.transitions)) {
+    if (targets.includes(phase.id) && phaseIndex[from] < i) {
+      forwardPreds.push(from);
+    }
+  }
+  // Sort by phase order, take earliest (the mandatory predecessor all paths share)
+  forwardPreds.sort((a, b) => phaseIndex[a] - phaseIndex[b]);
+
   w(`      - id: ${phase.id}`);
   w(`        function: ${phase.id}`);
   w('        inputs:');
   w('          featureCode: "$.input.featureCode"');
   w('          description: "$.input.description"');
-  if (i > 0) {
-    w(`        depends_on: [${contract.phases[i - 1].id}]`);
+  if (forwardPreds.length > 0) {
+    w(`        depends_on: [${forwardPreds[0]}]`);
   }
   w();
 }

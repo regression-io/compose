@@ -138,14 +138,14 @@ flows:
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
-        depends_on: [prd]
+        depends_on: [explore_design]
 
       - id: blueprint
         function: blueprint
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
-        depends_on: [architecture]
+        depends_on: [explore_design]
 
       - id: verification
         function: verification
@@ -180,7 +180,7 @@ flows:
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
-        depends_on: [report]
+        depends_on: [execute]
 
       - id: ship
         function: ship

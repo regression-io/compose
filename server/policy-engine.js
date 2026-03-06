@@ -8,8 +8,11 @@
  * contracts/lifecycle.json via lifecycle-constants.js.
  */
 
-import { DEFAULT_POLICIES, VALID_GATE_OUTCOMES } from './lifecycle-constants.js';
+import { DEFAULT_POLICIES, VALID_GATE_OUTCOMES, CONTRACT } from './lifecycle-constants.js';
 export { DEFAULT_POLICIES, VALID_GATE_OUTCOMES };
+
+/** Valid policy modes, derived from contract. */
+const VALID_MODES = new Set(CONTRACT.policyModes);
 
 /**
  * Evaluate the policy mode for entering a target phase.
@@ -21,7 +24,7 @@ export { DEFAULT_POLICIES, VALID_GATE_OUTCOMES };
 export function evaluatePolicy(targetPhase, overrides) {
   const ov = overrides || {};
   const mode = ov[targetPhase] ?? DEFAULT_POLICIES[targetPhase] ?? 'skip';
-  if (!['gate', 'flag', 'skip'].includes(mode)) {
+  if (!VALID_MODES.has(mode)) {
     throw new Error(`Invalid policy mode: ${mode}`);
   }
   return mode;

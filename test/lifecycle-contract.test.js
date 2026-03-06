@@ -19,6 +19,27 @@ const {
 // Also verify policy-engine re-exports match
 const policyEngine = await import(`${REPO_ROOT}/server/policy-engine.js`);
 
+// Load generated Stratum spec for parity check
+let stratumSpec;
+try {
+  const specYaml = readFileSync(resolve(REPO_ROOT, 'pipelines', 'compose_feature.stratum.yaml'), 'utf8');
+  // Simple YAML parser — extract step IDs and depends_on from the spec
+  const steps = [];
+  let currentStep = null;
+  for (const line of specYaml.split('\n')) {
+    const idMatch = line.match(/^\s+- id:\s+(\S+)/);
+    if (idMatch) {
+      currentStep = { id: idMatch[1], depends_on: [] };
+      steps.push(currentStep);
+    }
+    const depMatch = line.match(/^\s+depends_on:\s+\[([^\]]*)\]/);
+    if (depMatch && currentStep) {
+      currentStep.depends_on = depMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
+  stratumSpec = { steps };
+} catch { stratumSpec = null; }
+
 // ---------------------------------------------------------------------------
 // Contract schema validation
 // ---------------------------------------------------------------------------
@@ -166,5 +187,56 @@ describe('policy-engine re-exports', () => {
     assert.equal(policyEngine.evaluatePolicy('blueprint'), 'gate');
     assert.equal(policyEngine.evaluatePolicy('prd'), 'skip');
     assert.equal(policyEngine.evaluatePolicy('execute'), 'flag');
+  });
+
+  test('evaluatePolicy validates against contract policyModes', () => {
+    assert.throws(
+      () => policyEngine.evaluatePolicy('blueprint', { blueprint: 'bogus' }),
+      /Invalid policy mode/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stratum spec parity — generated YAML matches contract
+// ---------------------------------------------------------------------------
+
+describe('Stratum spec parity', () => {
+  test('spec file exists and was parsed', () => {
+    assert.ok(stratumSpec, 'compose_feature.stratum.yaml should exist and be parseable');
+    assert.ok(stratumSpec.steps.length > 0, 'spec should have steps');
+  });
+
+  test('spec has one step per contract phase', () => {
+    const specIds = stratumSpec.steps.map(s => s.id);
+    const contractIds = contract.phases.map(p => p.id);
+    assert.deepEqual(specIds, contractIds, 'spec step IDs should match contract phase IDs in order');
+  });
+
+  test('spec depends_on reflects contract transitions (forward predecessors)', () => {
+    const phaseIndex = Object.fromEntries(contract.phases.map((p, i) => [p.id, i]));
+
+    for (const step of stratumSpec.steps) {
+      const idx = phaseIndex[step.id];
+
+      // Find expected forward predecessors from contract
+      const forwardPreds = [];
+      for (const [from, targets] of Object.entries(contract.transitions)) {
+        if (targets.includes(step.id) && phaseIndex[from] < idx) {
+          forwardPreds.push(from);
+        }
+      }
+      forwardPreds.sort((a, b) => phaseIndex[a] - phaseIndex[b]);
+
+      if (forwardPreds.length === 0) {
+        // Entry phase — no depends_on
+        assert.deepEqual(step.depends_on, [],
+          `${step.id} should have no depends_on (entry phase)`);
+      } else {
+        // depends_on should be the earliest forward predecessor
+        assert.deepEqual(step.depends_on, [forwardPreds[0]],
+          `${step.id} depends_on should be [${forwardPreds[0]}], got [${step.depends_on}]`);
+      }
+    }
   });
 });
