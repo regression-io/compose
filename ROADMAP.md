@@ -150,7 +150,7 @@ Stratum must expose the primitives Compose needs before L1 can be built.
 | # | Layer | Status |
 |---|-------|--------|
 | 21 | **L0 — User Preferences Inventory:** full preferences system — gate/flag/skip defaults, artifact versioning, agent model, UI prefs. Deferred until L3–L6 reveal what actually needs configuring. | PARKED |
-| 22 | **L1 — Feature Lifecycle State Machine:** `contracts/lifecycle.json` (single source of truth); `compose_feature.stratum.yaml` generated from contract; `currentPhase` + `phaseHistory` on feature items; centralized state in `vision-state.json` (supersedes per-feature `phase-state.json`); reconciliation on startup. | COMPLETE |
+| 22 | **L1 — Feature Lifecycle State Machine:** `contracts/lifecycle.json` (single source of truth); `lifecycle-constants.js` derives all exports; `policy-engine.js` validates against contract; `compose_feature.stratum.yaml` generated from contract with compound steps for revision loops; 28 contract parity tests; `currentPhase` + `phaseHistory` on feature items; centralized state in `vision-state.json`. | COMPLETE |
 | 23 | **L2 — Artifact Awareness:** feature folder creation, artifact presence detection, phase-appropriate templates, artifact ↔ tracker item linking. | COMPLETE |
 | 24 | **L3 — Policy Enforcement Runtime:** gate/flag/skip dials that structurally block phase transitions. Policy inheritance through work hierarchy. Override at any level. Hardcoded defaults until L0 lands. | COMPLETE |
 | 25 | **L4 — Gate UI:** sidebar surface for pending phase transitions — shows artifact, proposed next phase, rationale. Three actions: Approve / Revise / Kill. Gate history. | COMPLETE |
