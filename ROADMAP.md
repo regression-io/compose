@@ -130,20 +130,23 @@ Revisit once L3 (Policy Enforcement Runtime) is stable.
 
 ---
 
-## Phase 6: Lifecycle Engine — COMPLETE
+## Phase 6: Lifecycle Engine — PARTIAL
 
-Compose is a workflow spec on top of Stratum. Stratum is the engine — steps, transitions, gates,
-retries, ensures. Compose defines the 10-phase lifecycle as a Stratum spec and consumes Stratum
-primitives directly rather than building a bespoke lifecycle engine.
+Compose's lifecycle layers (L0–L6) are built and working. However, the process primitives
+(gates, policy, skip, rounds) currently live in Compose instead of Stratum. STRAT-1 completes
+the separation of concerns: push primitives into Stratum, replace Compose bespoke code with
+a `.stratum.yaml` spec.
 
-### Phase 6 Pre-work: Stratum Refactor — IN_PROGRESS
+### Phase 6 Pre-work: Stratum Refactor → STRAT-1
 
-Stratum must expose the primitives Compose needs before L1 can be built.
+Stratum must expose the primitives Compose needs. Audit is complete. Refactor scoped as STRAT-1.
 
 | # | Item | Status |
 |---|------|--------|
-| 19 | Audit Stratum: inventory existing primitives, identify gaps (human gates, skip, revise, round tracking) | IN_PROGRESS |
-| 20 | Stratum refactor: add missing primitives, expose hooks for workflow specs like Compose | PLANNED |
+| 19 | Audit Stratum: inventory existing primitives, identify gaps | COMPLETE |
+| 20 | Stratum process engine completion (STRAT-1) | PLANNED |
+
+See `docs/features/STRAT-1/` for full design.
 
 ### Phase 6 Layers
 
@@ -162,7 +165,9 @@ the engine. Compose is a workflow spec. L1 is a Stratum spec + contract, not a n
 
 **L3 is the core new build.** It is the difference between "the skill says gate" and "Compose won't let you proceed without approval."
 
-**Exit:** Compose enforces the `/compose` lifecycle structurally via Stratum. Gates block, policies inherit, iterations are orchestrated, artifacts are managed. The process runs through Compose, not alongside it.
+**Exit (current):** Lifecycle layers work end-to-end with Compose-internal primitives. Gates block, policies inherit, iterations are orchestrated, artifacts are managed.
+
+**Exit (after STRAT-1):** Process primitives live in Stratum. Compose's lifecycle is a `.stratum.yaml` spec. Compose owns workspace concerns only.
 
 See `docs/plans/2026-02-15-lifecycle-engine-roadmap.md` for full layer detail.
 
