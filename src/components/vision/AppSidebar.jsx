@@ -97,12 +97,19 @@ function AppSidebar({
   }, [items]);
   const [isDark, setIsDark] = React.useState(() => document.documentElement.classList.contains('dark'));
 
+  React.useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   const toggleTheme = React.useCallback(() => {
     const next = !isDark;
     const theme = next ? 'dark' : 'light';
     document.documentElement.classList.toggle('dark', next);
     localStorage.setItem('compose:theme', theme);
-    setIsDark(next);
     if (onThemeChange) onThemeChange({ ui: { theme } });
   }, [isDark, onThemeChange]);
 
