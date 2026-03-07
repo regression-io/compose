@@ -81,3 +81,4 @@
 2026-03-07T18:41:27+02:00 | T9-T10: Init upgrade (agent detection + skill install) and CLI build command
 2026-03-07T18:43:13+02:00 | T11: Integration test for build runner with real stratum-mcp
 2026-03-07T19:59:01+02:00 | T6: Fix 19 test failures from bespoke lifecycle deletion — inline settings defaults, remove deleted MCP tool refs, update gate tests to create gates directly
+2026-03-08T00:02:07+02:00 | STRAT-COMP-3: updating docs and committing all proof-run changes

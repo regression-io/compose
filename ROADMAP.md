@@ -205,7 +205,7 @@ Run STRAT-1's own Compose integration through `compose build`. Dogfooding milest
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 46 | STRAT-COMP-3 | Proof run: write STRAT-1 spec, execute `compose build STRAT-1` headless, validate (410+ tests, E2E audit trail) | PLANNED |
+| 46 | STRAT-COMP-3 | Proof run: fix build infrastructure bugs, rewrite sub-flow spec, prove dispatch loop with mock connectors (317 tests, 0 fail). Live run (Task 6) remains manual/gated. | PARTIAL |
 
 **Gate:** Compose builds itself using `compose build`. Multi-agent, gated, audited.
 

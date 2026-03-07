@@ -16,6 +16,7 @@ contracts:
     phase:    {type: string}
     artifact: {type: string}
     outcome:  {type: string, values: [complete, skipped, failed]}
+    summary:  {type: string}
 
   ReviewResult:
     clean:    {type: boolean}
@@ -41,8 +42,11 @@ functions:
     timeout: 1800
 
 flows:
-  # --- Sub-flow: review-fix loop ---
-  review_fix:
+  # --- Sub-flow: review ---
+  # Single-step: codex reviews, stratum retries via ensure_failed.
+  # Cross-agent fix (claude) is dispatched by build.js when ensure_failed
+  # fires with a recovery_agent configured on the parent flow step.
+  review_check:
     input:
       task:      {type: string}
       blueprint: {type: string}
@@ -59,22 +63,13 @@ flows:
           blueprint: "$.input.blueprint"
         output_contract: ReviewResult
         ensure:
-          - "result.clean == true"
+          - "result.clean == True"
         retries: 10
-        on_fail: fix
 
-      - id: fix
-        agent: claude
-        intent: >
-          Fix every finding from the review. Do not skip any.
-          After fixing, do NOT re-review — just report what you fixed.
-        inputs:
-          findings: "$.steps.review.output.findings"
-          task: "$.input.task"
-        next: review
-
-  # --- Sub-flow: coverage sweep ---
-  coverage_sweep:
+  # --- Sub-flow: coverage ---
+  # Single-step: claude runs tests, stratum retries via ensure_failed.
+  # Cross-agent fix is dispatched by build.js on ensure_failed.
+  coverage_check:
     input:
       task: {type: string}
       plan: {type: string}
@@ -89,19 +84,8 @@ flows:
           task: "$.input.task"
         output_contract: TestResult
         ensure:
-          - "result.passing == true"
+          - "result.passing == True"
         retries: 15
-        on_fail: fix_tests
-
-      - id: fix_tests
-        agent: claude
-        intent: >
-          Fix every test failure. Then re-run the tests to confirm.
-        inputs:
-          failures: "$.steps.run_tests.output.failures"
-          task: "$.input.task"
-          plan: "$.input.plan"
-        next: run_tests
 
   # --- Main flow: compose feature lifecycle ---
   build:
@@ -119,12 +103,14 @@ flows:
           Launch 2-3 explorer subagents in parallel to map architecture,
           find similar features, and analyze related implementations.
           Write the design to docs/features/{featureCode}/design.md.
+          Return the artifact path in the "artifact" field.
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
         output_contract: PhaseResult
         ensure:
-          - "file_exists('docs/features/' + input.featureCode + '/design.md')"
+          - "result.outcome == 'complete'"
+          - "file_exists(result.artifact)"
         retries: 2
 
       # Gate: Design review
@@ -141,12 +127,14 @@ flows:
         intent: >
           Write a product requirements document for this feature.
           Write to docs/features/{featureCode}/prd.md.
+          Return the artifact path in the "artifact" field.
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
         output_contract: PhaseResult
         ensure:
-          - "file_exists('docs/features/' + input.featureCode + '/prd.md')"
+          - "result.outcome == 'complete'"
+          - "file_exists(result.artifact)"
         retries: 2
         skip_if: "true"
         skip_reason: "PRD skipped by default — set skip_if to false to enable"
@@ -158,12 +146,14 @@ flows:
         intent: >
           Write an architecture doc with competing proposals.
           Write to docs/features/{featureCode}/architecture.md.
+          Return the artifact path in the "artifact" field.
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
         output_contract: PhaseResult
         ensure:
-          - "file_exists('docs/features/' + input.featureCode + '/architecture.md')"
+          - "result.outcome == 'complete'"
+          - "file_exists(result.artifact)"
         retries: 2
         skip_if: "true"
         skip_reason: "Architecture skipped by default — set skip_if to false to enable"
@@ -175,12 +165,14 @@ flows:
         intent: >
           Write an implementation blueprint with file:line references to existing code.
           Ground every reference in actual files. Write to docs/features/{featureCode}/blueprint.md.
+          Return the artifact path in the "artifact" field.
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
         output_contract: PhaseResult
         ensure:
-          - "file_exists('docs/features/' + input.featureCode + '/blueprint.md')"
+          - "result.outcome == 'complete'"
+          - "file_exists(result.artifact)"
         retries: 3
         depends_on: [architecture]
 
@@ -207,12 +199,14 @@ flows:
         intent: >
           Write an ordered implementation plan with tasks, dependencies, file paths (new/existing),
           and acceptance criteria. Write to docs/features/{featureCode}/plan.md.
+          Return the artifact path in the "artifact" field.
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
         output_contract: PhaseResult
         ensure:
-          - "file_exists('docs/features/' + input.featureCode + '/plan.md')"
+          - "result.outcome == 'complete'"
+          - "file_exists(result.artifact)"
         retries: 2
         depends_on: [verification]
 
@@ -224,7 +218,7 @@ flows:
         on_kill: null
         depends_on: [plan]
 
-      # Phase: Execute (with review-fix and coverage sub-flows)
+      # Phase: Execute (with review and coverage sub-flows)
       - id: execute
         agent: claude
         intent: >
@@ -238,24 +232,24 @@ flows:
         retries: 2
         depends_on: [plan_gate]
 
-      # Sub-flow: Review-fix loop
+      # Sub-flow: Review (codex reviews; build.js dispatches claude fix on ensure_failed)
       - id: review
-        flow: review_fix
+        flow: review_check
         inputs:
           task: "$.steps.execute.output.summary"
           blueprint: "$.input.description"
         ensure:
-          - "result.clean == true"
+          - "result.clean == True"
         depends_on: [execute]
 
-      # Sub-flow: Coverage sweep
+      # Sub-flow: Coverage (claude runs tests; build.js dispatches fix on ensure_failed)
       - id: coverage
-        flow: coverage_sweep
+        flow: coverage_check
         inputs:
           task: "$.steps.execute.output.summary"
           plan: "$.input.description"
         ensure:
-          - "result.passing == true"
+          - "result.passing == True"
         depends_on: [review]
 
       # Phase: Report (skippable)
@@ -265,12 +259,14 @@ flows:
           Write a post-implementation report documenting what was built,
           deviations from the plan, and lessons learned.
           Write to docs/features/{featureCode}/report.md.
+          Return the artifact path in the "artifact" field.
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
         output_contract: PhaseResult
         ensure:
-          - "file_exists('docs/features/' + input.featureCode + '/report.md')"
+          - "result.outcome == 'complete'"
+          - "file_exists(result.artifact)"
         retries: 2
         skip_if: "true"
         skip_reason: "Report skipped by default — set skip_if to false to enable"
