@@ -178,12 +178,13 @@ Stratum IR v0.2 parses, validates, and executes specs with all primitives. All w
 | # | Feature | Item | Status |
 |---|---------|------|--------|
 | 37 | — | Audit Stratum: inventory existing primitives, identify gaps | COMPLETE |
-| 38 | STRAT-ENG-1 | IR v0.2 schema: inline steps (`agent`, `intent`, `on_fail`, `next`), `flow:` composition, gates, policy, skip, rounds | PLANNED |
+| 38 | STRAT-ENG-1 | IR v0.2 schema: `workflow:` declaration, inline steps (`agent`, `intent`, `on_fail`, `next`), `flow:` composition, gates, policy, skip, rounds | COMPLETE |
 | 39 | STRAT-ENG-2 | Executor — state model: StepRecord, FlowState, agent passthrough, audit infra | PLANNED |
 | 40 | STRAT-ENG-3 | Executor — gates, policy, skip: gate resolution, 3-level policy, `skip_if` expressions | PLANNED |
 | 41 | STRAT-ENG-4 | Executor — loops and rounds: round tracking, `max_rounds`, per-step iteration | PLANNED |
 | 42 | STRAT-ENG-5 | Executor — routing and composition: `on_fail`/`next`, `flow:` sub-execution | PLANNED |
 | 43 | STRAT-ENG-6 | Contract freeze: spec shape, MCP tool signatures, flow state/audit output | PLANNED |
+| 43.1 | STRAT-ENG-HOOKS | `stratum-mcp install` hooks: install to `~/.stratum/hooks/` with absolute paths instead of per-project copies | PLANNED |
 
 **Gate:** Multi-step spec with gates, loops, and per-step agent assignment executes end-to-end in Stratum.
 

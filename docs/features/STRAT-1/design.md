@@ -56,7 +56,36 @@ After STRAT-1:
 
 ## What Stratum Gets (IR v0.2)
 
-### 1. Simplified step format
+### 1. Workflow declaration
+
+A spec can declare itself as a named, invocable workflow — not just an internal flow. This is what makes `compose <name>` work without hardcoding commands.
+
+```yaml
+workflow:
+  name: build
+  description: "Execute feature through full lifecycle"
+  input:
+    feature: { type: string, required: true }
+    skip_prd: { type: boolean, default: false }
+
+steps:
+  - id: design
+    agent: claude
+    intent: "Explore codebase and write design.md for {{input.feature}}."
+    # ...
+```
+
+- `workflow.name` — the CLI command name (e.g. `compose build`, `compose research`)
+- `workflow.description` — shown in `compose --help` and `stratum list`
+- `workflow.input` — typed input schema with defaults, validated before execution
+
+Specs without `workflow:` are internal — usable via `flow:` composition but not directly invocable.
+
+**Registry:** Stratum discovers workflow specs from a configurable directory (e.g. `.compose/workflows/`). `stratum list` enumerates all registered workflows with name + description.
+
+**Discovery MCP tool:** `stratum_list_workflows()` — returns registered workflows so the CLI can build its help dynamically.
+
+### 2. Simplified step format
 
 Steps declare intent inline. No separate `functions:` block required.
 
@@ -96,7 +125,7 @@ steps:
 
 The old `functions:` block is still supported for reusable function definitions, but not required.
 
-### 2. Workflow composition
+### 3. Workflow composition
 
 A step can invoke a sub-workflow instead of running inline:
 
@@ -133,7 +162,7 @@ flows:
 
 Reusable workflows (review-fix, coverage-sweep, security-audit) become a shared library across projects.
 
-### 3. Gate step type
+### 4. Gate step type
 
 **Reference:** `lifecycle-manager.js` gate subsystem
 
@@ -151,7 +180,7 @@ New MCP tool: `stratum_gate_resolve(flow_id, step_id, outcome, rationale, resolv
 
 The deferred-operation pattern from Compose becomes native: the gate freezes the flow, resolution routes it.
 
-### 4. Policy layer
+### 5. Policy layer
 
 **Reference:** `policy-engine.js` — directly portable, zero Compose knowledge
 
@@ -168,7 +197,7 @@ Three-level resolution: step-level override → flow-level settings → spec def
 
 `flag` mode is novel — Stratum has nothing like it today. Proceed but record the governance decision in the audit trail.
 
-### 5. Skip
+### 6. Skip
 
 **Reference:** `lifecycle-manager.js` skipPhase()
 
@@ -183,7 +212,7 @@ steps:
 
 Or explicit: `stratum_skip_step(flow_id, step_id, reason)` — records the skip in the audit trace instead of silently omitting it.
 
-### 6. Round tracking
+### 7. Round tracking
 
 **Reference:** `lifecycle-manager.js` phaseHistory, iteration loops
 
@@ -197,7 +226,7 @@ flows:
 - `rounds[]` archive on flow state — prior round trace entries preserved
 - Per-step iteration tracking: `max_iterations`, `exit_criterion`, `iteration_history[]`
 
-### 7. Cross-agent loop routing
+### 8. Cross-agent loop routing
 
 The `on_fail` + `next` fields enable loops across different agents:
 
@@ -294,6 +323,13 @@ All work in the Stratum repo. Each feature is a `/compose` invocation.
 #### STRAT-ENG-1: IR v0.2 Schema
 
 All new fields at once in `spec.py` — one schema pass:
+
+**Workflow declaration:**
+- `workflow.name` — invocable command name
+- `workflow.description` — human-readable summary
+- `workflow.input` — typed input schema with defaults
+- Registry discovery from configurable directory
+- `stratum_list_workflows` MCP tool
 
 **Inline steps:**
 - `agent` — which agent executes the step
@@ -476,6 +512,17 @@ Write STRAT-1 spec, execute, validate — one feature because it's a single end-
 - Stratum's own tests for all v0.2 primitives
 - E2E audit trail: complete trace of the STRAT-1 execution
 - Cross-agent review loop proven (codex → claude → codex)
+
+## Post-STRAT-1: Additional Workflows
+
+STRAT-1 ships `compose build` as the built-in workflow. The `workflow:` declaration in IR v0.2 and the registry protocol make adding new workflows trivial — drop a `.stratum.yaml` spec, it surfaces as a command:
+
+- `compose research <topic>` — multi-agent exploration, findings consolidated into a research doc
+- `compose brainstorm <idea>` — interactive ideation, one question at a time, produces discovery doc
+- `compose roadmap` — project decomposition into features with specs
+- User-authored workflows for project-specific patterns
+
+Each is a Stratum spec with its own step graph, agents, and gates. No CLI code changes required.
 
 ## Open Questions
 
