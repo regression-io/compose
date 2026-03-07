@@ -227,7 +227,7 @@ The main orchestrator — ties T3-T7 together.
 
 - [ ] `runBuild(featureCode, opts)` — entry point. `opts` includes optional `connectorFactory` override (default: `getConnector` from design) for test injection of mock agents
 - [ ] **Load phase:** read `.compose/compose.json`, resolve feature folder, read spec/design from `docs/features/<code>/`
-- [ ] **Resume check:** read `.compose/data/active-build.json`, verify flow exists via `stratum_audit`, resume or start fresh
+- [ ] **Resume check:** read `.compose/data/active-build.json`. If an in-progress flow exists, abandon it (delete `~/.stratum/flows/{flowId}.json`) and start fresh — there is no MCP tool to recover the current dispatch from a persisted flow
 - [ ] **Plan phase:** call `stratumClient.plan(spec, flow, { featureCode, description })`, write `active-build.json`
 - [ ] **Dispatch loop:** iterate on responses:
   - `execute_step` → `connectorFactory(agent)` → `runAndNormalize()` → `stepDone()` (uses `opts.connectorFactory` if provided, otherwise default `getConnector`)
@@ -236,7 +236,7 @@ The main orchestrator — ties T3-T7 together.
   - `ensure_failed`/`schema_failed` → `buildRetryPrompt()` → re-dispatch
 - [ ] **Vision updates:** via `VisionWriter` at each state transition
 - [ ] **Active build tracking:** update `currentStepId` in `active-build.json` on each step
-- [ ] **Completion:** call `stratum_audit()`, write `docs/features/<code>/audit.json`, delete `active-build.json`
+- [ ] **Completion:** write `docs/features/<code>/audit.json` from the completion/killed envelope's `trace` field directly (Stratum deletes persisted flows on completion, so `stratum_audit()` may return `flow_not_found`). Fall back to `stratum_audit()` only for killed flows that may still be persisted. Delete `active-build.json`
 - [ ] **Abort handling:** `--abort` flag — kill gate flows via `gateResolve`, delete non-gate flow files, delete `active-build.json`
 - [ ] **Error handling:** on unrecoverable error, write state to `active-build.json` for future resume, exit with non-zero code
 - [ ] Console output: step progress (`[1/10] design...`), gate prompts, completion summary
@@ -246,7 +246,7 @@ The main orchestrator — ties T3-T7 together.
 **Test:** `test/build.test.js` (new)
 - [ ] Happy path: mock stratum client returns execute_step → complete; verify audit written
 - [ ] Gate path: mock stratum returns await_gate; mock stdin resolves; verify gate_resolve called
-- [ ] Resume path: active-build.json exists, stratum audit shows in_progress; verify resumes
+- [ ] Resume path: active-build.json exists for same feature; verify old flow abandoned and fresh plan started
 - [ ] Abort path: --abort deletes active-build.json and cleans up flow
 - [ ] Unknown agent: step with `agent: 'unknown'` throws with agent name in error
 - [ ] Ensure failure: mock ensure_failed response; verify retry prompt built and re-dispatched
@@ -296,16 +296,29 @@ The main orchestrator — ties T3-T7 together.
 
 **File:** `test/build-integration.test.js` (new)
 
-End-to-end test using a real stratum-mcp subprocess and a mock agent connector.
+End-to-end tests using a real stratum-mcp subprocess and mock agent connectors.
 
+### Test 1: 2-step inline flow (happy path)
 - [ ] Prerequisite check: skip if `stratum-mcp` not installed
 - [ ] Create temp project dir with `.compose/compose.json` and `docs/features/TEST-1/` with a minimal `spec.md`
-- [ ] Write a 2-step inline spec with `agent: claude` and `ensure: file_exists(...)` postconditions
-- [ ] Mock the Claude connector to create the expected files instead of calling the real agent SDK (the test validates the runner orchestration, not agent inference)
+- [ ] Write a 2-step inline spec with `agent: claude` and sequential `depends_on`
+- [ ] Mock the connector to write marker files and return step results
 - [ ] Run `runBuild('TEST-1', { cwd: tempDir })` programmatically
 - [ ] Verify: `active-build.json` deleted (flow completed)
-- [ ] Verify: `audit.json` written to feature folder
+- [ ] Verify: `audit.json` written with `status: 'complete'` and `trace` array
 - [ ] Verify: vision-state.json has item with `status: 'complete'` and `featureCode: 'feature:TEST-1'`
+- [ ] Verify: both step marker files exist (design.done, implement.done)
+
+### Test 2: Sub-flow dispatch (execute_flow path)
+- [ ] Write a spec with a parent flow (`build`) containing a `flow:` step referencing a sub-flow (`review_fix`)
+- [ ] Parent flow: `implement` → `review` (flow: review_fix) → `ship`
+- [ ] Sub-flow `review_fix`: `review` → `fix` (two steps with ReviewResult contract)
+- [ ] Mock connector returns contract-appropriate results per step_id
+- [ ] Run `runBuild('SUB-1', { cwd: tempDir })`
+- [ ] Verify: parent flow completes (audit.json `status: 'complete'`)
+- [ ] Verify: `ship` step ran after sub-flow completed (marker file) — proves parent continued after child completion envelope was reported via `stepDone`
+- [ ] Verify: sub-flow's own steps ran (review.done marker)
+- [ ] Verify: vision-state item is `complete`
 
 **Pattern:** Uses `node --test` runner. Temp dirs via `fs.mkdtempSync`. Connector mock via dependency injection (T8's `runBuild` accepts an optional `connectorFactory` override). Cleanup in `after()`.
 
