@@ -193,9 +193,14 @@ steps:
     policy_fallback: skip         # if no runtime override
 ```
 
-Three-level resolution: step-level override → flow-level settings → spec default.
+Resolution (ENG-3): `step.policy ?? "gate"`. `policy_fallback` is parsed and validated
+but not evaluated until ENG-6 adds `stratum_set_policy` runtime overrides, at which
+point: `runtime_override ?? step.policy ?? step.policy_fallback ?? "gate"`.
 
-`flag` mode is novel — Stratum has nothing like it today. Proceed but record the governance decision in the audit trail.
+`flag` and `skip` both auto-approve and write a PolicyRecord (no GateRecord). They
+differ in intent: `flag` = proceed but note for review, `skip` = gate not relevant.
+
+See `docs/features/STRAT-ENG-3/design.md` for full policy evaluation contract.
 
 ### 6. Skip
 
@@ -375,13 +380,14 @@ Foundation layer. All subsequent features build on this state model.
 
 #### STRAT-ENG-3: Executor — Gates, Policy, Skip
 
-Builds on STRAT-ENG-2's state model and audit infra.
+Builds on STRAT-ENG-2's state model and audit infra. Gates, skip_if, and rounds already
+implemented — ENG-3's remaining delta is policy evaluation and explicit skip tool.
 
-- Gate resolution: `stratum_gate_resolve` MCP tool, pending-gate mutex, on_approve/revise/kill routing
-- Policy evaluation: three-level resolution (step → flow → spec default), flag audit entries
-- Skip evaluation: `skip_if` expressions, `stratum_skip_step` explicit tool
+- Policy evaluation: `step.policy ?? "gate"`, auto-approve for flag/skip with PolicyRecord
+- `stratum_skip_step` MCP tool: explicit step skipping with reason
+- `policy_fallback` deferred to ENG-6 (`stratum_set_policy` runtime overrides)
 
-**References:** `policy-engine.js` — portable almost line-for-line
+**Full design:** `docs/features/STRAT-ENG-3/design.md`
 
 #### STRAT-ENG-4: Executor — Loops and Rounds
 
