@@ -1,0 +1,1 @@
+/Users/ruze/reg/my/forge/stratum/docs/features/STRAT-ENG-6/design.md
