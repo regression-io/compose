@@ -280,7 +280,7 @@ The main orchestrator — ties T3-T7 together.
 
 **File:** `bin/compose.js` (existing) — add `build` command
 
-- [ ] Parse `compose build [FEAT-CODE]` with optional `--abort` and `--resume` flags
+- [ ] Parse `compose build [FEAT-CODE]` with optional `--abort` flag
 - [ ] Import and call `runBuild()` from `lib/build.js`
 - [ ] Update help text with `build` command
 - [ ] Error handling: catch build errors, print message, exit with code 1

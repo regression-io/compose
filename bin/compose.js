@@ -265,7 +265,6 @@ if (cmd === 'install') {
 if (cmd === 'build') {
   const featureCode = args.find(a => !a.startsWith('-'))
   const abort = args.includes('--abort')
-  const resume = args.includes('--resume')
 
   // --abort doesn't require a feature code (looks up active-build.json)
   if (!featureCode && !abort) {
@@ -273,12 +272,11 @@ if (cmd === 'build') {
     console.error('')
     console.error('Options:')
     console.error('  --abort    Abort the active build')
-    console.error('  --resume   Resume without confirmation')
     process.exit(1)
   }
 
   import('../lib/build.js').then(({ runBuild }) => {
-    runBuild(featureCode, { abort, resume }).then(() => {
+    runBuild(featureCode, { abort }).then(() => {
       process.exit(0)
     }).catch((err) => {
       console.error(`Build failed: ${err.message}`)
