@@ -6,8 +6,9 @@
  * compose setup    — install global skill + register stratum-mcp (user-global)
  * compose install  — run init + setup (backwards-compat alias)
  * compose start    — start the compose app (supervisor.js)
+ * compose build    — headless feature lifecycle runner
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from 'fs'
 import { resolve, join, basename, dirname } from 'path'
 import { homedir } from 'os'
 import { spawn, spawnSync } from 'child_process'
@@ -31,7 +32,72 @@ if (!cmd || cmd === '--help' || cmd === '-h') {
   console.log('  setup     Install global skill + register stratum-mcp')
   console.log('  install   Run init + setup (backwards-compat)')
   console.log('  start     Start the compose app')
+  console.log('  build     Run a feature through the headless lifecycle')
   process.exit(0)
+}
+
+// ---------------------------------------------------------------------------
+// compose init — project-local setup
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Agent detection + skill installation
+// ---------------------------------------------------------------------------
+
+function detectAgents() {
+  const agents = []
+  const home = homedir()
+
+  // Claude Code
+  const hasClaude = spawnSync('which', ['claude'], { encoding: 'utf-8' }).status === 0
+    || existsSync(join(home, '.claude'))
+  if (hasClaude) {
+    agents.push({ name: 'claude', skillDir: join(home, '.claude', 'skills', 'stratum') })
+  }
+
+  // Codex (via opencode)
+  const hasCodex = spawnSync('which', ['opencode'], { encoding: 'utf-8' }).status === 0
+    || existsSync(join(home, '.codex'))
+  if (hasCodex) {
+    agents.push({ name: 'codex', skillDir: join(home, '.codex', 'skills', 'stratum') })
+  }
+
+  // Gemini CLI
+  const hasGemini = spawnSync('which', ['gemini-cli'], { encoding: 'utf-8' }).status === 0
+    || existsSync(join(home, '.gemini'))
+  if (hasGemini) {
+    agents.push({ name: 'gemini', skillDir: join(home, '.gemini', 'skills', 'stratum') })
+  }
+
+  return agents
+}
+
+function installSkillToAgents(agents) {
+  const skillSrc = join(PACKAGE_ROOT, 'skills', 'stratum', 'SKILL.md')
+  if (!existsSync(skillSrc)) {
+    console.log('Warning: stratum skill not found at ' + skillSrc)
+    return
+  }
+
+  console.log('\nDetecting agents...')
+  for (const agent of agents) {
+    if (agent.name === 'gemini') {
+      // Gemini skill path unverified — detect but don't install
+      console.log(`  - ${agent.name} — detected but skill install skipped (unverified path)`)
+      continue
+    }
+    mkdirSync(agent.skillDir, { recursive: true })
+    copyFileSync(skillSrc, join(agent.skillDir, 'SKILL.md'))
+    console.log(`  + ${agent.name} — skill installed to ${agent.skillDir}/`)
+  }
+
+  // Report undetected agents
+  const detected = new Set(agents.map(a => a.name))
+  for (const name of ['claude', 'codex', 'gemini']) {
+    if (!detected.has(name)) {
+      console.log(`  - ${name} — not found`)
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -51,19 +117,36 @@ function runInit(flags) {
   const hasStratum = !noStratum && spawnSync('which', ['stratum-mcp'], { encoding: 'utf-8' }).status === 0
   const hasLifecycle = !noLifecycle
 
-  // 3. Write .compose/compose.json (merge with existing if present)
+  // 3. Detect agents
+  const agents = detectAgents()
+
+  // 4. Write .compose/compose.json (merge with existing if present)
   const configPath = join(composeDir, 'compose.json')
   let existing = {}
   if (existsSync(configPath)) {
     try { existing = JSON.parse(readFileSync(configPath, 'utf-8')) } catch {}
   }
 
+  const agentsConfig = {}
+  for (const agent of agents) {
+    agentsConfig[agent.name] = { detected: true, skillInstalled: agent.name !== 'gemini' }
+  }
+  for (const name of ['claude', 'codex', 'gemini']) {
+    if (!agentsConfig[name]) {
+      agentsConfig[name] = { detected: false }
+    }
+  }
+
   const config = {
-    version: 1,
+    version: 2,
     capabilities: {
       ...(existing.capabilities || {}),
       stratum: hasStratum,
       lifecycle: hasLifecycle,
+    },
+    agents: {
+      ...(existing.agents || {}),
+      ...agentsConfig,
     },
     paths: {
       docs: 'docs',
@@ -80,10 +163,10 @@ function runInit(flags) {
   writeFileSync(configPath, JSON.stringify(config, null, 2))
   console.log(`Wrote ${configPath}`)
 
-  // 4. Create .compose/data/
+  // 5. Create .compose/data/
   mkdirSync(join(composeDir, 'data'), { recursive: true })
 
-  // 5. Register compose-mcp in .mcp.json
+  // 6. Register compose-mcp in .mcp.json
   const mcpPath = join(cwd, '.mcp.json')
   let mcpConfig = {}
   if (existsSync(mcpPath)) {
@@ -97,7 +180,7 @@ function runInit(flags) {
   writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2))
   console.log(`Registered compose-mcp in ${mcpPath}`)
 
-  // 6. Scaffold ROADMAP.md from template if absent
+  // 7. Scaffold ROADMAP.md from template if absent
   const roadmapDest = join(cwd, 'ROADMAP.md')
   if (!existsSync(roadmapDest)) {
     const roadmapSrc = join(PACKAGE_ROOT, 'templates', 'ROADMAP.md')
@@ -114,11 +197,15 @@ function runInit(flags) {
     }
   }
 
-  // 7. Summary
+  // 8. Install stratum skill to detected agents
+  installSkillToAgents(agents)
+
+  // 9. Summary
   console.log('')
   console.log('Compose initialized:')
   console.log(`  Stratum:   ${config.capabilities.stratum ? 'enabled' : 'disabled'}`)
   console.log(`  Lifecycle: ${config.capabilities.lifecycle ? 'enabled' : 'disabled'}`)
+  console.log(`  Agents:    ${agents.map(a => a.name).join(', ') || 'none detected'}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -136,7 +223,11 @@ function runSetup() {
     console.log(`Installed /compose skill to ${skillDest}`)
   }
 
-  // 2. Register stratum-mcp if available
+  // 2. Install stratum skill to detected agents
+  const agents = detectAgents()
+  installSkillToAgents(agents)
+
+  // 3. Register stratum-mcp if available
   const hasStratum = spawnSync('which', ['stratum-mcp'], { encoding: 'utf-8' }).status === 0
   if (hasStratum) {
     console.log('Registering stratum-mcp with Claude Code...')
@@ -171,7 +262,30 @@ if (cmd === 'install') {
   process.exit(0)
 }
 
-if (cmd === 'start') {
+if (cmd === 'build') {
+  const featureCode = args.find(a => !a.startsWith('-'))
+  const abort = args.includes('--abort')
+  const resume = args.includes('--resume')
+
+  // --abort doesn't require a feature code (looks up active-build.json)
+  if (!featureCode && !abort) {
+    console.error('Usage: compose build <feature-code>')
+    console.error('')
+    console.error('Options:')
+    console.error('  --abort    Abort the active build')
+    console.error('  --resume   Resume without confirmation')
+    process.exit(1)
+  }
+
+  import('../lib/build.js').then(({ runBuild }) => {
+    runBuild(featureCode, { abort, resume }).then(() => {
+      process.exit(0)
+    }).catch((err) => {
+      console.error(`Build failed: ${err.message}`)
+      process.exit(1)
+    })
+  })
+} else if (cmd === 'start') {
   // Resolve target root BEFORE spawning supervisor
   const explicitTarget = process.env.COMPOSE_TARGET
   const targetRoot = explicitTarget

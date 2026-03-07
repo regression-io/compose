@@ -1,0 +1,311 @@
+version: "0.2"
+
+workflow:
+  name: build
+  description: "Execute a feature through the full Compose lifecycle"
+  input:
+    featureCode:
+      type: string
+      required: true
+    description:
+      type: string
+      required: true
+
+contracts:
+  PhaseResult:
+    phase:    {type: string}
+    artifact: {type: string}
+    outcome:  {type: string, values: [complete, skipped, failed]}
+
+  ReviewResult:
+    clean:    {type: boolean}
+    summary:  {type: string}
+    findings: {type: array}
+
+  TestResult:
+    passing:  {type: boolean}
+    summary:  {type: string}
+    failures: {type: array}
+
+functions:
+  design_gate:
+    mode: gate
+    timeout: 3600
+
+  plan_gate:
+    mode: gate
+    timeout: 3600
+
+  ship_gate:
+    mode: gate
+    timeout: 1800
+
+flows:
+  # --- Sub-flow: review-fix loop ---
+  review_fix:
+    input:
+      task:      {type: string}
+      blueprint: {type: string}
+    output: ReviewResult
+    steps:
+      - id: review
+        agent: codex
+        intent: >
+          Review the implementation against the blueprint. Return structured JSON:
+          { "clean": boolean, "summary": string, "findings": string[] }.
+          Set clean=true only if no actionable findings with confidence >= 80 remain.
+        inputs:
+          task: "$.input.task"
+          blueprint: "$.input.blueprint"
+        output_contract: ReviewResult
+        ensure:
+          - "result.clean == true"
+        retries: 10
+        on_fail: fix
+
+      - id: fix
+        agent: claude
+        intent: >
+          Fix every finding from the review. Do not skip any.
+          After fixing, do NOT re-review — just report what you fixed.
+        inputs:
+          findings: "$.steps.review.output.findings"
+          task: "$.input.task"
+        next: review
+
+  # --- Sub-flow: coverage sweep ---
+  coverage_sweep:
+    input:
+      task: {type: string}
+      plan: {type: string}
+    output: TestResult
+    steps:
+      - id: run_tests
+        agent: claude
+        intent: >
+          Run the project test suite. Return structured JSON:
+          { "passing": boolean, "summary": string, "failures": string[] }.
+        inputs:
+          task: "$.input.task"
+        output_contract: TestResult
+        ensure:
+          - "result.passing == true"
+        retries: 15
+        on_fail: fix_tests
+
+      - id: fix_tests
+        agent: claude
+        intent: >
+          Fix every test failure. Then re-run the tests to confirm.
+        inputs:
+          failures: "$.steps.run_tests.output.failures"
+          task: "$.input.task"
+          plan: "$.input.plan"
+        next: run_tests
+
+  # --- Main flow: compose feature lifecycle ---
+  build:
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: PhaseResult
+    max_rounds: 10
+    steps:
+      # Phase: Explore & Design
+      - id: explore_design
+        agent: claude
+        intent: >
+          Explore the codebase and write a design doc for this feature.
+          Launch 2-3 explorer subagents in parallel to map architecture,
+          find similar features, and analyze related implementations.
+          Write the design to docs/features/{featureCode}/design.md.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        ensure:
+          - "file_exists('docs/features/' + input.featureCode + '/design.md')"
+        retries: 2
+
+      # Gate: Design review
+      - id: design_gate
+        function: design_gate
+        on_approve: prd
+        on_revise: explore_design
+        on_kill: null
+        depends_on: [explore_design]
+
+      # Phase: PRD (skippable)
+      - id: prd
+        agent: claude
+        intent: >
+          Write a product requirements document for this feature.
+          Write to docs/features/{featureCode}/prd.md.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        ensure:
+          - "file_exists('docs/features/' + input.featureCode + '/prd.md')"
+        retries: 2
+        skip_if: "true"
+        skip_reason: "PRD skipped by default — set skip_if to false to enable"
+        depends_on: [design_gate]
+
+      # Phase: Architecture (skippable)
+      - id: architecture
+        agent: claude
+        intent: >
+          Write an architecture doc with competing proposals.
+          Write to docs/features/{featureCode}/architecture.md.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        ensure:
+          - "file_exists('docs/features/' + input.featureCode + '/architecture.md')"
+        retries: 2
+        skip_if: "true"
+        skip_reason: "Architecture skipped by default — set skip_if to false to enable"
+        depends_on: [prd]
+
+      # Phase: Blueprint
+      - id: blueprint
+        agent: claude
+        intent: >
+          Write an implementation blueprint with file:line references to existing code.
+          Ground every reference in actual files. Write to docs/features/{featureCode}/blueprint.md.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        ensure:
+          - "file_exists('docs/features/' + input.featureCode + '/blueprint.md')"
+        retries: 3
+        depends_on: [architecture]
+
+      # Phase: Blueprint Verification
+      - id: verification
+        agent: claude
+        intent: >
+          Verify every file:line reference in the blueprint against the actual codebase.
+          Flag stale or incorrect references. Return { verified: true } only if all
+          references are valid. Return { verified: false, staleRefs: [...] } otherwise.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        ensure:
+          - "result.outcome == 'complete'"
+        retries: 2
+        on_fail: blueprint
+        depends_on: [blueprint]
+
+      # Phase: Implementation Plan
+      - id: plan
+        agent: claude
+        intent: >
+          Write an ordered implementation plan with tasks, dependencies, file paths (new/existing),
+          and acceptance criteria. Write to docs/features/{featureCode}/plan.md.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        ensure:
+          - "file_exists('docs/features/' + input.featureCode + '/plan.md')"
+        retries: 2
+        depends_on: [verification]
+
+      # Gate: Plan review
+      - id: plan_gate
+        function: plan_gate
+        on_approve: execute
+        on_revise: plan
+        on_kill: null
+        depends_on: [plan]
+
+      # Phase: Execute (with review-fix and coverage sub-flows)
+      - id: execute
+        agent: claude
+        intent: >
+          Execute the implementation plan using TDD. For each task:
+          write the test first, watch it fail, implement, watch it pass.
+          After all tasks are done, return a summary of what was built.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        retries: 2
+        depends_on: [plan_gate]
+
+      # Sub-flow: Review-fix loop
+      - id: review
+        flow: review_fix
+        inputs:
+          task: "$.steps.execute.output.summary"
+          blueprint: "$.input.description"
+        ensure:
+          - "result.clean == true"
+        depends_on: [execute]
+
+      # Sub-flow: Coverage sweep
+      - id: coverage
+        flow: coverage_sweep
+        inputs:
+          task: "$.steps.execute.output.summary"
+          plan: "$.input.description"
+        ensure:
+          - "result.passing == true"
+        depends_on: [review]
+
+      # Phase: Report (skippable)
+      - id: report
+        agent: claude
+        intent: >
+          Write a post-implementation report documenting what was built,
+          deviations from the plan, and lessons learned.
+          Write to docs/features/{featureCode}/report.md.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        ensure:
+          - "file_exists('docs/features/' + input.featureCode + '/report.md')"
+        retries: 2
+        skip_if: "true"
+        skip_reason: "Report skipped by default — set skip_if to false to enable"
+        depends_on: [coverage]
+
+      # Phase: Update Docs
+      - id: docs
+        agent: claude
+        intent: >
+          Update CHANGELOG.md, README.md, ROADMAP.md, and CLAUDE.md as needed.
+          Only update files affected by this feature.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        retries: 2
+        depends_on: [report]
+
+      # Phase: Ship
+      - id: ship
+        agent: claude
+        intent: >
+          Final verification: run all tests, check for uncommitted changes,
+          verify all artifacts are in place. Then commit and report.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: PhaseResult
+        retries: 2
+        depends_on: [docs]
+
+      # Gate: Ship review
+      - id: ship_gate
+        function: ship_gate
+        on_approve: null
+        on_revise: ship
+        on_kill: null
+        depends_on: [ship]

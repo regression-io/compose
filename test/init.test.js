@@ -58,18 +58,35 @@ describe('compose init', () => {
     assert.ok(existsSync(join(cwd, '.compose')));
   });
 
-  test('writes .compose/compose.json with version, capabilities, paths', () => {
+  test('writes .compose/compose.json with version, capabilities, agents, paths', () => {
     const cwd = tmpDir();
     const home = tmpDir();
     runCmd('init', cwd, makeEnv(cwd, home));
 
     const config = JSON.parse(readFileSync(join(cwd, '.compose', 'compose.json'), 'utf-8'));
-    assert.equal(config.version, 1);
+    assert.equal(config.version, 2);
     assert.equal(typeof config.capabilities.stratum, 'boolean');
     assert.equal(typeof config.capabilities.lifecycle, 'boolean');
+    assert.ok(config.agents, 'must have agents section');
     assert.equal(config.paths.docs, 'docs');
     assert.equal(config.paths.features, 'docs/features');
     assert.equal(config.paths.journal, 'docs/journal');
+  });
+
+  test('detects claude when ~/.claude/ exists and installs stratum skill', () => {
+    const cwd = tmpDir();
+    const home = tmpDir();
+    // Create ~/.claude/ to simulate Claude Code being installed
+    mkdirSync(join(home, '.claude'), { recursive: true });
+    runCmd('init', cwd, makeEnv(cwd, home));
+
+    const config = JSON.parse(readFileSync(join(cwd, '.compose', 'compose.json'), 'utf-8'));
+    assert.equal(config.agents.claude.detected, true);
+    assert.equal(config.agents.claude.skillInstalled, true);
+
+    // Verify skill was actually copied
+    const skillPath = join(home, '.claude', 'skills', 'stratum', 'SKILL.md');
+    assert.ok(existsSync(skillPath), 'stratum skill should be installed to ~/.claude/skills/stratum/');
   });
 
   test('creates .compose/data/ directory', () => {

@@ -194,7 +194,7 @@ Stratum IR v0.2 parses, validates, and executes specs with all primitives. All w
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 44 | STRAT-COMP-1 | Skill prompt + headless runner + init upgrade: universal agent skill, `compose build`, questionnaire, agent detection | PLANNED |
+| 44 | STRAT-COMP-1 | Skill prompt + headless runner + init upgrade: universal agent skill, `compose build`, questionnaire, agent detection | COMPLETE |
 | 45 | STRAT-COMP-2 | Delete bespoke code: replace lifecycle-manager/policy-engine with Stratum adapters | PLANNED |
 
 **Gate:** `compose build FEAT-X` reads a spec, dispatches agents, enforces gates, produces artifacts. No server required.
