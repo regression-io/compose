@@ -19,18 +19,17 @@
  *   POST   /api/vision/items/:id/lifecycle/skip
  *   POST   /api/vision/items/:id/lifecycle/kill
  *   POST   /api/vision/items/:id/lifecycle/complete
- *   GET    /api/vision/items/:id/artifacts
- *   POST   /api/vision/items/:id/artifacts/scaffold
  *   GET    /api/vision/gates
  *   GET    /api/vision/gates/:id
  *   POST   /api/vision/gates/:id/resolve
+ *   GET    /api/vision/items/:id/artifacts
+ *   POST   /api/vision/items/:id/artifacts/scaffold
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractFilePaths } from './vision-utils.js';
-import { LifecycleManager } from './lifecycle-manager.js';
 import { ArtifactManager } from './artifact-manager.js';
 
 import { TARGET_ROOT, resolveProjectPath, loadProjectConfig } from './project-root.js';
@@ -118,16 +117,29 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     res.json({ ...item, connections });
   });
 
-  // ── Lifecycle endpoints ────────────────────────────────────────────────
+  // ── Lifecycle endpoints (simplified — no state machine) ──────────────
   const featuresPath = projectRoot !== PROJECT_ROOT
     ? path.join(projectRoot, loadProjectConfig().paths?.features || 'docs/features')
     : resolveProjectPath('features');
-  const lifecycleManager = new LifecycleManager(store, featuresPath, settingsStore);
+
+  const TRANSITIONS = {
+    explore_design: ['prd', 'architecture', 'blueprint'],
+    prd: ['architecture', 'blueprint'],
+    architecture: ['blueprint'],
+    blueprint: ['verification'],
+    verification: ['plan', 'blueprint'],
+    plan: ['execute'],
+    execute: ['report', 'docs'],
+    report: ['docs'],
+    docs: ['ship'],
+    ship: [],
+  };
+  const SKIPPABLE = new Set(['prd', 'architecture', 'report']);
+  const TERMINAL = new Set(['complete', 'killed']);
 
   app.get('/api/vision/items/:id/lifecycle', (req, res) => {
     try {
-      const items = store.getState().items;
-      const item = items.find(i => i.id === req.params.id);
+      const item = store.items.get(req.params.id);
       if (!item) return res.status(404).json({ error: `Item not found: ${req.params.id}` });
       if (!item.lifecycle) return res.status(404).json({ error: 'No lifecycle on this item' });
       res.json(item.lifecycle);
@@ -140,15 +152,22 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     try {
       const { featureCode } = req.body;
       if (!featureCode) return res.status(400).json({ error: 'featureCode is required' });
-      const lifecycle = lifecycleManager.startLifecycle(req.params.id, featureCode);
-      scheduleBroadcast();
-      broadcastMessage({
-        type: 'lifecycleStarted',
-        itemId: req.params.id,
-        phase: lifecycle.currentPhase,
+      const item = store.items.get(req.params.id);
+      if (!item) return res.status(404).json({ error: `Item not found: ${req.params.id}` });
+      if (item.lifecycle) return res.status(400).json({ error: `Item ${req.params.id} already has a lifecycle` });
+
+      const now = new Date().toISOString();
+      const lifecycle = {
+        currentPhase: 'explore_design',
         featureCode,
-        timestamp: new Date().toISOString(),
-      });
+        startedAt: now,
+        completedAt: null,
+        killedAt: null,
+        killReason: null,
+      };
+      store.updateLifecycle(req.params.id, lifecycle);
+      scheduleBroadcast();
+      broadcastMessage({ type: 'lifecycleStarted', itemId: req.params.id, phase: 'explore_design', featureCode, timestamp: now });
       res.json(lifecycle);
     } catch (err) {
       const status = err.message.includes('not found') ? 404 : 400;
@@ -159,30 +178,19 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
   app.post('/api/vision/items/:id/lifecycle/advance', (req, res) => {
     try {
       const { targetPhase, outcome } = req.body;
-      const result = lifecycleManager.advancePhase(req.params.id, targetPhase, outcome);
+      const item = store.items.get(req.params.id);
+      if (!item?.lifecycle) return res.status(404).json({ error: 'No lifecycle on this item' });
+      const from = item.lifecycle.currentPhase;
+      if (TERMINAL.has(from)) return res.status(400).json({ error: `Cannot advance from terminal state: ${from}` });
+      const valid = TRANSITIONS[from];
+      if (!valid?.includes(targetPhase)) return res.status(400).json({ error: `Invalid transition: ${from} → ${targetPhase}` });
 
-      if (result.status === 'pending_approval') {
-        broadcastMessage({
-          type: 'gatePending',
-          gateId: result.gateId,
-          itemId: req.params.id,
-          fromPhase: result.fromPhase,
-          toPhase: result.toPhase,
-          timestamp: new Date().toISOString(),
-        });
-        return res.status(202).json(result);
-      }
-
+      item.lifecycle.currentPhase = targetPhase;
+      store.updateLifecycle(req.params.id, item.lifecycle);
+      const now = new Date().toISOString();
       scheduleBroadcast();
-      broadcastMessage({
-        type: 'lifecycleTransition',
-        itemId: req.params.id,
-        from: result.from,
-        to: result.to,
-        outcome: result.outcome,
-        timestamp: new Date().toISOString(),
-      });
-      res.json(result);
+      broadcastMessage({ type: 'lifecycleTransition', itemId: req.params.id, from, to: targetPhase, outcome, timestamp: now });
+      res.json({ from, to: targetPhase, outcome });
     } catch (err) {
       const status = err.message.includes('not found') ? 404 : 400;
       res.status(status).json({ error: err.message });
@@ -192,30 +200,20 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
   app.post('/api/vision/items/:id/lifecycle/skip', (req, res) => {
     try {
       const { targetPhase, reason } = req.body;
-      const result = lifecycleManager.skipPhase(req.params.id, targetPhase, reason);
+      const item = store.items.get(req.params.id);
+      if (!item?.lifecycle) return res.status(404).json({ error: 'No lifecycle on this item' });
+      const from = item.lifecycle.currentPhase;
+      if (TERMINAL.has(from)) return res.status(400).json({ error: `Cannot skip from terminal state: ${from}` });
+      if (!SKIPPABLE.has(from)) return res.status(400).json({ error: `Phase ${from} is not skippable` });
+      const valid = TRANSITIONS[from];
+      if (!valid?.includes(targetPhase)) return res.status(400).json({ error: `Invalid transition: ${from} → ${targetPhase}` });
 
-      if (result.status === 'pending_approval') {
-        broadcastMessage({
-          type: 'gatePending',
-          gateId: result.gateId,
-          itemId: req.params.id,
-          fromPhase: result.fromPhase,
-          toPhase: result.toPhase,
-          timestamp: new Date().toISOString(),
-        });
-        return res.status(202).json(result);
-      }
-
+      item.lifecycle.currentPhase = targetPhase;
+      store.updateLifecycle(req.params.id, item.lifecycle);
+      const now = new Date().toISOString();
       scheduleBroadcast();
-      broadcastMessage({
-        type: 'lifecycleTransition',
-        itemId: req.params.id,
-        from: result.from,
-        to: result.to,
-        outcome: result.outcome,
-        timestamp: new Date().toISOString(),
-      });
-      res.json(result);
+      broadcastMessage({ type: 'lifecycleTransition', itemId: req.params.id, from, to: targetPhase, outcome: 'skipped', timestamp: now });
+      res.json({ from, to: targetPhase, outcome: 'skipped', reason });
     } catch (err) {
       const status = err.message.includes('not found') ? 404 : 400;
       res.status(status).json({ error: err.message });
@@ -225,17 +223,20 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
   app.post('/api/vision/items/:id/lifecycle/kill', (req, res) => {
     try {
       const { reason } = req.body;
-      const result = lifecycleManager.killFeature(req.params.id, reason);
+      const item = store.items.get(req.params.id);
+      if (!item?.lifecycle) return res.status(404).json({ error: 'No lifecycle on this item' });
+      const from = item.lifecycle.currentPhase;
+      if (TERMINAL.has(from)) return res.status(400).json({ error: `Cannot kill from terminal state: ${from}` });
+
+      const now = new Date().toISOString();
+      item.lifecycle.currentPhase = 'killed';
+      item.lifecycle.killedAt = now;
+      item.lifecycle.killReason = reason;
+      store.updateLifecycle(req.params.id, item.lifecycle);
+      store.updateItem(req.params.id, { status: 'killed' });
       scheduleBroadcast();
-      broadcastMessage({
-        type: 'lifecycleTransition',
-        itemId: req.params.id,
-        from: result.phase,
-        to: 'killed',
-        outcome: 'killed',
-        timestamp: new Date().toISOString(),
-      });
-      res.json(result);
+      broadcastMessage({ type: 'lifecycleTransition', itemId: req.params.id, from, to: 'killed', outcome: 'killed', timestamp: now });
+      res.json({ phase: from, reason });
     } catch (err) {
       const status = err.message.includes('not found') ? 404 : 400;
       res.status(status).json({ error: err.message });
@@ -244,17 +245,20 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
 
   app.post('/api/vision/items/:id/lifecycle/complete', (req, res) => {
     try {
-      const result = lifecycleManager.completeFeature(req.params.id);
+      const item = store.items.get(req.params.id);
+      if (!item?.lifecycle) return res.status(404).json({ error: 'No lifecycle on this item' });
+      if (item.lifecycle.currentPhase !== 'ship') {
+        return res.status(400).json({ error: `Can only complete from ship phase, currently in: ${item.lifecycle.currentPhase}` });
+      }
+
+      const now = new Date().toISOString();
+      item.lifecycle.currentPhase = 'complete';
+      item.lifecycle.completedAt = now;
+      store.updateLifecycle(req.params.id, item.lifecycle);
+      store.updateItem(req.params.id, { status: 'complete' });
       scheduleBroadcast();
-      broadcastMessage({
-        type: 'lifecycleTransition',
-        itemId: req.params.id,
-        from: 'ship',
-        to: 'complete',
-        outcome: 'approved',
-        timestamp: new Date().toISOString(),
-      });
-      res.json(result);
+      broadcastMessage({ type: 'lifecycleTransition', itemId: req.params.id, from: 'ship', to: 'complete', outcome: 'approved', timestamp: now });
+      res.json({ completedAt: now });
     } catch (err) {
       const status = err.message.includes('not found') ? 404 : 400;
       res.status(status).json({ error: err.message });
@@ -266,8 +270,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
 
   app.get('/api/vision/items/:id/artifacts', (req, res) => {
     try {
-      const items = store.getState().items;
-      const item = items.find(i => i.id === req.params.id);
+      const item = store.items.get(req.params.id);
       if (!item) return res.status(404).json({ error: `Item not found: ${req.params.id}` });
       if (!item.lifecycle?.featureCode) {
         return res.status(400).json({ error: 'Item has no lifecycle featureCode' });
@@ -281,8 +284,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
 
   app.post('/api/vision/items/:id/artifacts/scaffold', (req, res) => {
     try {
-      const items = store.getState().items;
-      const item = items.find(i => i.id === req.params.id);
+      const item = store.items.get(req.params.id);
       if (!item) return res.status(404).json({ error: `Item not found: ${req.params.id}` });
       if (!item.lifecycle?.featureCode) {
         return res.status(400).json({ error: 'Item has no lifecycle featureCode' });
@@ -320,86 +322,32 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     try {
       const { outcome, comment } = req.body;
       if (!outcome) return res.status(400).json({ error: 'outcome is required' });
-      // Capture itemId before resolve (not all result paths include it)
       const gate = store.gates.get(req.params.id);
-      const result = lifecycleManager.approveGate(req.params.id, { outcome, comment });
-      scheduleBroadcast();
-      broadcastMessage({
-        type: 'gateResolved',
-        gateId: req.params.id,
-        itemId: gate?.itemId ?? null,
-        outcome,
-        timestamp: new Date().toISOString(),
-      });
-      res.json(result);
-    } catch (err) {
-      const status = err.message.includes('not found') ? 404 : 400;
-      res.status(status).json({ error: err.message });
-    }
-  });
+      if (!gate) return res.status(404).json({ error: `Gate not found: ${req.params.id}` });
+      if (gate.status !== 'pending') return res.status(400).json({ error: `Gate ${req.params.id} is not pending` });
 
-  // ── Iteration endpoints ─────────────────────────────────────────────────
+      store.resolveGate(req.params.id, { outcome, comment });
 
-  app.post('/api/vision/items/:id/lifecycle/iteration/start', (req, res) => {
-    try {
-      const { loopType, maxIterations } = req.body;
-      if (!loopType) return res.status(400).json({ error: 'loopType is required' });
-      const result = lifecycleManager.startIterationLoop(req.params.id, loopType, { maxIterations });
-      scheduleBroadcast();
-      broadcastMessage({
-        type: 'iterationStarted',
-        itemId: req.params.id,
-        loopId: result.loopId,
-        loopType,
-        maxIterations: result.maxIterations,
-        timestamp: new Date().toISOString(),
-      });
-      res.json(result);
-    } catch (err) {
-      const status = err.message.includes('not found') ? 404 : 400;
-      res.status(status).json({ error: err.message });
-    }
-  });
-
-  app.post('/api/vision/items/:id/lifecycle/iteration/report', (req, res) => {
-    try {
-      const result = lifecycleManager.reportIterationResult(req.params.id, req.body);
-      scheduleBroadcast();
-      const now = new Date().toISOString();
-      broadcastMessage({
-        type: 'iterationUpdate',
-        itemId: req.params.id,
-        loopId: result.loopId,
-        loopType: result.loopType,
-        count: result.count,
-        maxIterations: result.maxIterations,
-        exitCriteriaMet: result.exitCriteriaMet,
-        continueLoop: result.continueLoop,
-        timestamp: now,
-      });
-      if (!result.continueLoop) {
-        broadcastMessage({
-          type: 'iterationComplete',
-          itemId: req.params.id,
-          loopId: result.loopId,
-          loopType: result.loopType,
-          outcome: result.outcome,
-          finalCount: result.count,
-          timestamp: now,
-        });
+      if (outcome === 'approved') {
+        const item = store.items.get(gate.itemId);
+        if (item?.lifecycle) {
+          item.lifecycle.currentPhase = gate.toPhase;
+          store.updateLifecycle(gate.itemId, item.lifecycle);
+        }
+      } else if (outcome === 'killed') {
+        const item = store.items.get(gate.itemId);
+        if (item?.lifecycle) {
+          item.lifecycle.currentPhase = 'killed';
+          item.lifecycle.killedAt = new Date().toISOString();
+          item.lifecycle.killReason = comment || 'Killed at gate';
+          store.updateLifecycle(gate.itemId, item.lifecycle);
+          store.updateItem(gate.itemId, { status: 'killed' });
+        }
       }
-      res.json(result);
-    } catch (err) {
-      const status = err.message.includes('not found') ? 404 : 400;
-      res.status(status).json({ error: err.message });
-    }
-  });
 
-  app.get('/api/vision/items/:id/lifecycle/iteration', (req, res) => {
-    try {
-      const result = lifecycleManager.getIterationStatus(req.params.id);
-      if (!result) return res.status(404).json({ error: 'No iteration state' });
-      res.json(result);
+      scheduleBroadcast();
+      broadcastMessage({ type: 'gateResolved', gateId: req.params.id, itemId: gate.itemId, outcome, timestamp: new Date().toISOString() });
+      res.json({ gateId: req.params.id, gateOutcome: outcome });
     } catch (err) {
       const status = err.message.includes('not found') ? 404 : 400;
       res.status(status).json({ error: err.message });

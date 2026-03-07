@@ -1,6 +1,5 @@
 /**
- * lifecycle-routes.test.js — Integration tests for lifecycle REST endpoints
- * and MCP tool wiring.
+ * lifecycle-routes.test.js — Integration tests for lifecycle REST endpoints.
  *
  * Spins up Express with in-memory VisionStore on an ephemeral port,
  * hits endpoints via http.request, verifies responses and broadcasts.
@@ -13,6 +12,7 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -50,21 +50,6 @@ function setupServer() {
       resolve({ tmpDir, store, item, server, port, broadcasts });
     });
   });
-}
-
-const ALL_SKIP_OVERRIDES = {
-  prd: 'skip', architecture: 'skip', blueprint: 'skip',
-  verification: 'skip', plan: 'skip', execute: 'skip',
-  report: 'skip', docs: 'skip', ship: 'skip',
-};
-
-/** Set all policies to 'skip' so existing tests bypass gates. */
-function bypassPolicy(store, itemId) {
-  const item = store.items.get(itemId);
-  if (item?.lifecycle) {
-    item.lifecycle.policyOverrides = ALL_SKIP_OVERRIDES;
-    store.updateLifecycle(itemId, item.lifecycle);
-  }
 }
 
 function request(port, method, path, body) {
@@ -118,7 +103,6 @@ describe('lifecycle REST endpoints', () => {
     await request(ctx.port, 'POST',
       `/api/vision/items/${ctx.item.id}/lifecycle/start`,
       { featureCode: 'TEST-1' });
-    bypassPolicy(ctx.store, ctx.item.id);
 
     const res = await request(ctx.port, 'POST',
       `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
@@ -132,7 +116,6 @@ describe('lifecycle REST endpoints', () => {
     await request(ctx.port, 'POST',
       `/api/vision/items/${ctx.item.id}/lifecycle/start`,
       { featureCode: 'TEST-1' });
-    bypassPolicy(ctx.store, ctx.item.id);
     await request(ctx.port, 'POST',
       `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
       { targetPhase: 'prd', outcome: 'approved' });
@@ -163,20 +146,12 @@ describe('lifecycle REST endpoints', () => {
     await request(ctx.port, 'POST',
       `/api/vision/items/${ctx.item.id}/lifecycle/start`,
       { featureCode: 'TEST-1' });
-    bypassPolicy(ctx.store, ctx.item.id);
 
     // Advance to ship
-    for (const [phase, outcome] of [
-      ['blueprint', 'approved'],
-      ['verification', 'approved'],
-      ['plan', 'approved'],
-      ['execute', 'approved'],
-      ['docs', 'approved'],
-      ['ship', 'approved'],
-    ]) {
+    for (const phase of ['blueprint', 'verification', 'plan', 'execute', 'docs', 'ship']) {
       await request(ctx.port, 'POST',
         `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-        { targetPhase: phase, outcome });
+        { targetPhase: phase, outcome: 'approved' });
     }
 
     const res = await request(ctx.port, 'POST',
@@ -223,7 +198,6 @@ describe('lifecycle REST endpoints', () => {
     await request(ctx.port, 'POST',
       `/api/vision/items/${ctx.item.id}/lifecycle/start`,
       { featureCode: 'TEST-1' });
-    bypassPolicy(ctx.store, ctx.item.id);
 
     assert.equal(ctx.broadcasts.length, 1);
     assert.equal(ctx.broadcasts[0].type, 'lifecycleStarted');
@@ -244,68 +218,7 @@ describe('lifecycle REST endpoints', () => {
 });
 
 // ---------------------------------------------------------------------------
-// MCP tool tests
-// ---------------------------------------------------------------------------
-
-describe('MCP lifecycle tools', () => {
-  let ctx;
-  beforeEach(async () => {
-    ctx = await setupServer();
-    // Set COMPOSE_PORT so MCP tools hit our test server
-    process.env.COMPOSE_PORT = String(ctx.port);
-  });
-  afterEach(() => {
-    ctx.server.close();
-    rmSync(ctx.tmpDir, { recursive: true, force: true });
-    delete process.env.COMPOSE_PORT;
-  });
-
-  test('GET lifecycle via REST (MCP read-tool equivalent)', async () => {
-    // toolGetFeatureLifecycle reads from the project's disk file (loadVisionState),
-    // not from a live store, so it can't be tested with an ephemeral server.
-    // We verify the REST GET path instead, which is the integration surface.
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-
-    const res = await request(ctx.port, 'GET',
-      `/api/vision/items/${ctx.item.id}/lifecycle`);
-    assert.equal(res.status, 200);
-    assert.equal(res.body.currentPhase, 'explore_design');
-  });
-
-  test('toolAdvanceFeaturePhase round-trips through REST', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    bypassPolicy(ctx.store, ctx.item.id);
-
-    // Re-import to pick up COMPOSE_PORT (module already cached but env read at call time)
-    const { toolAdvanceFeaturePhase } = await import(`${REPO_ROOT}/server/compose-mcp-tools.js`);
-    const result = await toolAdvanceFeaturePhase({
-      id: ctx.item.id,
-      targetPhase: 'blueprint',
-      outcome: 'approved',
-    });
-    assert.equal(result.from, 'explore_design');
-    assert.equal(result.to, 'blueprint');
-  });
-
-  test('MCP mutation tool rejects on invalid transition (non-2xx → thrown error)', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-
-    const { toolAdvanceFeaturePhase } = await import(`${REPO_ROOT}/server/compose-mcp-tools.js`);
-    await assert.rejects(
-      () => toolAdvanceFeaturePhase({ id: ctx.item.id, targetPhase: 'execute', outcome: 'approved' }),
-      /Invalid transition/,
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// MCP tool schema validation (text parsing — compose-mcp.js is executable)
+// MCP tool schema validation
 // ---------------------------------------------------------------------------
 
 describe('MCP tool schemas', () => {
@@ -314,8 +227,6 @@ describe('MCP tool schemas', () => {
     const source = readFileSync(join(REPO_ROOT, 'server', 'compose-mcp.js'), 'utf-8');
     const expected = [
       'get_feature_lifecycle',
-      'advance_feature_phase',
-      'skip_feature_phase',
       'kill_feature',
       'complete_feature',
       'approve_gate',
@@ -340,28 +251,31 @@ describe('gate REST endpoints', () => {
     rmSync(ctx.tmpDir, { recursive: true, force: true });
   });
 
-  test('advance returns 202 for gated phase', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-
-    const res = await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
-    assert.equal(res.status, 202);
-    assert.equal(res.body.status, 'pending_approval');
-    assert.ok(res.body.gateId);
-    assert.equal(res.body.fromPhase, 'explore_design');
-    assert.equal(res.body.toPhase, 'blueprint');
-  });
+  /** Helper: start lifecycle and insert a pending gate directly. */
+  function startAndCreateGate() {
+    const now = new Date().toISOString();
+    ctx.store.updateLifecycle(ctx.item.id, {
+      currentPhase: 'explore_design',
+      featureCode: 'TEST-1',
+      startedAt: now,
+      completedAt: null,
+      killedAt: null,
+      killReason: null,
+    });
+    const gateId = randomUUID();
+    ctx.store.createGate({
+      id: gateId,
+      itemId: ctx.item.id,
+      fromPhase: 'explore_design',
+      toPhase: 'blueprint',
+      status: 'pending',
+      createdAt: now,
+    });
+    return gateId;
+  }
 
   test('GET /api/vision/gates returns pending gates', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
+    const gateId = startAndCreateGate();
 
     const res = await request(ctx.port, 'GET', '/api/vision/gates');
     assert.equal(res.status, 200);
@@ -371,52 +285,35 @@ describe('gate REST endpoints', () => {
   });
 
   test('GET /api/vision/gates/:id returns single gate', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    const advRes = await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
+    const gateId = startAndCreateGate();
 
     const res = await request(ctx.port, 'GET',
-      `/api/vision/gates/${advRes.body.gateId}`);
+      `/api/vision/gates/${gateId}`);
     assert.equal(res.status, 200);
-    assert.equal(res.body.id, advRes.body.gateId);
+    assert.equal(res.body.id, gateId);
     assert.equal(res.body.status, 'pending');
     assert.equal(res.body.toPhase, 'blueprint');
   });
 
   test('POST resolve with approved advances phase', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    const advRes = await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
+    const gateId = startAndCreateGate();
 
     const res = await request(ctx.port, 'POST',
-      `/api/vision/gates/${advRes.body.gateId}/resolve`,
+      `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'approved' });
     assert.equal(res.status, 200);
-    assert.equal(res.body.to, 'blueprint');
     assert.equal(res.body.gateOutcome, 'approved');
 
-    // Verify phase actually advanced
     const lcRes = await request(ctx.port, 'GET',
       `/api/vision/items/${ctx.item.id}/lifecycle`);
     assert.equal(lcRes.body.currentPhase, 'blueprint');
   });
 
   test('POST resolve with revised keeps phase', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    const advRes = await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
+    const gateId = startAndCreateGate();
 
     const res = await request(ctx.port, 'POST',
-      `/api/vision/gates/${advRes.body.gateId}/resolve`,
+      `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'revised', comment: 'Needs work' });
     assert.equal(res.status, 200);
     assert.equal(res.body.gateOutcome, 'revised');
@@ -427,15 +324,10 @@ describe('gate REST endpoints', () => {
   });
 
   test('POST resolve with killed kills feature', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    const advRes = await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
+    const gateId = startAndCreateGate();
 
     const res = await request(ctx.port, 'POST',
-      `/api/vision/gates/${advRes.body.gateId}/resolve`,
+      `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'killed', comment: 'Cancelled' });
     assert.equal(res.status, 200);
     assert.equal(res.body.gateOutcome, 'killed');
@@ -444,41 +336,17 @@ describe('gate REST endpoints', () => {
     assert.equal(item.status, 'killed');
   });
 
-  test('gatePending broadcast emitted on gated advance', async () => {
-    ctx.broadcasts.length = 0;
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
-
-    const gateBroadcast = ctx.broadcasts.find(b => b.type === 'gatePending');
-    assert.ok(gateBroadcast, 'Expected gatePending broadcast');
-    assert.ok(gateBroadcast.gateId);
-    assert.equal(gateBroadcast.itemId, ctx.item.id);
-    assert.equal(gateBroadcast.fromPhase, 'explore_design');
-    assert.equal(gateBroadcast.toPhase, 'blueprint');
-    assert.ok(gateBroadcast.timestamp);
-  });
-
   test('gateResolved broadcast emitted on resolve', async () => {
+    const gateId = startAndCreateGate();
     ctx.broadcasts.length = 0;
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    const advRes = await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
 
     await request(ctx.port, 'POST',
-      `/api/vision/gates/${advRes.body.gateId}/resolve`,
+      `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'approved' });
 
     const resolveBroadcast = ctx.broadcasts.find(b => b.type === 'gateResolved');
     assert.ok(resolveBroadcast, 'Expected gateResolved broadcast');
-    assert.equal(resolveBroadcast.gateId, advRes.body.gateId);
+    assert.equal(resolveBroadcast.gateId, gateId);
     assert.equal(resolveBroadcast.itemId, ctx.item.id);
     assert.equal(resolveBroadcast.outcome, 'approved');
     assert.ok(resolveBroadcast.timestamp);

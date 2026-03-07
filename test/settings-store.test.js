@@ -10,7 +10,27 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const contract = JSON.parse(readFileSync(resolve(ROOT, 'contracts', 'lifecycle.json'), 'utf8'));
+
+/** Inlined defaults (previously from contracts/lifecycle.json, now baked in). */
+const SETTINGS_DEFAULTS = {
+  phases: [
+    { id: 'explore_design', defaultPolicy: null },
+    { id: 'prd', defaultPolicy: 'skip' },
+    { id: 'architecture', defaultPolicy: 'skip' },
+    { id: 'blueprint', defaultPolicy: 'gate' },
+    { id: 'verification', defaultPolicy: 'gate' },
+    { id: 'plan', defaultPolicy: 'gate' },
+    { id: 'execute', defaultPolicy: 'flag' },
+    { id: 'report', defaultPolicy: 'skip' },
+    { id: 'docs', defaultPolicy: 'flag' },
+    { id: 'ship', defaultPolicy: 'gate' },
+  ],
+  iterationDefaults: {
+    review: { maxIterations: 10 },
+    coverage: { maxIterations: 15 },
+  },
+  policyModes: ['gate', 'flag', 'skip'],
+};
 
 const { SettingsStore } = await import(`${ROOT}/server/settings-store.js`);
 
@@ -19,7 +39,7 @@ function freshDir() {
 }
 
 function makeStore(dir) {
-  return new SettingsStore(dir || freshDir(), contract);
+  return new SettingsStore(dir || freshDir(), SETTINGS_DEFAULTS);
 }
 
 // ---------------------------------------------------------------------------
@@ -161,7 +181,7 @@ describe('corrupt settings file', () => {
   test('malformed JSON falls back to defaults', () => {
     const dir = freshDir();
     writeFileSync(join(dir, 'settings.json'), '{not valid json!!!', 'utf-8');
-    const store = new SettingsStore(dir, contract);
+    const store = new SettingsStore(dir, SETTINGS_DEFAULTS);
     const settings = store.get();
     assert.equal(settings.ui.theme, 'system');
     assert.equal(settings.policies.prd, 'skip');
@@ -170,7 +190,7 @@ describe('corrupt settings file', () => {
   test('empty file falls back to defaults', () => {
     const dir = freshDir();
     writeFileSync(join(dir, 'settings.json'), '', 'utf-8');
-    const store = new SettingsStore(dir, contract);
+    const store = new SettingsStore(dir, SETTINGS_DEFAULTS);
     const settings = store.get();
     assert.equal(settings.ui.theme, 'system');
   });
@@ -186,7 +206,7 @@ describe('persistence', () => {
     const store1 = makeStore(dir);
     store1.update({ policies: { prd: 'gate' } });
 
-    const store2 = new SettingsStore(dir, contract);
+    const store2 = new SettingsStore(dir, SETTINGS_DEFAULTS);
     assert.equal(store2.get().policies.prd, 'gate');
   });
 

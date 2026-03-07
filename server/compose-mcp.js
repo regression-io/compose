@@ -33,8 +33,6 @@ import {
   toolGetBlockedItems,
   toolGetCurrentSession,
   toolGetFeatureLifecycle,
-  toolAdvanceFeaturePhase,
-  toolSkipFeaturePhase,
   toolKillFeature,
   toolCompleteFeature,
   toolAssessFeatureArtifacts,
@@ -42,9 +40,6 @@ import {
   toolApproveGate,
   toolGetPendingGates,
   toolBindSession,
-  toolStartIterationLoop,
-  toolReportIterationResult,
-  toolGetIterationStatus,
 } from './compose-mcp-tools.js';
 
 // ---------------------------------------------------------------------------
@@ -149,32 +144,6 @@ const TOOLS = [
     },
   },
   {
-    name: 'advance_feature_phase',
-    description: 'Advance a feature to the next lifecycle phase. Validates the transition is allowed.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Item ID' },
-        targetPhase: { type: 'string', description: 'Phase to advance to' },
-        outcome: { type: 'string', enum: ['approved', 'revised'], description: 'Gate outcome' },
-      },
-      required: ['id', 'targetPhase', 'outcome'],
-    },
-  },
-  {
-    name: 'skip_feature_phase',
-    description: 'Skip the current phase (only prd, architecture, report are skippable).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Item ID' },
-        targetPhase: { type: 'string', description: 'Phase to skip to' },
-        reason: { type: 'string', description: 'Why this phase is being skipped' },
-      },
-      required: ['id', 'targetPhase', 'reason'],
-    },
-  },
-  {
     name: 'kill_feature',
     description: 'Kill a feature from any phase. Records reason and sets status to killed.',
     inputSchema: {
@@ -247,46 +216,6 @@ const TOOLS = [
       },
     },
   },
-  {
-    name: 'start_iteration_loop',
-    description: 'Start a review or coverage iteration loop within the execute phase. Returns loop ID and max iterations.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Vision item ID' },
-        loopType: { type: 'string', enum: ['review', 'coverage'], description: 'Type of iteration loop' },
-        maxIterations: { type: 'number', description: 'Override max iterations (default: 10 review, 15 coverage)' },
-      },
-      required: ['id', 'loopType'],
-    },
-  },
-  {
-    name: 'report_iteration_result',
-    description: 'Report one iteration result. Returns whether to continue the loop or exit.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Vision item ID' },
-        clean: { type: 'boolean', description: 'Review loop: true if no actionable findings remain' },
-        passing: { type: 'boolean', description: 'Coverage loop: true if all tests pass' },
-        summary: { type: 'string', description: 'Brief summary of this iteration' },
-        findings: { type: 'array', items: { type: 'string' }, description: 'Review findings (strings)' },
-        failures: { type: 'array', items: { type: 'string' }, description: 'Test failures (strings)' },
-      },
-      required: ['id'],
-    },
-  },
-  {
-    name: 'get_iteration_status',
-    description: 'Get the current iteration loop state for a feature item.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Vision item ID' },
-      },
-      required: ['id'],
-    },
-  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -315,17 +244,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'get_current_session': result = await toolGetCurrentSession(args); break;
       case 'bind_session':             result = await toolBindSession(args); break;
       case 'get_feature_lifecycle':    result = toolGetFeatureLifecycle(args); break;
-      case 'advance_feature_phase':    result = await toolAdvanceFeaturePhase(args); break;
-      case 'skip_feature_phase':       result = await toolSkipFeaturePhase(args); break;
       case 'kill_feature':             result = await toolKillFeature(args); break;
       case 'complete_feature':         result = await toolCompleteFeature(args); break;
       case 'assess_feature_artifacts': result = toolAssessFeatureArtifacts(args); break;
       case 'scaffold_feature':         result = toolScaffoldFeature(args); break;
       case 'approve_gate':             result = await toolApproveGate(args); break;
       case 'get_pending_gates':        result = toolGetPendingGates(args); break;
-      case 'start_iteration_loop':    result = await toolStartIterationLoop(args); break;
-      case 'report_iteration_result': result = await toolReportIterationResult(args); break;
-      case 'get_iteration_status':    result = toolGetIterationStatus(args); break;
       default:
         return {
           content: [{ type: 'text', text: `Unknown tool: ${name}` }],

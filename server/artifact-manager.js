@@ -9,7 +9,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PHASE_ARTIFACTS } from './lifecycle-constants.js';
+/** Phases that produce named artifacts (derived from contracts/lifecycle.json). */
+const PHASE_ARTIFACTS = {
+  explore_design: 'design.md',
+  prd: 'prd.md',
+  architecture: 'architecture.md',
+  blueprint: 'blueprint.md',
+  plan: 'plan.md',
+  report: 'report.md',
+};
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, 'artifact-templates');

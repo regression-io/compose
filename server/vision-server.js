@@ -17,7 +17,26 @@ import { attachSessionRoutes } from './session-routes.js';
 import { attachActivityRoutes } from './activity-routes.js';
 import { SettingsStore } from './settings-store.js';
 import { attachSettingsRoutes } from './settings-routes.js';
-import { CONTRACT } from './lifecycle-constants.js';
+/** Settings defaults (previously derived from contracts/lifecycle.json). */
+const SETTINGS_DEFAULTS = {
+  phases: [
+    { id: 'explore_design', defaultPolicy: null },
+    { id: 'prd', defaultPolicy: 'skip' },
+    { id: 'architecture', defaultPolicy: 'skip' },
+    { id: 'blueprint', defaultPolicy: 'gate' },
+    { id: 'verification', defaultPolicy: 'gate' },
+    { id: 'plan', defaultPolicy: 'gate' },
+    { id: 'execute', defaultPolicy: 'flag' },
+    { id: 'report', defaultPolicy: 'skip' },
+    { id: 'docs', defaultPolicy: 'flag' },
+    { id: 'ship', defaultPolicy: 'gate' },
+  ],
+  iterationDefaults: {
+    review: { maxIterations: 10 },
+    coverage: { maxIterations: 15 },
+  },
+  policyModes: ['gate', 'flag', 'skip'],
+};
 
 import { TARGET_ROOT } from './project-root.js';
 
@@ -37,7 +56,7 @@ export class VisionServer {
 
   attach(httpServer, app) {
     // ── Settings store ────────────────────────────────────────────────────
-    this.settingsStore = new SettingsStore(undefined, CONTRACT);
+    this.settingsStore = new SettingsStore(undefined, SETTINGS_DEFAULTS);
 
     // ── Settings routes ───────────────────────────────────────────────────
     attachSettingsRoutes(app, {

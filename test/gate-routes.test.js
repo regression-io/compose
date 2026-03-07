@@ -1,9 +1,9 @@
 /**
- * gate-routes.test.js — Integration tests for gate-specific route behaviors
- * not covered by lifecycle-routes.test.js.
+ * gate-routes.test.js — Integration tests for gate REST endpoints.
  *
- * Focuses on: visionState includes gates in initial payload,
- * gatePending broadcast omits scheduleBroadcast, gateResolved includes itemId.
+ * Gates are now created directly in the store (not by advance).
+ * Tests verify: gate listing, single gate fetch, resolve outcomes,
+ * broadcast shapes, and gate object fields in getState.
  */
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,6 +13,7 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -49,6 +50,30 @@ function setupServer() {
       resolve({ tmpDir, store, item, server, port, broadcasts, getScheduleCount: () => scheduleBroadcastCalls });
     });
   });
+}
+
+/** Start lifecycle and create a pending gate in the store. */
+function startAndCreateGate(ctx) {
+  const item = ctx.store.items.get(ctx.item.id);
+  const now = new Date().toISOString();
+  ctx.store.updateLifecycle(ctx.item.id, {
+    currentPhase: 'explore_design',
+    featureCode: 'TEST-1',
+    startedAt: now,
+    completedAt: null,
+    killedAt: null,
+    killReason: null,
+  });
+  const gateId = randomUUID();
+  ctx.store.createGate({
+    id: gateId,
+    itemId: ctx.item.id,
+    fromPhase: 'explore_design',
+    toPhase: 'blueprint',
+    status: 'pending',
+    createdAt: now,
+  });
+  return gateId;
 }
 
 function request(port, method, path, body) {
@@ -89,50 +114,14 @@ describe('visionState includes gates', () => {
     assert.equal(state.gates.length, 0);
   });
 
-  test('getState includes pending gate after advance on gated phase', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
-
+  test('getState includes gate after direct store creation', () => {
+    const gateId = startAndCreateGate(ctx);
     const state = ctx.store.getState();
     assert.equal(state.gates.length, 1);
     assert.equal(state.gates[0].status, 'pending');
     assert.equal(state.gates[0].itemId, ctx.item.id);
     assert.equal(state.gates[0].fromPhase, 'explore_design');
     assert.equal(state.gates[0].toPhase, 'blueprint');
-  });
-});
-
-describe('gatePending broadcast behavior', () => {
-  let ctx;
-  beforeEach(async () => { ctx = await setupServer(); });
-  afterEach(() => {
-    ctx.server.close();
-    rmSync(ctx.tmpDir, { recursive: true, force: true });
-  });
-
-  test('gatePending does NOT trigger scheduleBroadcast', async () => {
-    const before = ctx.getScheduleCount();
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    const afterStart = ctx.getScheduleCount();
-
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
-    const afterAdvance = ctx.getScheduleCount();
-
-    // scheduleBroadcast should NOT be called for gated advance (only broadcastMessage)
-    assert.equal(afterAdvance, afterStart,
-      'scheduleBroadcast should not be called on gated advance');
-
-    // But broadcastMessage SHOULD have the gatePending
-    const gateBroadcast = ctx.broadcasts.find(b => b.type === 'gatePending');
-    assert.ok(gateBroadcast);
   });
 });
 
@@ -145,16 +134,11 @@ describe('gateResolved broadcast includes itemId', () => {
   });
 
   test('approved resolve includes itemId in broadcast', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    const advRes = await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
-
+    const gateId = startAndCreateGate(ctx);
     ctx.broadcasts.length = 0;
+
     await request(ctx.port, 'POST',
-      `/api/vision/gates/${advRes.body.gateId}/resolve`,
+      `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'approved' });
 
     const resolveBroadcast = ctx.broadcasts.find(b => b.type === 'gateResolved');
@@ -164,16 +148,11 @@ describe('gateResolved broadcast includes itemId', () => {
   });
 
   test('revised resolve includes itemId in broadcast', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    const advRes = await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
-
+    const gateId = startAndCreateGate(ctx);
     ctx.broadcasts.length = 0;
+
     await request(ctx.port, 'POST',
-      `/api/vision/gates/${advRes.body.gateId}/resolve`,
+      `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'revised', comment: 'Needs work' });
 
     const resolveBroadcast = ctx.broadcasts.find(b => b.type === 'gateResolved');
@@ -183,16 +162,11 @@ describe('gateResolved broadcast includes itemId', () => {
   });
 
   test('killed resolve includes itemId in broadcast', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    const advRes = await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
-
+    const gateId = startAndCreateGate(ctx);
     ctx.broadcasts.length = 0;
+
     await request(ctx.port, 'POST',
-      `/api/vision/gates/${advRes.body.gateId}/resolve`,
+      `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'killed', comment: 'Cancelled' });
 
     const resolveBroadcast = ctx.broadcasts.find(b => b.type === 'gateResolved');
@@ -210,23 +184,14 @@ describe('gate object shape in getState', () => {
     rmSync(ctx.tmpDir, { recursive: true, force: true });
   });
 
-  test('gate has all required fields for client rendering', async () => {
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/start`,
-      { featureCode: 'TEST-1' });
-    await request(ctx.port, 'POST',
-      `/api/vision/items/${ctx.item.id}/lifecycle/advance`,
-      { targetPhase: 'blueprint', outcome: 'approved' });
-
+  test('gate has all required fields for client rendering', () => {
+    const gateId = startAndCreateGate(ctx);
     const gate = ctx.store.getState().gates[0];
-    // Fields required by GateView and ItemDetailPanel
     assert.ok(gate.id, 'gate.id');
     assert.ok(gate.itemId, 'gate.itemId');
     assert.ok(gate.fromPhase, 'gate.fromPhase');
     assert.ok(gate.toPhase, 'gate.toPhase');
     assert.equal(gate.status, 'pending');
     assert.ok(gate.createdAt, 'gate.createdAt');
-    // artifactAssessment may be null (no artifact on disk), but should be present
-    assert.ok('artifactAssessment' in gate, 'gate.artifactAssessment key should exist');
   });
 });

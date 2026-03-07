@@ -287,14 +287,6 @@ export function toolGetFeatureLifecycle({ id }) {
   return item.lifecycle;
 }
 
-export async function toolAdvanceFeaturePhase({ id, targetPhase, outcome }) {
-  return _postLifecycle(id, 'advance', { targetPhase, outcome });
-}
-
-export async function toolSkipFeaturePhase({ id, targetPhase, reason }) {
-  return _postLifecycle(id, 'skip', { targetPhase, reason });
-}
-
 export async function toolKillFeature({ id, reason }) {
   return _postLifecycle(id, 'kill', { reason });
 }
@@ -334,25 +326,3 @@ export function toolGetPendingGates({ itemId }) {
   return { count: pending.length, gates: pending };
 }
 
-// ---------------------------------------------------------------------------
-// Iteration tools
-// ---------------------------------------------------------------------------
-
-export async function toolStartIterationLoop({ id, loopType, maxIterations }) {
-  if (!id) throw new Error('id is required');
-  if (!loopType) throw new Error('loopType is required');
-  return _postLifecycle(id, 'iteration/start', { loopType, maxIterations });
-}
-
-export async function toolReportIterationResult({ id, clean, passing, summary, findings, failures }) {
-  if (!id) throw new Error('id is required');
-  return _postLifecycle(id, 'iteration/report', { clean, passing, summary, findings, failures });
-}
-
-export function toolGetIterationStatus({ id }) {
-  if (!id) throw new Error('id is required');
-  const { items } = loadVisionState();
-  const item = items.find(i => i.id === id || i.semanticId === id || i.slug === id);
-  if (!item) return { error: `Item not found: ${id}` };
-  return item.lifecycle?.iterationState || { error: 'No iteration state' };
-}

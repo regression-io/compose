@@ -73,3 +73,11 @@
 2026-03-06T22:48:07+02:00 | Scoping STRAT-1: Stratum process engine completion, informed by Compose reference implementations
 2026-03-07T00:16:17+02:00 | Removing speckit integration, replacing with feature-folder scanning/seeding
 2026-03-07T01:08:51+02:00 | Update STRAT-1 design doc and roadmap with 9-feature split (STRAT-ENG-*/STRAT-COMP-*)
+2026-03-07T10:32:44+02:00 | STRAT-ENG-1: Execute plan — IR v0.2 schema additions in stratum-mcp
+2026-03-07T18:22:42+02:00 | T4: Implementing result-normalizer module and tests
+2026-03-07T18:22:51+02:00 | T5: Implementing step-prompt builder (lib/step-prompt.js + test)
+2026-03-07T18:23:28+02:00 | T7: Implement VisionWriter - atomic read-modify-write for vision-state.json
+2026-03-07T18:25:57+02:00 | T3: Implementing stratum-mcp-client.js — MCP SDK client for stratum tool calls
+2026-03-07T18:41:27+02:00 | T9-T10: Init upgrade (agent detection + skill install) and CLI build command
+2026-03-07T18:43:13+02:00 | T11: Integration test for build runner with real stratum-mcp
+2026-03-07T19:59:01+02:00 | T6: Fix 19 test failures from bespoke lifecycle deletion — inline settings defaults, remove deleted MCP tool refs, update gate tests to create gates directly
