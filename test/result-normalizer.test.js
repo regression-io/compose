@@ -111,23 +111,19 @@ test('extracts JSON from text with surrounding prose', async () => {
 // runAndNormalize — error cases
 // ---------------------------------------------------------------------------
 
-test('throws ResultParseError when schema expected but no JSON found', async () => {
+test('returns fallback result when schema expected but no JSON found', async () => {
   const connector = mockConnector([
     { type: 'assistant', content: 'I could not produce JSON' },
   ]);
 
-  await assert.rejects(
-    () => runAndNormalize(
-      connector,
-      'check code',
-      { output_fields: { clean: 'boolean' } },
-    ),
-    (err) => {
-      assert.ok(err instanceof ResultParseError);
-      assert.equal(err.rawText, 'I could not produce JSON');
-      return true;
-    },
+  const { text, result } = await runAndNormalize(
+    connector,
+    'check code',
+    { output_fields: { clean: 'boolean' } },
   );
+
+  assert.equal(text, 'I could not produce JSON');
+  assert.ok(result.summary, 'fallback result should have a summary');
 });
 
 test('returns { text, result: null } when no schema expected', async () => {

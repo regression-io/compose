@@ -209,6 +209,20 @@ Run STRAT-1's own Compose integration through `compose build`. Dogfooding milest
 
 **Gate:** Compose builds itself using `compose build`. Multi-agent, gated, audited.
 
+### Milestone 4: Unified Interface
+
+CLI and web UI share execution context. Build runs are visible in the web app. Gates resolve from either interface.
+
+| # | Feature | Item | Status |
+|---|---------|------|--------|
+| 47 | STRAT-COMP-4 | Vision store unification: reconcile `VisionWriter` (CLI) and `VisionStore` (server) conventions — `featureCode` format mismatch, race-free shared access | PLANNED |
+| 48 | STRAT-COMP-5 | Build visibility: extend server file watcher to `.compose/` and `active-build.json`, broadcast build state via WebSocket | PLANNED |
+| 49 | STRAT-COMP-6 | Web gate resolution: when `compose start` is running, gates resolve through the web UI (Gate View) instead of CLI readline. CLI falls back to readline when server is not running | PLANNED |
+| 50 | STRAT-COMP-7 | Agent stream bridge: CLI writes tool_use events to `.compose/build-stream.jsonl`, server watches and pipes to AgentStream SSE | PLANNED |
+| 51 | STRAT-COMP-8 | Active build dashboard: web UI shows current build state (active step, retries, violations, audit trail) from `active-build.json` with live updates | PLANNED |
+
+**Gate:** `compose start` + `compose build` run simultaneously. Build progress, agent activity, and gates are all visible and actionable in the web UI.
+
 **Exit:** `pip install compose` → `compose init` → `compose build`. Compose is a thin layer: lifecycle spec + visibility + agent routing + optional UI.
 
 See `docs/features/STRAT-1/` for full design.

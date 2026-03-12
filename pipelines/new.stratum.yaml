@@ -1,0 +1,180 @@
+version: "0.2"
+
+workflow:
+  name: new
+  description: "Product kickoff — research, brainstorm, and scaffold a new project from intent"
+  input:
+    projectName:
+      type: string
+      required: true
+    intent:
+      type: string
+      required: true
+
+contracts:
+  ResearchResult:
+    priorArt:    {type: array}
+    patterns:    {type: array}
+    risks:       {type: array}
+    summary:     {type: string}
+
+  BrainstormResult:
+    features:    {type: array}
+    userStories: {type: array}
+    archOptions: {type: array}
+    summary:     {type: string}
+
+  RoadmapResult:
+    phases:      {type: array}
+    features:    {type: array}
+    summary:     {type: string}
+    artifact:    {type: string}
+
+  ScaffoldResult:
+    created:     {type: array}
+    summary:     {type: string}
+
+functions:
+  review_gate:
+    mode: gate
+    timeout: 7200
+
+  roadmap_gate:
+    mode: gate
+    timeout: 3600
+
+flows:
+  new:
+    input:
+      projectName: {type: string}
+      intent: {type: string}
+    output: ScaffoldResult
+    steps:
+      # Phase: Research prior art
+      - id: research
+        agent: claude
+        intent: >
+          Research prior art for this product idea. Search the web for:
+          1. Existing tools that solve the same or similar problems
+          2. Common architectural patterns used in this domain
+          3. Known pitfalls and risks
+
+          Write your findings to docs/discovery/research.md.
+          If docs/discovery/research.md already exists, read it and build on it
+          rather than starting from scratch.
+        inputs:
+          intent: "$.input.intent"
+        output_contract: ResearchResult
+        ensure:
+          - "file_exists('docs/discovery/research.md')"
+        validate:
+          artifact: docs/discovery/research.md
+          criteria:
+            - "Contains at least 2 existing tools or prior art entries"
+            - "Mentions architectural patterns or common approaches"
+            - "Lists risks or pitfalls"
+        retries: 3
+
+      # Phase: Brainstorm features
+      - id: brainstorm
+        agent: claude
+        intent: >
+          Given the product intent and research findings, brainstorm the product.
+          Generate:
+          1. A feature list — discrete capabilities the product should have,
+             each with a short code (e.g. LOG-1, LOG-2) and description.
+             Order features by dependency: foundational first, advanced later.
+          2. User stories — "As a <user>, I want <goal>, so that <benefit>"
+          3. Architecture options — 2-3 high-level approaches with trade-offs
+
+          First read docs/discovery/research.md for prior art context.
+          Write the full brainstorm to docs/discovery/brainstorm.md.
+          If docs/discovery/brainstorm.md already exists, read it and refine it
+          rather than starting from scratch.
+        inputs:
+          intent: "$.input.intent"
+          research: "$.steps.research.output.summary"
+        output_contract: BrainstormResult
+        ensure:
+          - "file_exists('docs/discovery/brainstorm.md')"
+        validate:
+          artifact: docs/discovery/brainstorm.md
+          criteria:
+            - "Contains at least 3 features with short codes (e.g. LOG-1, LOG-2)"
+            - "Contains user stories in 'As a... I want... so that...' format"
+            - "Contains at least 2 architecture options with trade-offs"
+        retries: 3
+        depends_on: [research]
+
+      # Gate: Human reviews brainstorm
+      - id: review_gate
+        function: review_gate
+        on_approve: roadmap
+        on_revise: brainstorm
+        on_kill: null
+        depends_on: [brainstorm]
+
+      # Phase: Structure the roadmap
+      - id: roadmap
+        agent: claude
+        intent: >
+          Take the approved brainstorm and structure it into a phased ROADMAP.
+
+          First read docs/discovery/brainstorm.md for the full brainstorm.
+          If ROADMAP.md already exists, read it and update it rather than overwriting.
+
+          Write ROADMAP.md in the project root with:
+          1. Project name and description
+          2. Roadmap conventions (status values, numbering rules)
+          3. Phases grouping features by dependency order
+          4. Each feature as a numbered row with its code, description, and PLANNED status
+
+          Follow this table format for each phase:
+          | # | Feature | Item | Status |
+          |---|---------|------|--------|
+          | 1 | CODE-1  | Description | PLANNED |
+        inputs:
+          intent: "$.input.intent"
+          brainstorm: "$.steps.brainstorm.output.summary"
+        output_contract: RoadmapResult
+        ensure:
+          - "file_exists('ROADMAP.md')"
+        validate:
+          artifact: ROADMAP.md
+          criteria:
+            - "Contains a markdown table with feature codes and status columns"
+            - "Features are organized into phases"
+            - "All features have PLANNED status"
+        retries: 3
+        depends_on: [review_gate]
+
+      # Gate: Human approves the roadmap
+      - id: roadmap_gate
+        function: roadmap_gate
+        on_approve: scaffold
+        on_revise: roadmap
+        on_kill: null
+        depends_on: [roadmap]
+
+      # Phase: Scaffold feature folders
+      - id: scaffold
+        agent: claude
+        intent: >
+          Read the approved ROADMAP.md and create a feature folder for each
+          feature listed. For each feature:
+          1. Create docs/features/<CODE>/design.md with a seed design doc containing:
+             - Title: "<CODE>: <description>"
+             - Status: PLANNED
+             - Created date
+             - Intent section with the feature description
+             - Notes section explaining this is a seed for compose build
+        inputs:
+          intent: "$.input.intent"
+          roadmap: "$.steps.roadmap.output.summary"
+        output_contract: ScaffoldResult
+        validate:
+          artifact: ROADMAP.md
+          criteria:
+            - "At least one docs/features/<CODE>/design.md file exists for a feature code listed in ROADMAP.md"
+        retries: 2
+        depends_on: [roadmap_gate]

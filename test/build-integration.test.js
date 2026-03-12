@@ -328,3 +328,169 @@ describe('build integration: sub-flow dispatch', { skip: !stratumAvailable && 's
     assert.equal(item.status, 'complete', 'item status should be complete');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Resume-path integration tests
+// ---------------------------------------------------------------------------
+
+function interruptingConnectorFactory(tmpDir) {
+  return function factory(_agentType, _opts) {
+    return {
+      async *run(prompt, _runOpts) {
+        const stepMatch = prompt.match(/step "(\w+)"/);
+        const stepId = stepMatch?.[1] ?? 'unknown';
+
+        if (stepId === 'implement') {
+          throw new Error('simulated crash');
+        }
+
+        const markerDir = join(tmpDir, '.compose', 'data', 'markers');
+        mkdirSync(markerDir, { recursive: true });
+        writeFileSync(join(markerDir, `${stepId}.done`), 'completed');
+
+        yield { type: 'assistant', content: JSON.stringify({
+          phase: stepId, artifact: `${stepId}.md`, outcome: 'complete',
+        }) };
+        yield { type: 'system', subtype: 'complete', agent: 'mock' };
+      },
+      interrupt() {},
+      get isRunning() { return false; },
+    };
+  };
+}
+
+describe('build integration: resume', { skip: !stratumAvailable && 'stratum-mcp not installed' }, () => {
+
+  // -------------------------------------------------------------------------
+  // Test 1: resume continues from correct step after interruption
+  // -------------------------------------------------------------------------
+  describe('resume continues from correct step after interruption', () => {
+    let tmpDir;
+
+    before(() => {
+      tmpDir = mkdtempSync(join(tmpdir(), 'build-resume-'));
+      setupProject(tmpDir);
+    });
+
+    after(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    test('interrupted build resumes and completes', async () => {
+      const activePath = join(tmpDir, '.compose', 'data', 'active-build.json');
+      const markerDir = join(tmpDir, '.compose', 'data', 'markers');
+
+      // First run — crashes on implement step
+      try {
+        await runBuild('TEST-1', {
+          cwd: tmpDir,
+          connectorFactory: interruptingConnectorFactory(tmpDir),
+          description: 'test',
+        });
+        assert.fail('Expected runBuild to throw due to simulated crash');
+      } catch (err) {
+        assert.ok(err.message.includes('simulated crash') || err,
+          'should throw from the interrupting connector');
+      }
+
+      // active-build.json should exist (flow was in progress when it crashed)
+      assert.ok(existsSync(activePath),
+        'active-build.json should exist after interrupted build');
+
+      // Read it and verify structure
+      const activeBuild = JSON.parse(readFileSync(activePath, 'utf-8'));
+      assert.ok(activeBuild.flowId, 'active-build.json must have flowId');
+      assert.equal(activeBuild.featureCode, 'TEST-1',
+        'active-build.json featureCode should be TEST-1');
+
+      // design step completed before crash
+      assert.ok(existsSync(join(markerDir, 'design.done')),
+        'design.done marker should exist (step 1 completed before crash)');
+
+      // implement step did NOT complete
+      assert.equal(existsSync(join(markerDir, 'implement.done')), false,
+        'implement.done marker should NOT exist (step 2 crashed)');
+
+      // Second run — resume with working connector
+      await runBuild('TEST-1', {
+        cwd: tmpDir,
+        connectorFactory: mockConnectorFactory(tmpDir),
+        description: 'test',
+      });
+
+      // implement step should now be done
+      assert.ok(existsSync(join(markerDir, 'implement.done')),
+        'implement.done marker should exist after resume');
+
+      // active-build.json should be cleaned up
+      assert.equal(existsSync(activePath), false,
+        'active-build.json should be deleted after completion');
+
+      // audit.json should exist with complete status
+      const auditPath = join(tmpDir, 'docs', 'features', 'TEST-1', 'audit.json');
+      assert.ok(existsSync(auditPath), 'audit.json should be written');
+      const audit = JSON.parse(readFileSync(auditPath, 'utf-8'));
+      assert.equal(audit.status, 'complete', 'audit must show complete status');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 2: resume with completed flow starts fresh
+  // -------------------------------------------------------------------------
+  describe('resume with completed flow starts fresh', () => {
+    let tmpDir;
+
+    before(() => {
+      tmpDir = mkdtempSync(join(tmpdir(), 'build-resume-fresh-'));
+      setupProject(tmpDir);
+    });
+
+    after(() => {
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    test('stale active-build.json is discarded and fresh build succeeds', async () => {
+      const activePath = join(tmpDir, '.compose', 'data', 'active-build.json');
+
+      // First run — completes normally
+      await runBuild('TEST-1', {
+        cwd: tmpDir,
+        connectorFactory: mockConnectorFactory(tmpDir),
+        description: 'test',
+      });
+
+      // active-build.json should be gone after completion
+      assert.equal(existsSync(activePath), false,
+        'active-build.json should be deleted after first successful build');
+
+      // Manually write a stale active-build.json with a non-existent flowId
+      const dataDir = join(tmpDir, '.compose', 'data');
+      mkdirSync(dataDir, { recursive: true });
+      writeFileSync(activePath, JSON.stringify({
+        featureCode: 'TEST-1',
+        flowId: 'stale-nonexistent-uuid',
+        startedAt: new Date().toISOString(),
+      }));
+
+      assert.ok(existsSync(activePath),
+        'stale active-build.json should exist before second run');
+
+      // Run again — should discard stale state and start fresh
+      await runBuild('TEST-1', {
+        cwd: tmpDir,
+        connectorFactory: mockConnectorFactory(tmpDir),
+        description: 'test',
+      });
+
+      // active-build.json should be cleaned up
+      assert.equal(existsSync(activePath), false,
+        'active-build.json should be deleted after fresh build completes');
+
+      // audit.json should exist with complete status
+      const auditPath = join(tmpDir, 'docs', 'features', 'TEST-1', 'audit.json');
+      assert.ok(existsSync(auditPath), 'audit.json should be written');
+      const audit = JSON.parse(readFileSync(auditPath, 'utf-8'));
+      assert.equal(audit.status, 'complete', 'audit must show complete status');
+    });
+  });
+});

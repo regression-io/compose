@@ -51,7 +51,11 @@ export class AgentConnector {
 export function injectSchema(prompt, schema) {
   return (
     `${prompt}\n\n` +
-    `Respond with valid JSON only (no markdown, no explanation) that matches this schema:\n` +
-    `${JSON.stringify(schema, null, 2)}`
+    `IMPORTANT: After completing the task, include a JSON code block at the very end ` +
+    `of your response matching this schema:\n` +
+    '```json\n' +
+    `${JSON.stringify(schema, null, 2)}\n` +
+    '```\n' +
+    `The JSON block must be the last thing in your response.`
   );
 }

@@ -52,6 +52,37 @@ version: "0.2"
 flows: {}
 `;
 
+const TWO_STEP_SPEC = `\
+version: "0.2"
+
+contracts:
+  StepResult:
+    value: { type: string }
+
+flows:
+  pipeline:
+    input:
+      text: { type: string }
+    output: StepResult
+    steps:
+      - id: s1
+        agent: claude
+        intent: "First step"
+        inputs:
+          text: "$.input.text"
+        output_contract: StepResult
+        retries: 1
+
+      - id: s2
+        agent: claude
+        intent: "Second step"
+        inputs:
+          text: "$.steps.s1.output.value"
+        output_contract: StepResult
+        retries: 1
+        depends_on: [s1]
+`;
+
 describe('StratumMcpClient', { skip: !stratumAvailable && 'stratum-mcp not installed' }, () => {
   let client;
 
@@ -167,6 +198,60 @@ describe('StratumMcpClient', { skip: !stratumAvailable && 'stratum-mcp not insta
     await client.connect();
     await client.close();
     await client.close(); // should not throw
+    client = null;
+  });
+
+  test('resume returns execute_step for in-progress flow', async () => {
+    client = new StratumMcpClient();
+    await client.connect();
+
+    const dispatch = await client.plan(TWO_STEP_SPEC, 'pipeline', { text: 'resume test' });
+    // Don't call stepDone — flow is still at s1
+    await client.close();
+    client = null;
+
+    client = new StratumMcpClient();
+    await client.connect();
+
+    const resumed = await client.resume(dispatch.flow_id);
+    assert.equal(resumed.status, 'execute_step');
+    assert.equal(resumed.step_id, 's1');
+
+    await client.close();
+    client = null;
+  });
+
+  test('resume returns correct step after partial progress', async () => {
+    client = new StratumMcpClient();
+    await client.connect();
+
+    const dispatch = await client.plan(TWO_STEP_SPEC, 'pipeline', { text: 'partial progress' });
+    await client.stepDone(dispatch.flow_id, 's1', { value: 'from s1' });
+
+    await client.close();
+    client = null;
+
+    client = new StratumMcpClient();
+    await client.connect();
+
+    const resumed = await client.resume(dispatch.flow_id);
+    assert.equal(resumed.status, 'execute_step');
+    assert.equal(resumed.step_id, 's2');
+
+    await client.close();
+    client = null;
+  });
+
+  test('resume returns error for unknown flow_id', async () => {
+    client = new StratumMcpClient();
+    await client.connect();
+
+    await assert.rejects(
+      () => client.resume('nonexistent-uuid'),
+      (err) => err instanceof StratumError
+    );
+
+    await client.close();
     client = null;
   });
 });

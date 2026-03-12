@@ -33,6 +33,10 @@ export class ClaudeSDKConnector extends AgentConnector {
 
     const actualPrompt = schema ? injectSchema(prompt, schema) : prompt;
 
+    // Strip CLAUDECODE env var to allow spawning inside a Claude Code session
+    const cleanEnv = { ...process.env };
+    delete cleanEnv.CLAUDECODE;
+
     const q = query({
       prompt: actualPrompt,
       options: {
@@ -40,6 +44,7 @@ export class ClaudeSDKConnector extends AgentConnector {
         model: modelID ?? this.#model,
         permissionMode: 'acceptEdits',
         tools: { type: 'preset', preset: 'claude_code' },
+        env: cleanEnv,
       },
     });
     this.#query = q;
@@ -48,7 +53,12 @@ export class ClaudeSDKConnector extends AgentConnector {
 
     try {
       for await (const msg of q) {
-        yield _normalize(msg);
+        if (process.env.COMPOSE_DEBUG) {
+          process.stderr.write(`  [sdk] ${msg?.type ?? typeof msg}\n`);
+        }
+        for (const event of _normalizeAll(msg)) {
+          yield event;
+        }
       }
       yield { type: 'system', subtype: 'complete', agent: 'claude' };
     } catch (err) {
@@ -76,19 +86,47 @@ export class ClaudeSDKConnector extends AgentConnector {
 // Normalize Claude SDK message → shared envelope
 // ---------------------------------------------------------------------------
 
-function _normalize(msg) {
+/**
+ * Normalize an SDK message into one or more envelope events.
+ * Returns an array because a single assistant message can contain
+ * multiple content blocks (text + tool_use).
+ */
+function _normalizeAll(msg) {
   if (!msg || typeof msg !== 'object') {
-    return { type: 'assistant', content: String(msg) };
+    return [{ type: 'assistant', content: String(msg) }];
   }
-  // Pass through messages that already match the envelope
-  if (msg.type === 'system' || msg.type === 'error') return msg;
-  if (msg.type === 'assistant') return msg;
+  if (msg.type === 'system' || msg.type === 'error') return [msg];
+
+  // SDK assistant message — extract content blocks from msg.message
+  if (msg.type === 'assistant' && msg.message?.content) {
+    const events = [];
+    for (const block of msg.message.content) {
+      if (block.type === 'text' && block.text) {
+        events.push({ type: 'assistant', content: block.text });
+      } else if (block.type === 'tool_use') {
+        events.push({ type: 'tool_use', tool: block.name, input: block.input ?? {} });
+      }
+    }
+    return events.length > 0 ? events : [msg];
+  }
+
+  // SDK result message — contains the final aggregated text
+  if (msg.type === 'result' && msg.result) {
+    return [{ type: 'result', content: msg.result }];
+  }
+
   if (msg.type === 'tool_use') {
-    return { type: 'tool_use', tool: msg.name ?? msg.tool, input: msg.input ?? {} };
+    return [{ type: 'tool_use', tool: msg.name ?? msg.tool, input: msg.input ?? {} }];
+  }
+  if (msg.type === 'tool_use_summary') {
+    return [{ type: 'tool_use_summary', summary: msg.summary }];
+  }
+  if (msg.type === 'tool_progress') {
+    return [{ type: 'tool_progress', tool: msg.tool_name, elapsed: msg.elapsed_time_seconds }];
   }
   // Delta or text content
-  if (msg.delta?.text) return { type: 'assistant', content: msg.delta.text };
-  if (msg.content && typeof msg.content === 'string') return { type: 'assistant', content: msg.content };
+  if (msg.delta?.text) return [{ type: 'assistant', content: msg.delta.text }];
+  if (msg.content && typeof msg.content === 'string') return [{ type: 'assistant', content: msg.content }];
   // Pass through unknown message types as-is
-  return msg;
+  return [msg];
 }

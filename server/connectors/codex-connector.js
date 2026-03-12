@@ -2,11 +2,8 @@
  * CodexConnector — extends OpencodeConnector, locked to OpenAI Codex models.
  *
  * Validates modelID at construction time and at run() call time.
- * Authenticated via opencode-openai-codex-auth (ChatGPT subscription, OAuth).
- *
- * One-time auth setup (not a code dependency):
- *   npx -y opencode-openai-codex-auth@latest
- *   opencode auth login
+ * Requires the opencode CLI: brew install opencode
+ * Auth: set OPENAI_API_KEY env var, or run `opencode auth login` for OAuth.
  */
 
 import { OpencodeConnector } from './opencode-connector.js';
@@ -16,6 +13,11 @@ import { OpencodeConnector } from './opencode-connector.js';
 // ---------------------------------------------------------------------------
 
 export const CODEX_MODEL_IDS = new Set([
+  'gpt-5.4',
+  'gpt-5.4/low',
+  'gpt-5.4/medium',
+  'gpt-5.4/high',
+  'gpt-5.4/xhigh',
   'gpt-5.2-codex',
   'gpt-5.2-codex/low',
   'gpt-5.2-codex/medium',
@@ -35,7 +37,7 @@ export const CODEX_MODEL_IDS = new Set([
   'gpt-5.1-codex-mini/high',
 ]);
 
-const DEFAULT_MODEL_ID   = process.env.CODEX_MODEL || 'gpt-5.2-codex';
+const DEFAULT_MODEL_ID   = process.env.CODEX_MODEL || 'gpt-5.4';
 const DEFAULT_PROVIDER_ID = 'openai';
 
 // ---------------------------------------------------------------------------

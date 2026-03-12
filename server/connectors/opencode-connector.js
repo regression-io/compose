@@ -1,44 +1,18 @@
 /**
- * OpencodeConnector — wraps @opencode-ai/sdk.
+ * OpencodeConnector — spawns `opencode run` for each prompt.
  *
  * Model-agnostic base for any non-Anthropic agent running through OpenCode.
  * NOT exposed as an MCP tool directly — subclasses (e.g. CodexConnector)
  * are exposed after constraining to a specific provider/model set.
  *
- * Singleton pattern: opencode serve is started once per process.
- * Multiple instantiations share the same underlying server.
+ * Uses `opencode run --format json` which streams structured JSON events
+ * (step_start, text, tool_use, step_finish) to stdout. This is more reliable
+ * than the SDK's serve mode which has event stream issues.
  */
 
-import { createOpencodeServer, createOpencodeClient } from '@opencode-ai/sdk';
+import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { AgentConnector, injectSchema } from './agent-connector.js';
-
-// ---------------------------------------------------------------------------
-// Module-level singleton — one opencode serve subprocess per process
-// ---------------------------------------------------------------------------
-
-let _serverPromise = null;
-let _serverUrl = null;
-
-function _getServerUrl() {
-  if (!_serverPromise) {
-    _serverPromise = createOpencodeServer({
-      hostname: '127.0.0.1',
-      port: 4096,
-      timeout: 15000,
-    }).then(server => {
-      _serverUrl = server.url;
-      return server;
-    }).catch(err => {
-      _serverPromise = null; // allow retry on next call
-      throw err;
-    });
-  }
-  return _serverPromise.then(() => _serverUrl);
-}
-
-function _makeClient(baseUrl, cwd) {
-  return createOpencodeClient({ baseUrl, directory: cwd });
-}
 
 // ---------------------------------------------------------------------------
 // OpencodeConnector
@@ -49,14 +23,12 @@ export class OpencodeConnector extends AgentConnector {
   _defaultModelID;
   _cwd;
   _agentName;
-  #client = null;
-  #sessionId = null;
-  #abortController = null;
+  #proc = null;
 
   /**
    * @param {object} opts
    * @param {string} opts.providerID  — OpenCode provider ID (e.g. 'openai')
-   * @param {string} opts.modelID     — model ID (e.g. 'gpt-5.2-codex')
+   * @param {string} opts.modelID     — model ID (e.g. 'gpt-5.4')
    * @param {string} [opts.cwd]       — default working directory
    * @param {string} [opts.agentName] — label used in system messages
    */
@@ -69,7 +41,7 @@ export class OpencodeConnector extends AgentConnector {
   }
 
   async *run(prompt, { schema, modelID, providerID, cwd } = {}) {
-    if (this.#sessionId) {
+    if (this.#proc) {
       throw new Error(`${this._agentName}: run() already active. Call interrupt() first.`);
     }
 
@@ -78,79 +50,100 @@ export class OpencodeConnector extends AgentConnector {
     const resolvedCwd        = cwd        ?? this._cwd;
     const actualPrompt       = schema ? injectSchema(prompt, schema) : prompt;
 
-    const baseUrl = await _getServerUrl();
-    const client  = _makeClient(baseUrl, resolvedCwd);
-    this.#client  = client;
-
-    // Create session
-    const sessionResp = await client.session.create({
-      body: { title: actualPrompt.slice(0, 60) },
-    });
-    const sessionId = sessionResp.data?.id ?? sessionResp.id;
-    this.#sessionId = sessionId;
-
-    const ac = new AbortController();
-    this.#abortController = ac;
-
     yield {
       type: 'system', subtype: 'init',
       agent: this._agentName, model: `${resolvedProviderID}/${resolvedModelID}`,
     };
 
-    // Subscribe to event stream BEFORE sending prompt to avoid missing events
-    const sseResult = await client.event.subscribe({ signal: ac.signal });
-
-    // Send prompt
-    await client.session.prompt({
-      path: { id: sessionId },
-      body: {
-        parts: [{ type: 'text', text: actualPrompt }],
-        model: { providerID: resolvedProviderID, modelID: resolvedModelID },
-      },
+    const proc = spawn('opencode', [
+      'run',
+      '-m', `${resolvedProviderID}/${resolvedModelID}`,
+      '--format', 'json',
+      actualPrompt,
+    ], {
+      cwd: resolvedCwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env },
     });
+    this.#proc = proc;
 
-    // Stream events until session is idle or errors
+    // Read JSON events line-by-line from stdout
+    const rl = createInterface({ input: proc.stdout, crlfDelay: Infinity });
+
+    const textParts = [];
+    let stderrChunks = [];
+    proc.stderr.on('data', chunk => stderrChunks.push(chunk));
+
     try {
-      for await (const event of sseResult.stream) {
-        if (event.type === 'message.part.updated') {
-          if (event.properties?.sessionID !== sessionId) continue;
-          const delta = event.properties?.delta;
-          if (delta) yield { type: 'assistant', content: delta };
-        } else if (event.type === 'session.idle') {
-          if (event.properties?.sessionID === sessionId) {
-            yield { type: 'system', subtype: 'complete', agent: this._agentName };
-            break;
+      for await (const line of rl) {
+        if (!line.trim()) continue;
+
+        let event;
+        try {
+          event = JSON.parse(line);
+        } catch {
+          continue; // skip non-JSON lines
+        }
+
+        if (event.type === 'text') {
+          const text = event.part?.text ?? '';
+          if (text) {
+            textParts.push(text);
+            yield { type: 'assistant', content: text };
           }
-        } else if (event.type === 'session.error') {
-          const sid = event.properties?.sessionID;
-          if (!sid || sid === sessionId) {
-            const msg = event.properties?.error?.message ?? 'Unknown session error';
-            yield { type: 'error', message: msg };
-            break;
+        } else if (event.type === 'tool_use') {
+          const tool = event.part?.tool ?? event.part?.state?.input?.command ? 'bash' : 'unknown';
+          const input = event.part?.state?.input ?? {};
+          yield { type: 'tool_use', tool, input };
+
+          // If tool has output, yield a summary
+          const output = event.part?.state?.output;
+          if (output && typeof output === 'string') {
+            const short = output.length > 80 ? output.slice(0, 77) + '...' : output;
+            yield { type: 'tool_use_summary', summary: short };
+          }
+        } else if (event.type === 'step_finish') {
+          // step_finish includes cost and token info
+          if (process.env.COMPOSE_DEBUG && event.part?.cost) {
+            process.stderr.write(`  [${this._agentName}] cost=$${event.part.cost.toFixed(4)} tokens=${event.part.tokens?.total}\n`);
           }
         }
+        // step_start is ignored (already yielded init)
+      }
+
+      // Wait for process to exit
+      const exitCode = await new Promise((resolve) => {
+        proc.on('close', resolve);
+      });
+
+      if (exitCode !== 0 && textParts.length === 0) {
+        const stderr = Buffer.concat(stderrChunks).toString();
+        yield { type: 'error', message: stderr || `opencode exited with code ${exitCode}` };
+      } else {
+        // Yield the full concatenated text as a result
+        const fullText = textParts.join('');
+        if (fullText) {
+          yield { type: 'result', content: fullText };
+        }
+        yield { type: 'system', subtype: 'complete', agent: this._agentName };
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        yield { type: 'error', message: err.message || String(err) };
       }
     } finally {
-      this.#sessionId = null;
-      this.#client    = null;
-      this.#abortController = null;
-      ac.abort();
+      this.#proc = null;
     }
   }
 
   interrupt() {
-    if (this.#sessionId && this.#client) {
-      try {
-        this.#client.session.abort({ path: { id: this.#sessionId } });
-      } catch { /* ignore */ }
+    if (this.#proc) {
+      try { this.#proc.kill('SIGTERM'); } catch { /* ignore */ }
+      this.#proc = null;
     }
-    if (this.#abortController) {
-      this.#abortController.abort();
-    }
-    this.#sessionId = null;
   }
 
   get isRunning() {
-    return this.#sessionId !== null;
+    return this.#proc !== null;
   }
 }

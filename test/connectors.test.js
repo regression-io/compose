@@ -54,7 +54,7 @@ test('injectSchema appends schema block to prompt', () => {
   const schema = { type: 'object', properties: { x: { type: 'number' } } };
   const result = injectSchema('Do the thing', schema);
   assert.ok(result.startsWith('Do the thing\n\n'));
-  assert.ok(result.includes('Respond with valid JSON only'));
+  assert.ok(result.includes('include a JSON code block'));
   assert.ok(result.includes('"type": "object"'));
 });
 

@@ -28,10 +28,10 @@ const DISPATCH = {
   on_kill: 'abort',
 };
 
-test('approve with rationale', async () => {
-  const { input, output } = createMockIO(['a', 'looks good']);
+test('approve skips rationale prompt', async () => {
+  const { input, output } = createMockIO(['a']);
   const result = await promptGate(DISPATCH, { input, output });
-  assert.deepStrictEqual(result, { outcome: 'approve', rationale: 'looks good' });
+  assert.deepStrictEqual(result, { outcome: 'approve', rationale: 'approved' });
 });
 
 test('kill with rationale', async () => {
@@ -46,14 +46,25 @@ test('full word works', async () => {
   assert.deepStrictEqual(result, { outcome: 'revise', rationale: 'needs changes' });
 });
 
-test('invalid input then valid', async () => {
-  const { input, output } = createMockIO(['x', 'a', 'approved']);
+test('conversation then decision uses notes as rationale', async () => {
+  // 'x' is treated as a note (conversation), then 'a' is the decision
+  // Notes become the rationale; '' accepts notes as-is (no additional rationale)
+  const { input, output } = createMockIO(['x', 'a', '']);
   const result = await promptGate(DISPATCH, { input, output });
-  assert.deepStrictEqual(result, { outcome: 'approve', rationale: 'approved' });
+  assert.deepStrictEqual(result, { outcome: 'approve', rationale: 'x' });
 });
 
-test('empty rationale then valid', async () => {
-  const { input, output } = createMockIO(['a', '', 'actual rationale']);
+test('conversation with additional rationale', async () => {
+  const { input, output } = createMockIO(['needs more tests', 'also fix linting', 'r', 'see notes']);
   const result = await promptGate(DISPATCH, { input, output });
-  assert.deepStrictEqual(result, { outcome: 'approve', rationale: 'actual rationale' });
+  assert.strictEqual(result.outcome, 'revise');
+  assert.ok(result.rationale.includes('needs more tests'));
+  assert.ok(result.rationale.includes('also fix linting'));
+  assert.ok(result.rationale.includes('see notes'));
+});
+
+test('revise with empty rationale then valid', async () => {
+  const { input, output } = createMockIO(['r', '', 'actual rationale']);
+  const result = await promptGate(DISPATCH, { input, output });
+  assert.deepStrictEqual(result, { outcome: 'revise', rationale: 'actual rationale' });
 });
