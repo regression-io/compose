@@ -265,6 +265,25 @@ Harden the streaming and connector layer for production-quality performance, lat
 
 ---
 
+## STRAT-PAR: Parallel Task Decomposition — PLANNED
+
+Automatically decompose pipeline steps into independent subtasks, analyze their dependency graph, and execute non-dependent subtasks concurrently with worktree isolation and structured merge. Bumps Stratum IR from v0.2 to v0.3.
+
+See `docs/features/STRAT-PAR/design.md` for the full design.
+
+| # | Feature | Item | Status |
+|---|---------|------|--------|
+| 67 | STRAT-PAR-1 | **IR v0.3 schema:** add `decompose` and `parallel_dispatch` step types to spec. `decompose` emits a TaskGraph (tasks with `files_owned`, `files_read`, `depends_on`). `parallel_dispatch` consumes a TaskGraph with `max_concurrent`, `isolation`, `require`, `merge`, `intent_template`. Backward-compatible superset of v0.2. | PLANNED |
+| 68 | STRAT-PAR-2 | **`no_file_conflicts` ensure function:** built-in validation that no two independent tasks (no dependency edge) share `files_owned` entries. Read-only overlap allowed. Decompose retries add dependency edges to resolve conflicts. | PLANNED |
+| 69 | STRAT-PAR-3 | **Executor ready-set model:** replace `current_idx` with `completed_steps` set + `active_steps` set. Compute ready steps from satisfied `depends_on`. Return `parallel_dispatch` dispatch type with full task graph. New MCP tool `stratum_parallel_done` for batch result reporting. | PLANNED |
+| 70 | STRAT-PAR-4 | **Compose parallel dispatch:** `build.js` handles `parallel_dispatch` — topo-sort tasks into levels, create git worktree per task under `.compose/par/`, dispatch up to `max_concurrent` agents, collect diffs, apply in topo order. Conflict detection with sequential fallback. | PLANNED |
+| 71 | STRAT-PAR-5 | **Pipeline integration:** update `build.stratum.yaml` — insert `decompose` step after `plan_gate`, replace sequential `execute` with `parallel_dispatch`. Graceful degradation: if decompose fails or merge conflicts, fall back to single sequential execute. | PLANNED |
+| 72 | STRAT-PAR-6 | **Agent bar parallel progress:** when `parallel_dispatch` is active, agent bar shows per-task status (queued/working/complete/failed), overall progress bar, and task count. | PLANNED |
+
+**Exit:** `compose build` decomposes implementation tasks, runs independent ones in parallel worktrees, merges cleanly. Falls back to sequential on conflict. Agent bar shows parallel progress. Pipeline runs measurably faster on features with independent subtasks.
+
+---
+
 ## COMP-BENCH: Model Benchmark Suite — PLANNED
 
 Score LLMs on multi-phase workflow fidelity — not just code correctness (SWE-bench) but pipeline discipline, artifact quality, gate compliance, and cost efficiency. A fixed seed repo + 5 canonical feature requests + Stratum audit traces + judge-model scoring.
@@ -306,4 +325,5 @@ See `docs/features/COMP-BENCH/design.md` for the full design.
 | `docs/plans/2026-03-05-manual-test-guide.md` | Full manual test guide for all 15 system areas |
 | `docs/features/feature-dev-v2/design.md` | Feature-dev v2 design — the skill that Phase 6 enforces |
 | `../compose-ui/INTEGRATION-BRIEF.md` | COMP-UI merge spec — what to replace, keep, adopt, and drop |
+| `docs/features/STRAT-PAR/design.md` | STRAT-PAR design — parallel task decomposition, IR v0.3, worktree isolation |
 | `docs/features/COMP-BENCH/design.md` | COMP-BENCH design — seed repo, 5 features, scoring system, harness |
