@@ -4,6 +4,7 @@
  */
 
 import { WebSocketServer } from 'ws';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireSensitiveToken } from './security.js';
@@ -38,7 +39,7 @@ const SETTINGS_DEFAULTS = {
   policyModes: ['gate', 'flag', 'skip'],
 };
 
-import { TARGET_ROOT } from './project-root.js';
+import { TARGET_ROOT, DATA_DIR } from './project-root.js';
 
 const PROJECT_ROOT = TARGET_ROOT;
 
@@ -90,6 +91,21 @@ export class VisionServer {
       spawnJournalAgent,
       projectRoot: PROJECT_ROOT,
       store: this.store,
+    });
+
+    // ── Build state hydration ─────────────────────────────────────────────
+    app.get('/api/build/state', (_req, res) => {
+      const buildPath = path.join(DATA_DIR, 'active-build.json');
+      try {
+        if (fs.existsSync(buildPath)) {
+          const state = JSON.parse(fs.readFileSync(buildPath, 'utf-8'));
+          res.json({ state });
+        } else {
+          res.json({ state: null });
+        }
+      } catch {
+        res.json({ state: null });
+      }
     });
 
     // ── Snapshot route (stays inline: uses this._pendingSnapshots + this.clients) ──

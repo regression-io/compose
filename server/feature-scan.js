@@ -90,9 +90,10 @@ export function seedFeatures(features, store) {
   const seeded = { features: 0, updated: 0 };
 
   for (const feature of features) {
-    const featureKey = `feature:${feature.name}`;
-
-    let featureItem = Array.from(store.items.values()).find(i => i.featureCode === featureKey);
+    // Search by lifecycle.featureCode (canonical format per STRAT-COMP-4)
+    let featureItem = Array.from(store.items.values()).find(
+      i => i.lifecycle?.featureCode === feature.name
+    );
 
     if (!featureItem) {
       featureItem = store.createItem({
@@ -103,7 +104,8 @@ export function seedFeatures(features, store) {
         phase: 'planning',
         files: feature.artifacts.map(a => `docs/features/${feature.name}/${a}`),
       });
-      store.updateItem(featureItem.id, { featureCode: featureKey });
+      // Set lifecycle via dedicated method (not updateItem, which doesn't allow lifecycle)
+      store.updateLifecycle(featureItem.id, { featureCode: feature.name, currentPhase: 'explore_design' });
       featureItem = store.items.get(featureItem.id);
       seeded.features++;
     } else if (feature.description && featureItem.description !== feature.description) {

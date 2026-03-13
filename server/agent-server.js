@@ -19,6 +19,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import { requireSensitiveToken } from './security.js';
 import { HOOK_OPTIONS } from './agent-hooks.js';
 import { TARGET_ROOT, DATA_DIR } from './project-root.js';
+import { BuildStreamBridge } from './build-stream-bridge.js';
 
 const PORT = process.env.AGENT_PORT || 3002;
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -209,13 +210,21 @@ async function _consumeStream(q) {
 let serverListening = false;
 const server = http.createServer(app);
 
+// Build stream bridge — tails JSONL from CLI build, rebroadcasts via SSE
+const _bridge = new BuildStreamBridge(
+  path.join(TARGET_ROOT, '.compose'),
+  broadcast
+);
+
 server.listen(PORT, '127.0.0.1', () => {
   serverListening = true;
+  _bridge.start();
   console.log(`Agent server running on http://127.0.0.1:${PORT}`);
 });
 
 function shutdown(sig) {
   console.log(`[agent-server] ${sig}, shutting down`);
+  _bridge.stop();
   _killCurrentSession();
   server.close();
   setTimeout(() => process.exit(0), 1000);

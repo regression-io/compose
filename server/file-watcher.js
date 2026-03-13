@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { TARGET_ROOT, loadProjectConfig } from './project-root.js';
+import { TARGET_ROOT, loadProjectConfig, ensureDataDir } from './project-root.js';
 
 const PROJECT_ROOT = TARGET_ROOT;
 
@@ -136,14 +136,14 @@ export class FileWatcherServer {
   startWatching() {
     const debounceMap = new Map();
 
-    const watchDir = (dir, prefix, onChanged) => {
+    const watchDir = (dir, prefix, onChanged, fileFilter = (f) => f.endsWith('.md')) => {
       if (!fs.existsSync(dir)) {
         console.warn(`[file-watcher] ${prefix}/ directory not found, skipping watch`);
         return;
       }
       try {
         const watcher = fs.watch(dir, { recursive: true }, (eventType, filename) => {
-          if (!filename || !filename.endsWith('.md')) return;
+          if (!filename || !fileFilter(filename)) return;
 
           const relativePath = path.join(prefix, filename);
           const fullPath = path.join(PROJECT_ROOT, relativePath);
@@ -190,6 +190,35 @@ export class FileWatcherServer {
         this.onFeatureChanged(relativePath);
       }
     });
+
+    // Watch .compose/data/ for active-build.json changes
+    const self = this;
+    const dataDir = path.join(PROJECT_ROOT, '.compose', 'data');
+    let dataDirWatcherRegistered = false;
+
+    // Guarantee .compose/data/ exists before registering the watcher
+    ensureDataDir();
+
+    const registerDataWatcher = () => {
+      if (dataDirWatcherRegistered) return;
+      if (!fs.existsSync(dataDir)) return;
+      dataDirWatcherRegistered = true;
+
+      watchDir(dataDir, '.compose/data', (relativePath, fullPath) => {
+        let state = null;
+        try {
+          if (fs.existsSync(fullPath)) {
+            state = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+          }
+        } catch { /* parse error or ENOENT — state stays null */ }
+
+        if (typeof self.onBuildStateChanged === 'function') {
+          self.onBuildStateChanged(state);
+        }
+      }, (f) => f === 'active-build.json');
+    };
+
+    registerDataWatcher();
   }
 
   broadcast(message) {

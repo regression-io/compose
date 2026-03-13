@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useVisionStore } from './vision/useVisionStore.js'
 
 // All stratum routes are served by the compose server at the same origin.
 const API = '/api/stratum'
@@ -195,7 +196,7 @@ function FlowDetail({ flowId, onClose }) {
   )
 }
 
-function FlowList() {
+function FlowList({ activeBuild }) {
   const [flows, setFlows] = useState(null)
   const [error, setError] = useState(null)
   const [selected, setSelected] = useState(null)
@@ -207,6 +208,9 @@ function FlowList() {
   }, [])
 
   useEffect(() => { load(); const t = setInterval(load, 15_000); return () => clearInterval(t) }, [load])
+
+  // Trigger immediate refresh when activeBuild changes (bridges step-level with flow state)
+  useEffect(() => { if (activeBuild) load() }, [activeBuild, load])
 
   if (flows === null && !error) return <Spinner />
 
@@ -247,15 +251,117 @@ function FlowList() {
 }
 
 // ---------------------------------------------------------------------------
+// Active Build Banner (transitional — STRAT-COMP-8 deletes StratumPanel.jsx)
+// ---------------------------------------------------------------------------
+
+const pulsingDotStyle = {
+  display: 'inline-block',
+  width: 8,
+  height: 8,
+  borderRadius: '50%',
+  background: '#22c55e',
+  marginRight: 8,
+  animation: 'pulse-dot 1.5s ease-in-out infinite',
+}
+
+// Inject keyframes once
+if (typeof document !== 'undefined' && !document.getElementById('pulse-dot-style')) {
+  const style = document.createElement('style')
+  style.id = 'pulse-dot-style'
+  style.textContent = `@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }`
+  document.head.appendChild(style)
+}
+
+function ActiveBuildBanner({ build, onDismiss }) {
+  const isRunning = build.status === 'running'
+  const isTerminal = ['complete', 'failed', 'aborted'].includes(build.status)
+
+  // Auto-dismiss complete after 5s
+  useEffect(() => {
+    if (build.status === 'complete') {
+      const t = setTimeout(() => onDismiss?.(), 5000)
+      return () => clearTimeout(t)
+    }
+  }, [build.status, onDismiss])
+
+  const statusColors = {
+    running: '#166534',
+    complete: '#14532d',
+    failed: '#7f1d1d',
+    aborted: '#78350f',
+  }
+
+  return (
+    <div style={{
+      border: `1px solid ${isRunning ? '#22c55e33' : '#3f3f46'}`,
+      borderRadius: 6,
+      padding: '10px 12px',
+      marginBottom: 12,
+      background: statusColors[build.status] || '#18181b',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {isRunning && <span style={pulsingDotStyle} />}
+          <span style={{ fontWeight: 600, fontSize: '0.88em' }}>{build.featureCode}</span>
+          <span style={{ opacity: 0.5, fontSize: '0.78em' }}>
+            {isRunning ? 'building' : build.status}
+          </span>
+        </div>
+        {isTerminal && build.status !== 'complete' && (
+          <button
+            onClick={onDismiss}
+            style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '0.9em' }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+      <div style={{ fontSize: '0.8em', opacity: 0.7, marginTop: 4, fontFamily: 'monospace' }}>
+        {build.currentStepId}
+        {build.stepNum != null && build.totalSteps != null && (
+          <span style={{ marginLeft: 8, opacity: 0.5 }}>
+            ({build.stepNum}/{build.totalSteps})
+          </span>
+        )}
+        {build.retries > 0 && (
+          <span style={{ marginLeft: 8, color: '#f59e0b' }}>
+            retry {build.retries}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Root panel
 // ---------------------------------------------------------------------------
 
 export default function StratumPanel() {
+  const { activeBuild } = useVisionStore()
+  const [dismissed, setDismissed] = useState(null)
+
+  const handleDismiss = useCallback(() => {
+    if (activeBuild) {
+      setDismissed(`${activeBuild.flowId}:${activeBuild.completedAt}`)
+    }
+  }, [activeBuild])
+
+  // Reset dismissed state when a new build starts
+  useEffect(() => {
+    if (activeBuild?.status === 'running') setDismissed(null)
+  }, [activeBuild?.status])
+
+  const showBanner = activeBuild && !(
+    dismissed && dismissed === `${activeBuild.flowId}:${activeBuild.completedAt}`
+  )
+
   return (
     <div style={{ padding: '12px 14px', color: '#e4e4e7', fontSize: '0.9em', overflowY: 'auto', height: '100%' }}>
+      {showBanner && <ActiveBuildBanner build={activeBuild} onDismiss={handleDismiss} />}
       <GateQueue />
       <div style={{ marginTop: 20 }}>
-        <FlowList />
+        <FlowList activeBuild={activeBuild} />
       </div>
     </div>
   )

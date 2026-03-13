@@ -256,9 +256,12 @@ describe('proof run: full pipeline', { skip: !stratumAvailable && 'stratum-mcp n
       assert.equal(gate.outcome, 'approve', `Gate ${gate.id} outcome should be 'approve'`);
     }
 
-    // --- Verify cleanup ---
+    // --- Verify terminal state (file retained per STRAT-COMP-4) ---
     const activePath = join(tmpDir, '.compose', 'data', 'active-build.json');
-    assert.equal(existsSync(activePath), false, 'active-build.json should be deleted');
+    assert.ok(existsSync(activePath), 'active-build.json should be retained');
+    const activeState = JSON.parse(readFileSync(activePath, 'utf-8'));
+    assert.equal(activeState.status, 'complete', 'active-build.json should have terminal status "complete"');
+    assert.ok(activeState.completedAt, 'active-build.json should have completedAt');
   });
 });
 

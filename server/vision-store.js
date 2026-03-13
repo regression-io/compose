@@ -35,8 +35,17 @@ export class VisionStore {
     try {
       const raw = fs.readFileSync(this._dataFile, 'utf-8');
       const data = JSON.parse(raw);
+      let migrated = false;
       if (Array.isArray(data.items)) {
         for (const item of data.items) {
+          // Migration: legacy featureCode → lifecycle.featureCode
+          if (item.featureCode && item.featureCode.startsWith('feature:') && !item.lifecycle?.featureCode) {
+            const bare = item.featureCode.replace(/^feature:/, '');
+            item.lifecycle = item.lifecycle || {};
+            item.lifecycle.featureCode = bare;
+            delete item.featureCode;
+            migrated = true;
+          }
           if (!item.slug && item.title) item.slug = slugify(item.title);
           if (!item.files) item.files = [];
           this.items.set(item.id, item);
@@ -46,8 +55,16 @@ export class VisionStore {
         for (const conn of data.connections) this.connections.set(conn.id, conn);
       }
       if (Array.isArray(data.gates)) {
-        for (const gate of data.gates) this.gates.set(gate.id, gate);
+        for (const gate of data.gates) {
+          // Migration: normalize legacy gate outcomes
+          if (gate.outcome) {
+            const map = { approved: 'approve', killed: 'kill', revised: 'revise' };
+            if (map[gate.outcome]) { gate.outcome = map[gate.outcome]; migrated = true; }
+          }
+          this.gates.set(gate.id, gate);
+        }
       }
+      if (migrated) this._save();
       console.log(`[vision] Loaded ${this.items.size} items, ${this.connections.size} connections from ${this._dataFile}`);
     } catch (err) {
       if (err.code === 'ENOENT') {
@@ -58,12 +75,14 @@ export class VisionStore {
     }
   }
 
-  /** Save state to disk */
+  /** Save state to disk atomically (temp file + rename) */
   _save() {
     try {
       fs.mkdirSync(this._dataDir, { recursive: true });
-      const data = JSON.stringify(this.getState(), null, 2);
-      fs.writeFileSync(this._dataFile, data, 'utf-8');
+      const data = JSON.stringify(this.getState(), null, 2) + '\n';
+      const tmp = path.join(this._dataDir, `vision-state.json.tmp.${Date.now()}`);
+      fs.writeFileSync(tmp, data, 'utf-8');
+      fs.renameSync(tmp, this._dataFile);
     } catch (err) {
       console.error('[vision] Failed to save state:', err.message);
     }
@@ -224,7 +243,7 @@ export class VisionStore {
     const gate = this.gates.get(gateId);
     if (!gate) throw new Error(`Gate not found: ${gateId}`);
     if (gate.status !== 'pending') throw new Error(`Gate ${gateId} is not pending (status: ${gate.status})`);
-    gate.status = outcome;
+    gate.status = 'resolved';
     gate.outcome = outcome;
     gate.resolvedAt = new Date().toISOString();
     gate.resolvedBy = 'human';
@@ -232,6 +251,22 @@ export class VisionStore {
     this.gates.set(gateId, gate);
     this._save();
     return gate;
+  }
+
+  /** Get a gate by flow/step/round composite key */
+  getGateByFlowStep(flowId, stepId, round) {
+    const id = `${flowId}:${stepId}:${round}`;
+    return this.gates.get(id) || null;
+  }
+
+  /** Get a gate by its ID */
+  getGateById(gateId) {
+    return this.gates.get(gateId) || null;
+  }
+
+  /** Get all gates (any status) as an array */
+  getAllGates() {
+    return Array.from(this.gates.values());
   }
 
   /** Get pending gates, optionally filtered by item */

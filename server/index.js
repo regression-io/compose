@@ -83,6 +83,14 @@ fileWatcher.onFeatureChanged = (_relativePath) => {
   }
 };
 
+// Wire build state changes → broadcast over /ws/vision
+fileWatcher.onBuildStateChanged = (state) => {
+  if (state) {
+    // Broadcast flat payload per STRAT-COMP-4 contract
+    visionServer.broadcastMessage({ type: 'buildState', ...state });
+  }
+};
+
 // Manual WebSocket upgrade routing — avoids the ws library bug where multiple
 // WebSocketServers on the same HTTP server write 400 on each other's connections
 server.on('upgrade', (req, socket, head) => {

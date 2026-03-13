@@ -205,6 +205,71 @@ export default function MessageCard({ msg }) {
     );
   }
 
+  // Build lifecycle events
+  if (msg.type === 'system' && msg.subtype === 'build_start') {
+    return (
+      <div className="text-[10px] uppercase tracking-wider py-1"
+        style={{ color: 'hsl(var(--accent))', opacity: 0.8 }}>
+        build started -- {msg.featureCode}
+      </div>
+    );
+  }
+
+  if (msg.type === 'system' && msg.subtype === 'build_step') {
+    return (
+      <div className="text-[10px] uppercase tracking-wider py-1 flex gap-2"
+        style={{ color: 'hsl(var(--muted-foreground))' }}>
+        <span>step {msg.stepNum}/{msg.totalSteps}</span>
+        <span className="font-mono">{msg.stepId}</span>
+        <span style={{ opacity: 0.5 }}>{msg.agent}</span>
+      </div>
+    );
+  }
+
+  if (msg.type === 'system' && msg.subtype === 'build_step_done') {
+    return (
+      <div className="text-[10px] py-0.5"
+        style={{ color: 'hsl(var(--success, 142 60% 50%))', opacity: 0.7 }}>
+        step complete -- {msg.stepId}
+      </div>
+    );
+  }
+
+  if (msg.type === 'system' && msg.subtype === 'build_gate') {
+    return (
+      <div className="text-[10px] uppercase tracking-wider py-1"
+        style={{ color: 'hsl(38 90% 60%)' }}>
+        gate -- {msg.stepId}
+      </div>
+    );
+  }
+
+  if (msg.type === 'system' && msg.subtype === 'build_gate_resolved') {
+    const color = msg.outcome === 'approved'
+      ? 'hsl(var(--success, 142 60% 50%))'
+      : msg.outcome === 'revise'
+        ? 'hsl(38 90% 60%)'
+        : 'hsl(var(--destructive))';
+    return (
+      <div className="text-[10px] py-0.5"
+        style={{ color, opacity: 0.8 }}>
+        gate {msg.outcome} -- {msg.stepId}
+      </div>
+    );
+  }
+
+  if (msg.type === 'system' && msg.subtype === 'build_end') {
+    const color = msg.status === 'complete'
+      ? 'hsl(var(--success, 142 60% 50%))'
+      : 'hsl(var(--destructive))';
+    return (
+      <div className="text-[10px] uppercase tracking-wider py-1"
+        style={{ color }}>
+        build {msg.status} -- {msg.featureCode}
+      </div>
+    );
+  }
+
   if (msg.type === 'assistant') {
     return <AssistantCard msg={msg} />;
   }

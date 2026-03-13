@@ -144,7 +144,7 @@ describe('gateResolved broadcast includes itemId', () => {
     const resolveBroadcast = ctx.broadcasts.find(b => b.type === 'gateResolved');
     assert.ok(resolveBroadcast);
     assert.equal(resolveBroadcast.itemId, ctx.item.id);
-    assert.equal(resolveBroadcast.outcome, 'approved');
+    assert.equal(resolveBroadcast.outcome, 'approve');
   });
 
   test('revised resolve includes itemId in broadcast', async () => {
@@ -158,7 +158,7 @@ describe('gateResolved broadcast includes itemId', () => {
     const resolveBroadcast = ctx.broadcasts.find(b => b.type === 'gateResolved');
     assert.ok(resolveBroadcast);
     assert.equal(resolveBroadcast.itemId, ctx.item.id);
-    assert.equal(resolveBroadcast.outcome, 'revised');
+    assert.equal(resolveBroadcast.outcome, 'revise');
   });
 
   test('killed resolve includes itemId in broadcast', async () => {
@@ -172,7 +172,7 @@ describe('gateResolved broadcast includes itemId', () => {
     const resolveBroadcast = ctx.broadcasts.find(b => b.type === 'gateResolved');
     assert.ok(resolveBroadcast);
     assert.equal(resolveBroadcast.itemId, ctx.item.id);
-    assert.equal(resolveBroadcast.outcome, 'killed');
+    assert.equal(resolveBroadcast.outcome, 'kill');
   });
 });
 

@@ -83,6 +83,7 @@ export function useVisionStore() {
   const [gates, setGates] = useState([]);
   const [gateEvent, setGateEvent] = useState(null);
   const [settings, setSettings] = useState(null);
+  const [activeBuild, setActiveBuild] = useState(null);
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const snapshotProviderRef = useRef(null);
@@ -101,7 +102,10 @@ export function useVisionStore() {
       const ws = new WebSocket(`${protocol}//${window.location.host}/ws/vision`);
       wsRef.current = ws;
 
-      ws.onopen = () => setConnected(true);
+      ws.onopen = () => {
+        setConnected(true);
+        fetch('/api/build/state').then(r => r.json()).then(data => setActiveBuild(data.state ?? null)).catch(() => {});
+      };
 
       ws.onmessage = (event) => {
         try {
@@ -112,7 +116,7 @@ export function useVisionStore() {
           }, {
             setItems, setConnections, setGates, setGateEvent,
             setRecentChanges, setUICommand, setAgentActivity,
-            setAgentErrors, setSessionState, setSettings, EMPTY_CHANGES,
+            setAgentErrors, setSessionState, setSettings, setActiveBuild, EMPTY_CHANGES,
           });
         } catch {
           // ignore
@@ -156,6 +160,25 @@ export function useVisionStore() {
         }
       })
       .catch(() => { console.warn('[vision] Failed to hydrate session state'); });
+  }, []);
+
+  // Hydrate active build state on mount
+  useEffect(() => {
+    fetch('/api/build/state')
+      .then(r => r.json())
+      .then(data => setActiveBuild(data.state ?? null))
+      .catch(() => {});
+  }, []);
+
+  // 30s polling fallback for build state (covers missed fs.watch events)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetch('/api/build/state')
+        .then(r => r.json())
+        .then(data => setActiveBuild(data.state ?? null))
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleResponse = useCallback(async (res) => {
@@ -275,5 +298,7 @@ export function useVisionStore() {
     settings,
     updateSettings,
     resetSettings,
+    activeBuild,
+    setActiveBuild,
   };
 }

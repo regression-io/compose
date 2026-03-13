@@ -1,0 +1,57 @@
+version: "0.2"
+
+workflow:
+  name: batch-review
+  description: "Cross-feature integration review after batch builds"
+  input:
+    feature_codes:
+      type: string
+      required: true
+      description: "Comma-separated feature codes in the batch"
+    phase:
+      type: string
+      required: true
+      description: "Which phase just completed (design, blueprint, plan, implement, ship)"
+
+contracts:
+  ReviewResult:
+    clean:    {type: boolean}
+    summary:  {type: string}
+    findings: {type: array}
+
+flows:
+  integration-review:
+    input:
+      feature_codes: {type: string}
+      phase:         {type: string}
+    output: ReviewResult
+    steps:
+      - id: review
+        agent: codex
+        intent: >
+          Cross-feature integration review. You are reviewing ALL features in this
+          batch for contract mismatches that per-feature reviews cannot catch.
+
+          Read EVERY artifact for the given phase across all features listed.
+          Feature artifacts are at: compose/docs/features/{CODE}/{artifact}.md
+
+          Check these 5 categories:
+          1. SHARED DATA CONTRACTS — When feature A produces a structure and feature B
+             consumes it, do schemas match? Field names, types, semantics.
+          2. EVENT/MESSAGE CONSISTENCY — Do producers and consumers agree on event names,
+             message types, and channels?
+          3. IDENTITY MODEL — One canonical way to identify entities? Flag divergent ID formats.
+          4. SCOPE OVERLAP — Does feature N build something feature M replaces?
+             Flag temporary plumbing or scope boundary issues.
+          5. DEPENDENCY ORDERING — Do artifacts assume prerequisite changes exist when they don't?
+
+          Return structured JSON: { "clean": boolean, "summary": string, "findings": string[] }.
+          Each finding must reference specific features and file locations.
+          Set clean=true only if zero cross-feature mismatches with confidence >= 80.
+        inputs:
+          feature_codes: "$.input.feature_codes"
+          phase:         "$.input.phase"
+        output_contract: ReviewResult
+        ensure:
+          - "result.clean == True"
+        retries: 10

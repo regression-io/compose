@@ -300,11 +300,55 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
 
   app.get('/api/vision/gates', (req, res) => {
     try {
-      const itemId = req.query.itemId || undefined;
-      const gates = store.getPendingGates(itemId);
-      res.json({ gates });
+      const statusFilter = req.query.status;
+      if (statusFilter === 'all') {
+        res.json({ gates: store.getAllGates() });
+      } else if (statusFilter === 'resolved') {
+        res.json({ gates: store.getAllGates().filter(g => g.status === 'resolved') });
+      } else {
+        const itemId = req.query.itemId || undefined;
+        const gates = store.getPendingGates(itemId);
+        res.json({ gates });
+      }
     } catch (err) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/vision/gates — create a gate (used by CLI dual-dispatch)
+  app.post('/api/vision/gates', (req, res) => {
+    try {
+      const { flowId, stepId, itemId, artifact, options, fromPhase, toPhase, summary, comment } = req.body;
+      const round = req.body.round ?? 1;
+      if (!flowId || !stepId) {
+        return res.status(400).json({ error: 'flowId and stepId are required' });
+      }
+      const id = `${flowId}:${stepId}:${round}`;
+      const existing = store.getGateById(id);
+      if (existing) {
+        return res.status(200).json(existing); // idempotent
+      }
+      const gate = {
+        id,
+        flowId,
+        stepId,
+        round,
+        itemId: itemId || null,
+        artifact: artifact || null,
+        options: options || null,
+        fromPhase: fromPhase || null,
+        toPhase: toPhase || null,
+        summary: summary || null,
+        comment: comment || null,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      };
+      store.createGate(gate);
+      scheduleBroadcast();
+      broadcastMessage({ type: 'gateCreated', gateId: id, itemId: itemId || null, timestamp: gate.createdAt });
+      res.status(201).json(gate);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
     }
   });
 
@@ -312,6 +356,12 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     try {
       const gate = store.gates.get(req.params.id);
       if (!gate) return res.status(404).json({ error: `Gate not found: ${req.params.id}` });
+      // Lazy gate expiry
+      const gateTimeout = Number(process.env.COMPOSE_GATE_TIMEOUT) || 30 * 60 * 1000;
+      if (gate.status === 'pending' && (Date.now() - new Date(gate.createdAt).getTime()) > gateTimeout) {
+        gate.status = 'expired';
+        store._save();
+      }
       res.json(gate);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -320,30 +370,20 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
 
   app.post('/api/vision/gates/:id/resolve', (req, res) => {
     try {
-      const { outcome, comment } = req.body;
-      if (!outcome) return res.status(400).json({ error: 'outcome is required' });
+      const { outcome: rawOutcome, comment } = req.body;
+      if (!rawOutcome) return res.status(400).json({ error: 'outcome is required' });
+      // Normalize legacy outcome values
+      const outcomeMap = { approved: 'approve', killed: 'kill', revised: 'revise' };
+      const outcome = outcomeMap[rawOutcome] || rawOutcome;
       const gate = store.gates.get(req.params.id);
       if (!gate) return res.status(404).json({ error: `Gate not found: ${req.params.id}` });
-      if (gate.status !== 'pending') return res.status(400).json({ error: `Gate ${req.params.id} is not pending` });
-
-      store.resolveGate(req.params.id, { outcome, comment });
-
-      if (outcome === 'approved') {
-        const item = store.items.get(gate.itemId);
-        if (item?.lifecycle) {
-          item.lifecycle.currentPhase = gate.toPhase;
-          store.updateLifecycle(gate.itemId, item.lifecycle);
-        }
-      } else if (outcome === 'killed') {
-        const item = store.items.get(gate.itemId);
-        if (item?.lifecycle) {
-          item.lifecycle.currentPhase = 'killed';
-          item.lifecycle.killedAt = new Date().toISOString();
-          item.lifecycle.killReason = comment || 'Killed at gate';
-          store.updateLifecycle(gate.itemId, item.lifecycle);
-          store.updateItem(gate.itemId, { status: 'killed' });
-        }
+      // Idempotent: already-resolved gates return 200
+      if (gate.status !== 'pending') {
+        return res.status(200).json({ gateId: req.params.id, gateOutcome: gate.outcome });
       }
+
+      // AD-4: Server only updates gate state. CLI owns lifecycle transitions.
+      store.resolveGate(req.params.id, { outcome, comment });
 
       scheduleBroadcast();
       broadcastMessage({ type: 'gateResolved', gateId: req.params.id, itemId: gate.itemId, outcome, timestamp: new Date().toISOString() });

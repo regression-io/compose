@@ -32,7 +32,7 @@ const TOOL_CATEGORIES = {
 const CATEGORY_LABELS = {
   reading: 'Reading', writing: 'Writing', executing: 'Running',
   searching: 'Searching', fetching: 'Fetching', delegating: 'Delegating',
-  thinking: 'Thinking',
+  thinking: 'Thinking', waiting: 'Waiting for gate approval',
 };
 
 // ---------------------------------------------------------------------------
@@ -53,6 +53,7 @@ const _state = {
   currentActivity: null,
   activityLog: [],
   _idleTimer: null,
+  sourceStatus: { build: null, interactive: null }, // per-source status tracking
   // React setState callbacks — reattached on each mount
   onConnectedChange: null,
   onMessagesChange: null,
@@ -64,6 +65,38 @@ const _state = {
 // ---------------------------------------------------------------------------
 
 function deriveStatus(msg) {
+  // Build events — derive with _source: 'build'
+  if (msg._source === 'build') {
+    if (msg.type === 'system') {
+      if (msg.subtype === 'build_step' || msg.subtype === 'build_step_done' || msg.subtype === 'build_gate_resolved') {
+        return { status: 'working', tool: null, category: 'thinking', _source: 'build' };
+      }
+      if (msg.subtype === 'build_gate') {
+        return { status: 'working', tool: null, category: 'waiting', _source: 'build' };
+      }
+      if (msg.subtype === 'build_end') {
+        return { status: 'idle', tool: null, category: null, _source: 'build' };
+      }
+    }
+    if (msg.type === 'error' && msg.source === 'build') {
+      return { status: 'working', tool: null, category: 'thinking', _source: 'build' };
+    }
+    if (msg.type === 'assistant') {
+      const content = msg.message?.content ?? [];
+      for (const block of content) {
+        if (block.type === 'tool_use') {
+          const category = TOOL_CATEGORIES[block.name] || 'thinking';
+          return { status: 'working', tool: block.name, category, _source: 'build' };
+        }
+      }
+      if (content.some(b => b.type === 'text')) {
+        return { status: 'working', tool: null, category: 'thinking', _source: 'build' };
+      }
+    }
+    return null;
+  }
+
+  // Interactive events (no _source or _source !== 'build')
   if (msg.type === 'assistant') {
     const content = msg.message?.content ?? [];
     for (const block of content) {
@@ -122,18 +155,35 @@ function setAgentStatus(status, tool, category) {
   window.dispatchEvent(new CustomEvent('compose:agent-status', { detail: payload }));
 }
 
+function mergeSourceStatus() {
+  const build = _state.sourceStatus.build;
+  const interactive = _state.sourceStatus.interactive;
+  // Show working if ANY source is working (priority: interactive > build)
+  if (interactive?.status === 'working') {
+    setAgentStatus(interactive.status, interactive.tool, interactive.category);
+  } else if (build?.status === 'working') {
+    setAgentStatus(build.status, build.tool, build.category);
+  } else {
+    // Both idle/null — debounce idle
+    _state._idleTimer = setTimeout(() => {
+      _state._idleTimer = null;
+      setAgentStatus('idle', null, null);
+    }, IDLE_DEBOUNCE_MS);
+  }
+}
+
 function processMessage(msg) {
   // Derive and apply agent status before appending to list
   const derived = deriveStatus(msg);
   if (derived) {
+    const source = derived._source === 'build' ? 'build' : 'interactive';
+    _state.sourceStatus[source] = derived;
+
     if (derived.status === 'idle') {
-      // Debounce idle — result message arrives, wait briefly before going idle
-      _state._idleTimer = setTimeout(() => {
-        _state._idleTimer = null;
-        setAgentStatus('idle', null, null);
-      }, IDLE_DEBOUNCE_MS);
+      mergeSourceStatus();
     } else {
-      setAgentStatus(derived.status, derived.tool, derived.category);
+      if (_state._idleTimer) { clearTimeout(_state._idleTimer); _state._idleTimer = null; }
+      mergeSourceStatus();
     }
   }
 
@@ -174,6 +224,7 @@ function connect() {
     _state.connecting = false;
     _state.reconnectAttempts = 0;
     _state.connected = true;
+    _state.sourceStatus.build = null; // clear stale build-working state after reconnect
     if (_state.onConnectedChange) _state.onConnectedChange(true);
   };
 

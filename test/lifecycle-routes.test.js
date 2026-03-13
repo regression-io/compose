@@ -295,45 +295,47 @@ describe('gate REST endpoints', () => {
     assert.equal(res.body.toPhase, 'blueprint');
   });
 
-  test('POST resolve with approved advances phase', async () => {
+  test('POST resolve with approved normalizes outcome (AD-4: no lifecycle advance)', async () => {
     const gateId = startAndCreateGate();
 
     const res = await request(ctx.port, 'POST',
       `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'approved' });
     assert.equal(res.status, 200);
-    assert.equal(res.body.gateOutcome, 'approved');
+    assert.equal(res.body.gateOutcome, 'approve');
 
+    // AD-4: server does NOT advance lifecycle — CLI owns transitions
     const lcRes = await request(ctx.port, 'GET',
       `/api/vision/items/${ctx.item.id}/lifecycle`);
-    assert.equal(lcRes.body.currentPhase, 'blueprint');
+    assert.equal(lcRes.body.currentPhase, 'explore_design');
   });
 
-  test('POST resolve with revised keeps phase', async () => {
+  test('POST resolve with revised normalizes outcome and keeps phase', async () => {
     const gateId = startAndCreateGate();
 
     const res = await request(ctx.port, 'POST',
       `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'revised', comment: 'Needs work' });
     assert.equal(res.status, 200);
-    assert.equal(res.body.gateOutcome, 'revised');
+    assert.equal(res.body.gateOutcome, 'revise');
 
     const lcRes = await request(ctx.port, 'GET',
       `/api/vision/items/${ctx.item.id}/lifecycle`);
     assert.equal(lcRes.body.currentPhase, 'explore_design');
   });
 
-  test('POST resolve with killed kills feature', async () => {
+  test('POST resolve with killed normalizes outcome (AD-4: no item status change)', async () => {
     const gateId = startAndCreateGate();
 
     const res = await request(ctx.port, 'POST',
       `/api/vision/gates/${gateId}/resolve`,
       { outcome: 'killed', comment: 'Cancelled' });
     assert.equal(res.status, 200);
-    assert.equal(res.body.gateOutcome, 'killed');
+    assert.equal(res.body.gateOutcome, 'kill');
 
+    // AD-4: server does NOT kill item — CLI owns lifecycle
     const item = ctx.store.items.get(ctx.item.id);
-    assert.equal(item.status, 'killed');
+    assert.notEqual(item.status, 'killed');
   });
 
   test('gateResolved broadcast emitted on resolve', async () => {
@@ -348,7 +350,7 @@ describe('gate REST endpoints', () => {
     assert.ok(resolveBroadcast, 'Expected gateResolved broadcast');
     assert.equal(resolveBroadcast.gateId, gateId);
     assert.equal(resolveBroadcast.itemId, ctx.item.id);
-    assert.equal(resolveBroadcast.outcome, 'approved');
+    assert.equal(resolveBroadcast.outcome, 'approve');
     assert.ok(resolveBroadcast.timestamp);
   });
 });

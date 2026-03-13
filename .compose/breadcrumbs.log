@@ -85,3 +85,8 @@
 2026-03-10T18:37:14+08:00 | STRAT-COMP-4: building compose pipeline CLI for viewing and editing build.stratum.yaml
 2026-03-10T18:43:43+08:00 | building compose new — kickoff pipeline for product-level brainstorm/research/roadmap
 2026-03-12T04:14:11+08:00 | Adding compose build --all: roadmap parser, DAG, orchestrator, gate non-interactive mode
+2026-03-13T05:14:25+08:00 | Task 5: finishing streamWriter pass-through in child flow ensure_failed and nested execute_flow
+2026-03-13T05:19:04+08:00 | Task 6: integration test for JSONL output from build.js
+2026-03-13T05:20:21+08:00 | Task 13: bridge-to-SSE smoke test
+2026-03-13T05:22:53+08:00 | Task 14: edge case hardening — adding stale gate, fresh gate, malformed, no-sentinel tests
+2026-03-13T05:26:50+08:00 | Reconciling STRAT-COMP-4/5/6/7 parallel conflicts — restoring vision-writer.js, test files, and checking all modified files

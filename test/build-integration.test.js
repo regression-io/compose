@@ -222,10 +222,14 @@ describe('build integration', { skip: !stratumAvailable && 'stratum-mcp not inst
       description: 'Integration test feature',
     });
 
-    // active-build.json should be deleted (flow completed)
+    // active-build.json retained with terminal status (per STRAT-COMP-4)
     const activePath = join(tmpDir, '.compose', 'data', 'active-build.json');
-    assert.equal(existsSync(activePath), false,
-      'active-build.json should be deleted after completion');
+    assert.ok(existsSync(activePath),
+      'active-build.json should be retained after completion');
+    const activeState = JSON.parse(readFileSync(activePath, 'utf-8'));
+    assert.equal(activeState.status, 'complete',
+      'active-build.json should have terminal status "complete"');
+    assert.ok(activeState.completedAt, 'active-build.json should have completedAt');
 
     // audit.json should be written
     const auditPath = join(tmpDir, 'docs', 'features', 'TEST-1', 'audit.json');
@@ -296,10 +300,13 @@ describe('build integration: sub-flow dispatch', { skip: !stratumAvailable && 's
       description: 'Sub-flow integration test',
     });
 
-    // active-build.json should be cleaned up
+    // active-build.json retained with terminal status (per STRAT-COMP-4)
     const activePath = join(tmpDir, '.compose', 'data', 'active-build.json');
-    assert.equal(existsSync(activePath), false,
-      'active-build.json should be deleted after completion');
+    assert.ok(existsSync(activePath),
+      'active-build.json should be retained after completion');
+    const activeState = JSON.parse(readFileSync(activePath, 'utf-8'));
+    assert.equal(activeState.status, 'complete',
+      'active-build.json should have terminal status "complete"');
 
     // audit.json should exist with complete status
     const auditPath = join(tmpDir, 'docs', 'features', 'SUB-1', 'audit.json');
@@ -422,9 +429,12 @@ describe('build integration: resume', { skip: !stratumAvailable && 'stratum-mcp 
       assert.ok(existsSync(join(markerDir, 'implement.done')),
         'implement.done marker should exist after resume');
 
-      // active-build.json should be cleaned up
-      assert.equal(existsSync(activePath), false,
-        'active-build.json should be deleted after completion');
+      // active-build.json retained with terminal status (per STRAT-COMP-4)
+      assert.ok(existsSync(activePath),
+        'active-build.json should be retained after completion');
+      const activeState2 = JSON.parse(readFileSync(activePath, 'utf-8'));
+      assert.equal(activeState2.status, 'complete',
+        'active-build.json should have terminal status "complete"');
 
       // audit.json should exist with complete status
       const auditPath = join(tmpDir, 'docs', 'features', 'TEST-1', 'audit.json');
@@ -459,9 +469,11 @@ describe('build integration: resume', { skip: !stratumAvailable && 'stratum-mcp 
         description: 'test',
       });
 
-      // active-build.json should be gone after completion
-      assert.equal(existsSync(activePath), false,
-        'active-build.json should be deleted after first successful build');
+      // active-build.json retained with terminal status (per STRAT-COMP-4)
+      assert.ok(existsSync(activePath),
+        'active-build.json should be retained after first build');
+      const firstState = JSON.parse(readFileSync(activePath, 'utf-8'));
+      assert.equal(firstState.status, 'complete', 'first build should be complete');
 
       // Manually write a stale active-build.json with a non-existent flowId
       const dataDir = join(tmpDir, '.compose', 'data');
@@ -482,9 +494,12 @@ describe('build integration: resume', { skip: !stratumAvailable && 'stratum-mcp 
         description: 'test',
       });
 
-      // active-build.json should be cleaned up
-      assert.equal(existsSync(activePath), false,
-        'active-build.json should be deleted after fresh build completes');
+      // active-build.json retained with terminal status (per STRAT-COMP-4)
+      assert.ok(existsSync(activePath),
+        'active-build.json should be retained after fresh build');
+      const freshState = JSON.parse(readFileSync(activePath, 'utf-8'));
+      assert.equal(freshState.status, 'complete',
+        'fresh build should have terminal status "complete"');
 
       // audit.json should exist with complete status
       const auditPath = join(tmpDir, 'docs', 'features', 'TEST-1', 'audit.json');

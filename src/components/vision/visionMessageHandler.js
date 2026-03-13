@@ -14,7 +14,7 @@ export function handleVisionMessage(msg, refs, setters) {
   const {
     setItems, setConnections, setGates, setGateEvent,
     setRecentChanges, setUICommand, setAgentActivity,
-    setAgentErrors, setSessionState, setSettings, EMPTY_CHANGES,
+    setAgentErrors, setSessionState, setSettings, setActiveBuild, EMPTY_CHANGES,
   } = setters;
 
   if (msg.type === 'visionState') {
@@ -112,8 +112,8 @@ export function handleVisionMessage(msg, refs, setters) {
     // Increment session error count
     setSessionState(prev => prev?.active ? { ...prev, errorCount: (prev.errorCount || 0) + 1 } : prev);
 
-  } else if (msg.type === 'gatePending') {
-    // Server does NOT call scheduleBroadcast() after gatePending.
+  } else if (msg.type === 'gateCreated' || msg.type === 'gatePending') {
+    // Server does NOT call scheduleBroadcast() after gateCreated.
     // Must fetch full gate and add to state directly.
     fetch(`/api/vision/gates/${msg.gateId}`)
       .then(r => r.ok ? r.json() : null)
@@ -128,7 +128,7 @@ export function handleVisionMessage(msg, refs, setters) {
     // Optimistic update — scheduleBroadcast() follows, visionState will reconcile
     setGates(prev => prev.map(g =>
       g.id === msg.gateId
-        ? { ...g, status: msg.outcome, outcome: msg.outcome, resolvedAt: msg.timestamp }
+        ? { ...g, status: 'resolved', outcome: msg.outcome, resolvedAt: msg.timestamp }
         : g
     ));
     // Toast — skip if this client triggered the resolve
@@ -175,6 +175,10 @@ export function handleVisionMessage(msg, refs, setters) {
 
   } else if (msg.type === 'settingsState' || msg.type === 'settingsUpdated') {
     if (setSettings) setSettings(msg.settings || null);
+
+  } else if (msg.type === 'buildState') {
+    // Per STRAT-COMP-4: flat payload — the message itself IS the state object
+    if (setActiveBuild) setActiveBuild(msg);
 
   } else if (msg.type === 'snapshotRequest' && msg.requestId) {
     // Collect UI state from provider and DOM, send back

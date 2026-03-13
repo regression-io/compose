@@ -171,8 +171,10 @@ describe('build.js', () => {
 
     await runBuild('TEST-1', { cwd: tmpDir, abort: true });
 
-    assert.equal(existsSync(join(dataDir, 'active-build.json')), false,
-      'active-build.json should be deleted after abort');
+    const abortState = JSON.parse(readFileSync(join(dataDir, 'active-build.json'), 'utf-8'));
+    assert.equal(abortState.status, 'aborted',
+      'active-build.json should have terminal status "aborted"');
+    assert.ok(abortState.completedAt, 'active-build.json should have completedAt');
 
     rmSync(tmpDir, { recursive: true, force: true });
   });
@@ -189,6 +191,7 @@ describe('build.js', () => {
         flowId: 'some-flow-id',
         startedAt: new Date().toISOString(),
         currentStepId: 'design',
+        status: 'running',
       })
     );
 
@@ -209,14 +212,14 @@ describe('build.js', () => {
 
     const { VisionWriter } = await import('../lib/vision-writer.js');
     const dataDir = join(tmpDir, '.compose', 'data');
-    const writer = new VisionWriter(dataDir);
+    const writer = new VisionWriter(dataDir, { port: 19990 });
 
-    const itemId = writer.ensureFeatureItem('TEST-1', 'Test Feature');
+    const itemId = await writer.ensureFeatureItem('TEST-1', 'Test Feature');
     assert.ok(itemId, 'must return an item ID');
 
-    const item = writer.findFeatureItem('TEST-1');
+    const item = await writer.findFeatureItem('TEST-1');
     assert.ok(item, 'must find the item');
-    assert.equal(item.featureCode, 'feature:TEST-1');
+    assert.equal(item.lifecycle.featureCode, 'TEST-1');
 
     rmSync(tmpDir, { recursive: true, force: true });
   });
