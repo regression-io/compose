@@ -4,7 +4,7 @@
 Compose orchestrates multi-agent workflows via Stratum specs: gates that block, policies that enforce,
 iterations that loop across agents, artifacts that are tracked.
 
-**Last updated:** 2026-03-07
+**Last updated:** 2026-03-13
 
 ---
 
@@ -167,7 +167,7 @@ See `docs/features/INIT-1/` for design, blueprint, plan, and report.
 
 ---
 
-## STRAT-1: Stratum Process Engine + Compose MVP — IN_PROGRESS
+## STRAT-1: Stratum Process Engine + Compose MVP — COMPLETE
 
 Three milestone gates. Each produces a usable deliverable. Nothing ships until each gate passes.
 
@@ -205,7 +205,7 @@ Run STRAT-1's own Compose integration through `compose build`. Dogfooding milest
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 46 | STRAT-COMP-3 | Proof run: fix build infrastructure bugs, rewrite sub-flow spec, prove dispatch loop with mock connectors (317 tests, 0 fail). Live run (Task 6) remains manual/gated. | PARTIAL |
+| 46 | STRAT-COMP-3 | Proof run: fix build infrastructure bugs, rewrite sub-flow spec, prove dispatch loop with mock connectors (317 tests, 0 fail). Live run (Task 6) remains manual/gated. | COMPLETE |
 
 **Gate:** Compose builds itself using `compose build`. Multi-agent, gated, audited.
 
@@ -215,17 +215,71 @@ CLI and web UI share execution context. Build runs are visible in the web app. G
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 47 | STRAT-COMP-4 | Vision store unification: reconcile `VisionWriter` (CLI) and `VisionStore` (server) conventions — `featureCode` format mismatch, race-free shared access | PLANNED |
-| 48 | STRAT-COMP-5 | Build visibility: extend server file watcher to `.compose/` and `active-build.json`, broadcast build state via WebSocket | PLANNED |
-| 49 | STRAT-COMP-6 | Web gate resolution: when `compose start` is running, gates resolve through the web UI (Gate View) instead of CLI readline. CLI falls back to readline when server is not running | PLANNED |
-| 50 | STRAT-COMP-7 | Agent stream bridge: CLI writes tool_use events to `.compose/build-stream.jsonl`, server watches and pipes to AgentStream SSE | PLANNED |
-| 51 | STRAT-COMP-8 | Active build dashboard: web UI shows current build state (active step, retries, violations, audit trail) from `active-build.json` with live updates | PLANNED |
+| 47 | STRAT-COMP-4 | Vision store unification: reconcile `VisionWriter` (CLI) and `VisionStore` (server) conventions — `featureCode` format mismatch, race-free shared access | COMPLETE |
+| 48 | STRAT-COMP-5 | Build visibility: extend server file watcher to `.compose/` and `active-build.json`, broadcast build state via WebSocket | COMPLETE |
+| 49 | STRAT-COMP-6 | Web gate resolution: when `compose start` is running, gates resolve through the web UI (Gate View) instead of CLI readline. CLI falls back to readline when server is not running | COMPLETE |
+| 50 | STRAT-COMP-7 | Agent stream bridge: CLI writes tool_use events to `.compose/build-stream.jsonl`, server watches and pipes to AgentStream SSE | COMPLETE |
+| 51 | STRAT-COMP-8 | ~~Active build dashboard~~ **SUPERSEDED by COMP-UI.** Build state visibility distributed across COMP-UI-2 (sidebar: active step, progress) and COMP-UI-3 (context panel: retries, violations, audit trail). | SUPERSEDED |
 
 **Gate:** `compose start` + `compose build` run simultaneously. Build progress, agent activity, and gates are all visible and actionable in the web UI.
 
 **Exit:** `pip install compose` → `compose init` → `compose build`. Compose is a thin layer: lifecycle spec + visibility + agent routing + optional UI.
 
 See `docs/features/STRAT-1/` for full design.
+
+---
+
+## COMP-UI: Cockpit Integration — PLANNED
+
+Merge the cockpit architecture from compose-ui into the production compose/src/ codebase. Replace the split-pane terminal+canvas layout with a sidebar + tabbed main area + context panel + collapsible agent bar. Preserve everything that works (agent stream, canvas, Cytoscape graph, WebSocket data layer, error boundaries).
+
+See `compose-ui/INTEGRATION-BRIEF.md` for the full merge spec.
+
+| # | Feature | Item | Status |
+|---|---------|------|--------|
+| 52 | COMP-UI-1 | **Cockpit shell:** rewrite `App.jsx` to render cockpit layout (header with ViewTabs, sidebar, main area, context panel, agent bar, notification bar). Move existing views from canvas tabs to main-area tabs. Agent stream becomes a collapsible bottom panel (agent bar) — always present, not a view tab. Three states: collapsed (status line), expanded (message stream + input), maximized (fills main area). | PLANNED |
+| 53 | COMP-UI-2 | **Live sidebar:** replace AppSidebar with attention-queue sidebar. Wire to useVisionStore for phase filter (global, affects all views), pending gates, blocked items, active build status (current step, progress from `active-build.json`), compact stats. Absorbs sidebar scope from STRAT-COMP-8. | PLANNED |
+| 54 | COMP-UI-3 | **Context panel:** right-side slide-in panel. Item click → ItemDetailPanel (inline field editing, acceptance criteria checkboxes, connection editor). Gate click → GateReviewPanel (prior decisions, artifact summary, connected items, feedback). Build step click → step detail (retries, violations, audit trail). Artifact → Canvas in panel mode. Persists across view switches. Absorbs detail scope from STRAT-COMP-8. | PLANNED |
+| 55 | COMP-UI-4 | **View upgrades:** replace BoardView (drag-drop with gate-aware transitions), ListView (filter bar: status/phase/type/agent), RoadmapView (collapsible tree with indentation). Restyle existing GraphView. Add PipelineView (visual step diagram) and SessionsView (browser with agent/status filters, read/write/error counters). | PLANNED |
+| 56 | COMP-UI-5 | **Interaction components:** CommandPalette (Cmd+K search across items/gates/sessions), ItemFormDialog (quick-type creation presets), SettingsModal (governance dials per phase), GateNotificationBar (persistent bottom bar with inline actions). Shared primitives: StatusBadge, PhaseTag, AgentAvatar, ConfidenceBar, RelativeTime, EmptyState, SkeletonCard. | PLANNED |
+| 57 | COMP-UI-6 | **Polish and teardown:** error boundaries per zone, delete replaced vision components and all compose-ui dead code (old pages, Layout, auth, base44). Merge color tokens into single constants file. localStorage persistence for cockpit state (active view, sidebar collapsed, font size). | PLANNED |
+
+**Gate:** Each step must pass its test criteria from `INTEGRATION-BRIEF.md` before the next begins.
+
+**Exit:** Compose web UI uses the cockpit layout. All views render in tabs. Agent bar provides persistent bottom-panel access to the agent stream (collapsed/expanded/maximized). Context panel shows detail/gate/artifact. Command palette, item creation, and gate notification bar work. No compose-ui dead code remains.
+
+---
+
+## COMP-RT: Real-Time Resilience — PLANNED
+
+Harden the streaming and connector layer for production-quality performance, late-joining clients, and multi-vendor extensibility.
+
+| # | Feature | Item | Status |
+|---|---------|------|--------|
+| 58 | COMP-RT-1 | **Event coalescing for WebSocket broadcasts:** accumulate agent activity and state-change events into a sparse buffer, flush to clients at a fixed interval (~60 fps). Prevents UI thrash from fine-grained tool-use deltas during heavy agent runs. | PLANNED |
+| 59 | COMP-RT-2 | **Client hydration on connect:** when a new browser tab or reconnecting client joins via WebSocket, send a single state snapshot (active build, vision state, in-flight agent stream) so it starts current instead of empty. Eliminates the "blank panel until next event" problem. | PLANNED |
+| 60 | COMP-RT-3 | **Connector trait split — discovery vs runtime:** refactor AgentConnector into two interfaces: a stateless `AgentRegistry` (enumerate installed agents, load session history, validate model IDs) and a stateful `AgentRuntime` (stream execution, interrupt, schema injection). Enables adding new vendors without touching the execution path. | PLANNED |
+| 61 | COMP-RT-4 | **Session branching:** fork an in-progress agent session at any turn, creating an independent branch that shares history up to the fork point but diverges from there. Persist both branches with shared-prefix-aware storage. Web UI shows branch points and lets the user open divergent paths side-by-side for comparison. | PLANNED |
+
+**Exit:** WebSocket clients never miss state. Streaming is smooth under load. New agent vendors plug in without modifying the runtime. Agent sessions can be branched mid-conversation for exploratory work.
+
+---
+
+## COMP-BENCH: Model Benchmark Suite — PLANNED
+
+Score LLMs on multi-phase workflow fidelity — not just code correctness (SWE-bench) but pipeline discipline, artifact quality, gate compliance, and cost efficiency. A fixed seed repo + 5 canonical feature requests + Stratum audit traces + judge-model scoring.
+
+See `docs/features/COMP-BENCH/design.md` for the full design.
+
+| # | Feature | Item | Status |
+|---|---------|------|--------|
+| 62 | COMP-BENCH-1 | **Seed repo:** ~2k LOC task management API (Express + SQLite + integration tests). Planted race condition for BENCH-4. Pre-initialized `.compose/` manifest. Deterministic `npm test`. | PLANNED |
+| 63 | COMP-BENCH-2 | **Feature specs:** 5 canonical requests as YAML — OAuth (hard), repo refactor (medium), WebSocket notifications (hard), race condition fix (medium), CSV export (easy). Machine-checkable acceptance criteria + judge rubric per feature. | PLANNED |
+| 64 | COMP-BENCH-3 | **Benchmark harness:** runner with git worktree isolation per run, connector config per model, `audit-scorer.js` (6 automated axes from Stratum audit), `judge-scorer.js` (5 qualitative axes, blind evaluation, 3x inter-rater check). | PLANNED |
+| 65 | COMP-BENCH-4 | **Scoring and calibration:** composite score (50% automated + 50% judge), cost-efficiency ratio, rubric anchor calibration from baseline runs. Judge stddev < 2 across repeated evaluations. | PLANNED |
+| 66 | COMP-BENCH-5 | **`compose bench` CLI:** `compose bench run --model X --feature Y`, `compose bench report --compare X,Y,Z`. Results persisted in `bench/results/{model}-{feature}-{timestamp}/`. | PLANNED |
+
+**Exit:** `compose bench run --model claude-opus --feature all` produces scored results. `compose bench report` generates a comparison table across 3+ models. Automated scores correlate with human judgment.
 
 ---
 
@@ -251,3 +305,5 @@ See `docs/features/STRAT-1/` for full design.
 | `docs/plans/2026-03-05-18h-acceptance-gate.md` | Manual acceptance test checklist for Phase 4 gate |
 | `docs/plans/2026-03-05-manual-test-guide.md` | Full manual test guide for all 15 system areas |
 | `docs/features/feature-dev-v2/design.md` | Feature-dev v2 design — the skill that Phase 6 enforces |
+| `../compose-ui/INTEGRATION-BRIEF.md` | COMP-UI merge spec — what to replace, keep, adopt, and drop |
+| `docs/features/COMP-BENCH/design.md` | COMP-BENCH design — seed repo, 5 features, scoring system, harness |
