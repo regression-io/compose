@@ -61,10 +61,12 @@ export function handleVisionMessage(msg, refs, setters) {
     setSessionState(prev => prev?.active ? { ...prev, toolCount: (prev.toolCount || 0) + 1 } : prev);
 
   } else if (msg.type === 'sessionStart') {
-    if (sessionEndTimerRef.current) clearTimeout(sessionEndTimerRef.current);
+    // COMP-STATE-4: always clear previous session and its end timer unconditionally
+    if (sessionEndTimerRef.current) { clearTimeout(sessionEndTimerRef.current); sessionEndTimerRef.current = null; }
     setSessionState(prev => {
       // If hydration already set this session, preserve accumulated counts
       if (prev && prev.id === msg.sessionId) return { ...prev, active: true };
+      // New session — start fresh (old session is gone)
       return {
         id: msg.sessionId, active: true, startedAt: msg.timestamp,
         source: msg.source, toolCount: 0, errorCount: 0, summaries: [],
@@ -73,7 +75,7 @@ export function handleVisionMessage(msg, refs, setters) {
     });
 
   } else if (msg.type === 'sessionEnd') {
-    if (sessionEndTimerRef.current) clearTimeout(sessionEndTimerRef.current);
+    if (sessionEndTimerRef.current) { clearTimeout(sessionEndTimerRef.current); sessionEndTimerRef.current = null; }
     setSessionState(prev => prev ? {
       ...prev, active: false, endedAt: msg.timestamp,
       toolCount: msg.toolCount, duration: msg.duration,
@@ -81,8 +83,8 @@ export function handleVisionMessage(msg, refs, setters) {
       featureCode: msg.featureCode || prev?.featureCode || null,
       phaseAtEnd: msg.phaseAtEnd || null,
     } : null);
-    // Clear ended session display after 15s
-    sessionEndTimerRef.current = setTimeout(() => setSessionState(null), 15000);
+    // COMP-STATE-4: clear ended session after 3s (was 15s — long enough to see "ended", short enough to not block next session)
+    sessionEndTimerRef.current = setTimeout(() => { setSessionState(null); sessionEndTimerRef.current = null; }, 3000);
 
   } else if (msg.type === 'sessionSummary') {
     setSessionState(prev => prev ? {
