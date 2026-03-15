@@ -137,7 +137,15 @@ export const useVisionStore = create((set, get) => {
           setRecentChanges: (updater) => set(s => ({ recentChanges: typeof updater === 'function' ? updater(s.recentChanges) : updater })),
           setUICommand: (v) => set({ uiCommand: v }),
           setAgentActivity: (updater) => set(s => ({ agentActivity: typeof updater === 'function' ? updater(s.agentActivity) : updater })),
-          setAgentErrors: (updater) => set(s => ({ agentErrors: typeof updater === 'function' ? updater(s.agentErrors) : updater })),
+          setAgentErrors: (updater) => {
+            set(s => {
+              const next = typeof updater === 'function' ? updater(s.agentErrors) : updater;
+              // P1 fix: immediately recompute recentErrors on every agentErrors change
+              const cutoff = Date.now() - 60_000;
+              const recent = next.filter(e => new Date(e.timestamp).getTime() > cutoff).slice(-5);
+              return { agentErrors: next, recentErrors: recent };
+            });
+          },
           setSessionState: (updater) => set(s => ({ sessionState: typeof updater === 'function' ? updater(s.sessionState) : updater })),
           setSettings: (v) => set({ settings: v }),
           setActiveBuild: (updater) => set(s => ({ activeBuild: typeof updater === 'function' ? updater(s.activeBuild) : updater })),
@@ -283,3 +291,20 @@ export const useVisionStore = create((set, get) => {
     }),
   };
 });
+
+// ─── HMR teardown ────────────────────────────────────────────────────────────
+// P2 fix: clean up WebSocket, timers, and intervals on hot reload so the old
+// module instance doesn't leak alongside the new one.
+
+function teardown() {
+  if (refs.ws) { refs.ws.close(); refs.ws = null; }
+  if (refs.reconnectTimer) { clearTimeout(refs.reconnectTimer); refs.reconnectTimer = null; }
+  if (refs.changeTimer) { clearTimeout(refs.changeTimer); refs.changeTimer = null; }
+  if (refs.sessionEndTimer) { clearTimeout(refs.sessionEndTimer); refs.sessionEndTimer = null; }
+  if (refs.buildPollInterval) { clearInterval(refs.buildPollInterval); refs.buildPollInterval = null; }
+  if (refs.recentErrorsInterval) { clearInterval(refs.recentErrorsInterval); refs.recentErrorsInterval = null; }
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(teardown);
+}
