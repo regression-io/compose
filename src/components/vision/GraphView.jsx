@@ -75,14 +75,14 @@ function buildElements(items, connections, grouped) {
   // Item nodes
   for (const item of items) {
     const slug = item.slug || item.id.slice(0, 8);
-    const title = (item.title || '').length > 22
-      ? item.title.slice(0, 22) + '\u2026'
-      : item.title || '';
+    const title = (item.title || slug).length > 28
+      ? (item.title || slug).slice(0, 28) + '\u2026'
+      : item.title || slug;
 
     elements.push({
       data: {
         id: item.id,
-        label: `${slug}\n${title}`,
+        label: title,
         itemType: item.type || 'task',
         status: item.status || 'planned',
         phase: item.phase || 'vision',
@@ -325,7 +325,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [grouped, setGrouped] = useState(true);
   const [rankDir, setRankDir] = useState('LR');
   const [showLegend, setShowLegend] = useState(true);
