@@ -73,17 +73,41 @@ function buildElements(items, connections, grouped) {
     return item.phase || 'other';
   }
 
-  // Compound parent nodes by feature group
+  // Compound parent nodes by feature group, sorted by priority
+  const sortedGroups = [];
   if (grouped) {
-    const groups = [...new Set(items.map(i => getGroup(i)).filter(Boolean))];
-    for (const group of groups) {
+    const groupSet = [...new Set(items.map(i => getGroup(i)).filter(Boolean))];
+    const groupPriority = groupSet.map(group => {
+      const members = items.filter(i => getGroup(i) === group);
+      const blocked = members.filter(i => ['blocked', 'parked'].includes(i.status)).length;
+      const active = members.filter(i => ['in_progress', 'review', 'ready'].includes(i.status)).length;
+      const planned = members.filter(i => i.status === 'planned').length;
+      return { group, blocked, active, planned, total: members.length };
+    });
+    // Priority: active desc → blocked desc → planned desc → name
+    groupPriority.sort((a, b) =>
+      (b.active - a.active) || (b.blocked - a.blocked) || (b.planned - a.planned) || a.group.localeCompare(b.group)
+    );
+    for (const { group, active, blocked, total } of groupPriority) {
+      sortedGroups.push(group);
       elements.push({
         data: {
           id: `group-${group}`,
-          label: group,
+          label: `${group}  (${active} active, ${total} total)`,
           isGroup: true,
           groupType: group,
         },
+      });
+    }
+    // Invisible edges between consecutive groups to enforce vertical order
+    for (let i = 0; i < sortedGroups.length - 1; i++) {
+      elements.push({
+        data: {
+          id: `_group-order-${i}`,
+          source: `group-${sortedGroups[i]}`,
+          target: `group-${sortedGroups[i + 1]}`,
+        },
+        classes: 'group-order',
       });
     }
   }
@@ -190,6 +214,7 @@ function buildStylesheet() {
     },
     { selector: 'edge[edgeStyle="dashed"]', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3], 'target-arrow-shape': 'diamond' } },
     { selector: 'edge[edgeType="blocks"]', style: { 'target-arrow-shape': 'tee' } },
+    { selector: '.group-order', style: { opacity: 0, width: 0, 'target-arrow-shape': 'none' } },
     { selector: '.dimmed', style: { opacity: 0.35 } },
     { selector: '.highlighted', style: { 'border-width': 3, 'border-color': '#60a5fa' } },
     // COMP-UX-1c: Build state overlay styles
