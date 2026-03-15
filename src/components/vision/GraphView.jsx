@@ -411,7 +411,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
         name: 'fcose',
         quality: 'proof',
         animate: false,
-        fit: true,
+        fit: false,
         padding: 20,
         nodeSeparation: 80,
         idealEdgeLength: 120,
@@ -425,7 +425,10 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     });
     cyRef.current = cy;
 
-    // Highlight initially selected item (no pan — layout already fit the graph)
+    // Fit synchronously after layout (no animation)
+    cy.fit(undefined, 30);
+
+    // Highlight initially selected item (no pan)
     if (selectedItemId) {
       const node = cy.$id(selectedItemId);
       if (node.length) highlightChain(cy, node);
