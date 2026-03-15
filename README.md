@@ -232,75 +232,82 @@ COMPOSE_TARGET=/path/to/project compose start
 
 ## Web UI — Cockpit Shell
 
-`compose start` opens a browser-based cockpit at `http://localhost:3001`. The cockpit replaces the old split-pane layout (agent stream left, canvas right) with a structured five-zone layout:
+`compose start` opens a browser-based cockpit at `http://localhost:3001`. The layout is organized around three zoom levels: Graph (macro), Tree (meso), and Detail (micro).
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Header │ [ViewTabs: Vision | Stratum | Docs]  [Controls]    │
-├────────┬────────────────────────────────────┬───────────────┤
-│        │                                    │               │
-│Sidebar │          MAIN AREA                 │ Context Panel │
-│(208px) │    (active view content)           │   (280px)     │
-│        │                                    │               │
-├────────┴────────────────────────────────────┴───────────────┤
-│ AGENT BAR  (collapsed | expanded | maximized)               │
-├─────────────────────────────────────────────────────────────┤
-│ NOTIFICATION BAR  (hidden when empty)                       │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ Header │ [Graph | Tree | Docs | Gates | Pipeline | Sessions] │
+├─────────┬──────────────────────────┬─────────────────────────┤
+│         │                          │                         │
+│ Sidebar │       MAIN AREA          │    CONTEXT PANEL        │
+│ (~200px)│  (graph / tree / docs)   │   (resizable, ~420px)   │
+│         │                          │                         │
+├─────────┴──────────────────────────┴─────────────────────────┤
+│ OPS STRIP  (active builds · pending gates · errors)          │
+├──────────────────────────────────────────────────────────────┤
+│ AGENT BAR  (collapsed | expanded | maximized)                │
+├──────────────────────────────────────────────────────────────┤
+│ GATE NOTIFICATION BAR  (hidden when no pending gates)        │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### Zones
 
 | Zone | Component | Description |
 |------|-----------|-------------|
-| **Header** | `ViewTabs` | Tab switcher for Vision, Stratum, and Docs top-level views. Global theme and font controls. |
-| **Sidebar** | `CockpitSidebar` → `AttentionQueueSidebar` | Fixed 208 px left panel. Attention-queue view: active build status, pending gates with inline Approve / Revise / Kill, blocked items sorted by priority, compact stats, global phase filter, and view navigation. |
-| **Main Area** | driven by `ViewTabs` | Renders the active top-level view — Vision Surface (7 sub-views), Stratum flow panel, or Docs canvas. |
-| **Context Panel** | `ContextPanel` | Collapsible 280 px right panel. Shows item detail, gate review, or artifact preview depending on selection. |
-| **Agent Bar** | `AgentBar` | Always-present bottom panel for the agent stream. Three states (see below). |
-| **Notification Bar** | `NotificationBar` | Thin dismissible alert strip. Hidden when there are no active notifications. |
+| **Header** | `ViewTabs` | Tab switcher for Graph, Tree, Docs, Gates, Pipeline, Sessions. Font/theme controls. |
+| **Sidebar** | `AttentionQueueSidebar` | Build status, attention queue (blocked/gate items), search, group filters by feature code prefix. |
+| **Main Area** | driven by active tab | Graph (fcose layout with compound grouping), Tree (search + filters), Docs (file browser + preview), and ops views. |
+| **Context Panel** | `ContextPanel` | Resizable right panel with tabbed detail: Overview, Pipeline dots, Sessions, Errors, Files. Project summary when nothing selected. |
+| **Ops Strip** | `OpsStrip` | Persistent 36px bar with scrollable pills for active builds, pending gates (inline approve), and recent errors. Hidden in Docs view. |
+| **Agent Bar** | `AgentBar` | Always-present bottom panel for the agent stream. Collapsed/expanded/maximized. |
+| **Gate Notification** | `GateNotificationBar` | Carousel of pending gates with Approve/Revise/Kill. |
 
-### Attention-Queue Sidebar
+### Graph View
 
-The sidebar (`AttentionQueueSidebar`) replaces the old `AppSidebar` and organizes content by urgency:
+Uses `cytoscape-fcose` (force-directed with compound node support):
 
-| Section | Content |
-|---------|---------|
-| **Active Build** | Current step name, progress bar, and step counter (e.g. "Step 4 / 15") from `.compose/active-build.json`. Spinner while running; check / X icon on complete / error. |
-| **Pending Gates** | Up to 3 pending gates with inline **Approve / Revise / Kill** buttons. "+ N more" badge when overflow. |
-| **Attention Queue** | Blocked items and decisions, sorted by priority: `DECISION → PENDING_GATE → BLOCKED`. |
-| **Phase Filter** | Multi-select chip row. Selection is **global** — applies to all views, not just the sidebar. |
-| **Compact Stats** | Single-row totals: total items, in-progress, blocked, pending gates. |
-| **View Nav** | 9 view buttons plus theme toggle and search. |
+- **Compound grouping** by feature code prefix (COMP-UX, STRAT-ENG, etc.). Groups sorted by active item count.
+- **Status filters**: All, Active (default), Done, Blocked.
+- **Group filters** in sidebar — click to hide/show per feature group.
+- **Build state overlays**: building (blue pulse), gate-pending (amber), blocked-downstream (dimmed 35%), error (red).
+- **Badge overlays**: gate badge with approve/revise/kill popover, error badge, agent badge.
+- **Selection**: click to highlight dependency chain. Cross-view navigation via context panel links.
 
-The phase filter state is owned by `App.jsx` (lifted from `VisionTracker`) to prevent duplicate WebSocket connections and ensure all views share the same filter.
+### Context Panel
 
-### Agent Bar States
+Tabbed detail surface (5 tabs: Overview, Pipeline, Sessions, Errors, Files). Resizable via drag handle (min 280px, max 60% viewport), persisted in `localStorage`. Shows project summary when nothing selected.
 
-The agent bar is always present — it is not a view tab. Toggle between states with the chevron control at the right edge of the bar.
+### Ops Strip
 
-| State | Height | Content |
-|-------|--------|---------|
-| `collapsed` | ~36 px | Status dot, active tool name, elapsed time |
-| `expanded` | 30–50 % of viewport (default 256 px, draggable) | Full message stream + chat input |
-| `maximized` | Fills main area | Full stream; hides sidebar, main content, and context panel |
+Persistent 36px bar with three entry types (blue build pills, amber gate pills with inline approve, red error pills). Completed builds flash green 2s. Hidden in Docs view.
 
-### Cockpit State Persistence
+### Sidebar
 
-All cockpit layout preferences survive page reloads:
+Build status, attention queue (blocked + pending gates), search, and group filters (feature code prefix groups sorted by active count, click to toggle).
 
-| `localStorage` key | Type | Default |
-|--------------------|------|---------|
-| `compose:viewTab` | `'vision' \| 'stratum' \| 'docs'` | `'vision'` |
-| `compose:agentBarState` | `'collapsed' \| 'expanded' \| 'maximized'` | `'collapsed'` |
-| `compose:agentBarHeight` | number (px) | `256` |
-| `compose:contextPanel` | `'open' \| 'closed'` | `'open'` |
-| `compose:fontSize` | number | `13` |
-| `compose:theme` | `'light' \| 'dark'` | system default |
+### Agent Bar
+
+Three states: collapsed (~36px status line), expanded (message stream + chat), maximized (fills main area). Sending a message with a feature code auto-selects that feature.
+
+### Cross-View Navigation
+
+Selection persists across view switches. Graph pans to selected node, Tree scrolls to selected row. "View in Graph" / "View in Tree" links in context panel. File click opens DocsView with back button.
+
+### State Persistence
+
+| `localStorage` key | Default |
+|--------------------|---------|
+| `compose:activeView` | `'graph'` |
+| `compose:agentBarState` | `'collapsed'` |
+| `compose:contextPanel` | `'open'` |
+| `compose:contextWidthPx` | `420` |
+| `compose:fontSize` | `13` |
+| `compose:theme` | system |
 
 ### Error Boundaries
 
-The cockpit wraps the full shell in a `SafeModeBoundary`. Each zone additionally has a `PanelErrorBoundary` so a crash in one zone (e.g. the context panel) does not take down the rest of the UI.
+`SafeModeBoundary` wraps the full shell. Each zone has a `PanelErrorBoundary` — a crash in one zone does not take down the rest.
 
 ---
 
