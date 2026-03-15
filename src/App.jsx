@@ -472,16 +472,6 @@ function AppInner() {
     clearUICommand();
   }, [uiCommand, clearUICommand]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // COMP-UX-1f: Listen for feature code pre-selection from agent bar
-  useEffect(() => {
-    const handler = (e) => {
-      const { featureCode } = e.detail || {};
-      if (featureCode) handleOpsSelectFeature(featureCode);
-    };
-    window.addEventListener('compose:select-feature', handler);
-    return () => window.removeEventListener('compose:select-feature', handler);
-  }, [handleOpsSelectFeature]);
-
   // ── Keyboard shortcuts ──────────────────────────────────────────────────
   useEffect(() => {
     const isInputFocused = () =>
@@ -542,6 +532,19 @@ function AppInner() {
     [activeBuild, items, connections, gates],
   );
 
+  // Vision callbacks (moved above COMP-UX-1f hooks that depend on handleSelect)
+  const handleSelect = useCallback((id) => {
+    setSelectedItemId(prev => {
+      if (prev === id) {
+        // Toggle off — deselect
+        onContextSelect(null);
+        return null;
+      }
+      onContextSelect({ type: 'item', id });
+      return id;
+    });
+  }, [onContextSelect]);
+
   // COMP-UX-1f: Build lifecycle — detect transitions and update ops strip / graph
   const prevBuildRef = useRef(activeBuild);
   useEffect(() => {
@@ -568,6 +571,16 @@ function AppInner() {
     );
     if (item) handleSelect(item.id);
   }, [items, handleSelect]);
+
+  // COMP-UX-1f: Listen for feature code pre-selection from agent bar
+  useEffect(() => {
+    const handler = (e) => {
+      const { featureCode } = e.detail || {};
+      if (featureCode) handleOpsSelectFeature(featureCode);
+    };
+    window.addEventListener('compose:select-feature', handler);
+    return () => window.removeEventListener('compose:select-feature', handler);
+  }, [handleOpsSelectFeature]);
 
   // ── Snapshot provider ───────────────────────────────────────────────────
   useEffect(() => {
@@ -650,19 +663,6 @@ function AppInner() {
   const onContextSelect = useCallback((selection) => {
     setContextSelection(selection);
   }, []);
-
-  // Vision callbacks
-  const handleSelect = useCallback((id) => {
-    setSelectedItemId(prev => {
-      if (prev === id) {
-        // Toggle off — deselect
-        onContextSelect(null);
-        return null;
-      }
-      onContextSelect({ type: 'item', id });
-      return id;
-    });
-  }, [onContextSelect]);
 
   const handleUpdate = useCallback((id, data) => {
     updateItem(id, data);

@@ -411,6 +411,18 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     return () => { cy.destroy(); cyRef.current = null; };
   }, [elements, stylesheet, rankDir]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // COMP-UX-1e: Pan to selected item when selection changes while graph is open
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || !selectedItemId) return;
+    const node = cy.$id(selectedItemId);
+    if (node.length) {
+      cy.elements().removeClass('dimmed highlighted');
+      highlightChain(cy, node);
+      cy.animate({ center: { eles: node }, duration: 200 });
+    }
+  }, [selectedItemId]);
+
   // Edge type visibility
   useEffect(() => {
     const cy = cyRef.current;
