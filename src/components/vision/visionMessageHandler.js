@@ -114,14 +114,9 @@ export function handleVisionMessage(msg, refs, setters) {
     setSessionState(prev => prev?.active ? { ...prev, errorCount: (prev.errorCount || 0) + 1 } : prev);
 
   } else if (msg.type === 'gateCreated' || msg.type === 'gatePending') {
-    // Server does NOT call scheduleBroadcast() after gateCreated.
-    // Must fetch full gate and add to state directly.
-    fetch(`/api/vision/gates/${msg.gateId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(gate => {
-        if (gate) setGates(prev => prev.some(g => g.id === gate.id) ? prev : [...prev, gate]);
-      })
-      .catch(() => {});
+    // Server calls scheduleBroadcast() after gate creation — the next visionState
+    // message will include the full gate. No optimistic fetch needed.
+    // Just fire the toast/event so the UI reacts immediately.
     setGateEvent({ type: 'pending', gateId: msg.gateId, itemId: msg.itemId,
                    fromPhase: msg.fromPhase, toPhase: msg.toPhase });
 
@@ -136,8 +131,10 @@ export function handleVisionMessage(msg, refs, setters) {
     if (pendingResolveIdsRef.current.has(msg.gateId)) {
       pendingResolveIdsRef.current.delete(msg.gateId);
     } else {
-      // Prefer itemId from broadcast (server now includes it); fall back to local state
-      const itemId = msg.itemId ?? gatesRef.current.find(g => g.id === msg.gateId)?.itemId ?? null;
+      // Prefer itemId from broadcast; fall back to local gate state; never null
+      const itemId = msg.itemId
+        ?? gatesRef.current.find(g => g.id === msg.gateId)?.itemId
+        ?? msg.gateId; // last resort: use gateId so toast has something to show
       setGateEvent({ type: 'resolved', gateId: msg.gateId, outcome: msg.outcome, itemId });
     }
 
