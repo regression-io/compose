@@ -32,7 +32,7 @@ export default function ContextSessionsTable({ featureCode, sessions = [], items
     if (!featureCode) return new Set();
     return new Set(
       items
-        .filter(i => i.featureCode === featureCode || (i.text && i.text.includes(featureCode)))
+        .filter(i => i.lifecycle?.featureCode === featureCode || i.featureCode === featureCode || i.feature_code === featureCode)
         .map(i => i.id)
     );
   }, [featureCode, items]);

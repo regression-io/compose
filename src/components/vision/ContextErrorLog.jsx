@@ -29,17 +29,18 @@ export default function ContextErrorLog({ featureCode, errors = [], items = [] }
     if (!featureCode) return new Set();
     return new Set(
       items
-        .filter(i => i.featureCode === featureCode || (i.text && i.text.includes(featureCode)))
+        .filter(i => i.lifecycle?.featureCode === featureCode || i.featureCode === featureCode || i.feature_code === featureCode)
         .map(i => i.id)
     );
   }, [featureCode, items]);
 
   // Filter errors by feature
   const filtered = useMemo(() => {
+    if (!featureCode && featureItemIds.size === 0) return [];
     return errors.filter(e => {
-      if (e.featureCode === featureCode) return true;
+      if (featureCode && e.featureCode === featureCode) return true;
       if (e.itemId && featureItemIds.has(e.itemId)) return true;
-      if (e.message && e.message.includes(featureCode)) return true;
+      if (featureCode && e.message && e.message.includes(featureCode)) return true;
       return false;
     });
   }, [errors, featureCode, featureItemIds]);

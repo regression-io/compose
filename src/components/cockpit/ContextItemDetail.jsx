@@ -37,13 +37,13 @@ export default function ContextItemDetail({ itemId, onSelect, onClose, onOpenFil
   const item = items.find(i => i.id === itemId) || null;
   const [activeDetailTab, setActiveDetailTab] = useState('overview');
 
-  // Compute error count for this feature
-  const featureCode = item?.featureCode || item?.text || '';
+  // Resolve canonical feature code — lifecycle is the authoritative source
+  const featureCode = item?.lifecycle?.featureCode || item?.featureCode || item?.feature_code || '';
   const featureErrors = useMemo(() => {
     if (!featureCode) return [];
     return agentErrors.filter(e =>
       e.featureCode === featureCode ||
-      (e.message && e.message.includes(featureCode))
+      (featureCode && e.message && e.message.includes(featureCode))
     );
   }, [agentErrors, featureCode]);
 

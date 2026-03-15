@@ -532,7 +532,12 @@ function AppInner() {
     [activeBuild, items, connections, gates],
   );
 
-  // Vision callbacks (moved above COMP-UX-1f hooks that depend on handleSelect)
+  // Context selection handler (must be before handleSelect which depends on it)
+  const onContextSelect = useCallback((selection) => {
+    setContextSelection(selection);
+  }, []);
+
+  // Vision callbacks (must be before COMP-UX-1f hooks that depend on handleSelect)
   const handleSelect = useCallback((id) => {
     setSelectedItemId(prev => {
       if (prev === id) {
@@ -566,8 +571,10 @@ function AppInner() {
   const handleOpsSelectFeature = useCallback((featureCode) => {
     if (!featureCode) return;
     const item = items.find(i =>
-      i.title?.includes(featureCode) ||
-      i.description?.includes(featureCode)
+      i.lifecycle?.featureCode === featureCode ||
+      i.featureCode === featureCode ||
+      i.feature_code === featureCode ||
+      i.title?.includes(featureCode)
     );
     if (item) handleSelect(item.id);
   }, [items, handleSelect]);
@@ -659,10 +666,7 @@ function AppInner() {
     });
   }, []);
 
-  // Context selection handler
-  const onContextSelect = useCallback((selection) => {
-    setContextSelection(selection);
-  }, []);
+
 
   const handleUpdate = useCallback((id, data) => {
     updateItem(id, data);
@@ -995,7 +999,7 @@ function AppInner() {
                     {contextSelection?.type === 'item' && (
                       <ContextItemDetail
                         itemId={contextSelection.id}
-                        onSelect={(id) => setContextSelection({ type: 'item', id })}
+                        onSelect={(id) => { setContextSelection({ type: 'item', id }); setSelectedItemId(id); }}
                         onClose={() => { setContextSelection(null); setSelectedItemId(null); }}
                         onOpenFile={navigateToDocs}
                         onViewInGraph={handleViewInGraph}
