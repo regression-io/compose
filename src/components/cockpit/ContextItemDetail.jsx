@@ -19,7 +19,7 @@ import ContextSessionsTable from '../vision/ContextSessionsTable.jsx';
 import ContextErrorLog from '../vision/ContextErrorLog.jsx';
 import ContextFilesTab from '../vision/ContextFilesTab.jsx';
 
-export default function ContextItemDetail({ itemId, onSelect, onClose, onOpenFile }) {
+export default function ContextItemDetail({ itemId, onSelect, onClose, onOpenFile, onViewInGraph, onViewInTree }) {
   const {
     items,
     connections,
@@ -82,6 +82,28 @@ export default function ContextItemDetail({ itemId, onSelect, onClose, onOpenFil
               onPressureTest={() => {}}
               onResolveGate={resolveGate}
             />
+            {/* COMP-UX-1e: View in Graph / View in Tree navigation links */}
+            <div
+              className="flex items-center gap-3 px-4 py-2 mt-1"
+              style={{ borderTop: '1px solid hsl(var(--border))' }}
+            >
+              {onViewInGraph && (
+                <button
+                  onClick={() => onViewInGraph(itemId)}
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span style={{ fontSize: 10 }}>{'\u2191'}</span> View in Graph
+                </button>
+              )}
+              {onViewInTree && (
+                <button
+                  onClick={() => onViewInTree(itemId)}
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span style={{ fontSize: 10 }}>{'\u2193'}</span> View in Tree
+                </button>
+              )}
+            </div>
           </>
         )}
         {activeDetailTab === 'pipeline' && (

@@ -428,6 +428,12 @@ function AppInner() {
   // ── Layout persistence ───────────────────────────────────────────────────
   useEffect(() => {
     localStorage.setItem('compose:activeView', activeView);
+    // COMP-UX-1e: Clear stale docs back-navigation state when leaving docs
+    // via tab switch (not via the back button which clears it explicitly)
+    if (activeView !== 'docs') {
+      setDocsPreviousView(null);
+      setDocsSelectedFile(null);
+    }
   }, [activeView]);
 
   useEffect(() => {
@@ -674,6 +680,42 @@ function AppInner() {
     onContextSelect({ type: 'step', id: stepId });
   }, [onContextSelect]);
 
+  // COMP-UX-1e: View in Graph / View in Tree from context panel
+  // Ensures the target item is visible by adding its track to visibleTracks
+  // and clearing selectedTrack if it would hide the item.
+  const ensureItemVisible = useCallback((itemId) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    const trackMatch = (item.description || '').match(/Track:\s*(\w+)/i);
+    const itemTrack = trackMatch ? trackMatch[1].toLowerCase() : null;
+    // If selectedTrack is filtering out this item, clear it
+    if (selectedTrack && itemTrack && selectedTrack !== itemTrack) {
+      setSelectedTrack(null);
+    }
+    // If visibleTracks is set and doesn't include this item's track, add it
+    if (itemTrack && visibleTracks && !visibleTracks.has(itemTrack)) {
+      setVisibleTracks(prev => {
+        const next = new Set(prev);
+        next.add(itemTrack);
+        return next;
+      });
+    }
+  }, [items, selectedTrack, visibleTracks]);
+
+  const handleViewInGraph = useCallback((itemId) => {
+    ensureItemVisible(itemId);
+    setSelectedItemId(itemId);
+    onContextSelect({ type: 'item', id: itemId });
+    handleViewChange('graph');
+  }, [handleViewChange, onContextSelect, ensureItemVisible]);
+
+  const handleViewInTree = useCallback((itemId) => {
+    ensureItemVisible(itemId);
+    setSelectedItemId(itemId);
+    onContextSelect({ type: 'item', id: itemId });
+    handleViewChange('tree');
+  }, [handleViewChange, onContextSelect, ensureItemVisible]);
+
   const navigateToDocs = useCallback((filePath) => {
     setDocsPreviousView(activeView);
     setDocsSelectedFile(filePath);
@@ -919,6 +961,8 @@ function AppInner() {
                         onSelect={(id) => setContextSelection({ type: 'item', id })}
                         onClose={() => { setContextSelection(null); setSelectedItemId(null); }}
                         onOpenFile={navigateToDocs}
+                        onViewInGraph={handleViewInGraph}
+                        onViewInTree={handleViewInTree}
                       />
                     )}
                     {contextSelection?.type === 'step' && (
