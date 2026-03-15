@@ -366,15 +366,20 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // Use grid when edges are sparse (dagre stacks disconnected nodes vertically)
+    const edgeCount = elements.filter(e => e.data?.source).length;
+    const nodeCount = elements.filter(e => !e.data?.source && !e.data?.isGroup).length;
+    const useGrid = edgeCount < nodeCount * 0.3;
+
+    const layout = useGrid
+      ? { name: 'grid', padding: 20, avoidOverlap: true, nodeDimensionsIncludeLabels: true, fit: true }
+      : { name: 'dagre', rankDir, nodeSep: 30, rankSep: 70, edgeSep: 10, padding: 20, animate: false, fit: true };
+
     const cy = cytoscape({
       container: containerRef.current,
       elements,
       style: stylesheet,
-      layout: {
-        name: 'dagre', rankDir,
-        nodeSep: 30, rankSep: 70, edgeSep: 10, padding: 20,
-        animate: false, fit: true,
-      },
+      layout,
       minZoom: 0.1, maxZoom: 4, wheelSensitivity: 0.3, boxSelectionEnabled: false,
     });
     cyRef.current = cy;
