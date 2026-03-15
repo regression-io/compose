@@ -30,8 +30,11 @@ export function deriveEntries({ activeBuild, gates, recentErrors }) {
   if (Array.isArray(gates)) {
     for (const gate of gates) {
       if (gate.status === 'pending') {
-        const featureCode = gate.featureCode || gate.itemId || 'unknown';
-        const gateType = gate.toPhase || gate.type || 'gate';
+        const featureCode = gate.featureCode
+          || gate.stepId?.replace(/_/g, ' ')
+          || gate.toPhase
+          || 'pending';
+        const gateType = gate.toPhase || gate.fromPhase || 'review';
         entries.push({
           key: `gate-${gate.id}`,
           type: 'gate',

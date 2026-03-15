@@ -359,7 +359,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   const [tooltip, setTooltip] = useState(null);
   const [statusFilter, setStatusFilter] = useState('active');
   const [grouped, setGrouped] = useState(true);
-  const [layoutName, setLayoutName] = useState('fcose');
+  const [compactMode, setCompactMode] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [gatePopoverNodeId, setGatePopoverNodeId] = useState(null);
   const [badgePositions, setBadgePositions] = useState([]);
@@ -408,31 +408,20 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
       container: containerRef.current,
       elements,
       style: stylesheet,
-      layout: layoutName === 'fcose'
-        ? {
-            name: 'fcose',
-            quality: 'proof',
-            animate: false,
-            fit: true,
-            padding: 20,
-            nodeSeparation: 80,
-            idealEdgeLength: 120,
-            nodeRepulsion: 6000,
-            gravity: 0.3,
-            gravityRange: 1.5,
-            tilingPaddingVertical: 12,
-            tilingPaddingHorizontal: 12,
-          }
-        : {
-            name: 'dagre',
-            rankDir: 'TB',
-            nodeSep: 20,
-            rankSep: 50,
-            edgeSep: 10,
-            padding: 20,
-            animate: false,
-            fit: true,
-          },
+      layout: {
+        name: 'fcose',
+        quality: compactMode ? 'default' : 'proof',
+        animate: false,
+        fit: true,
+        padding: 20,
+        nodeSeparation: compactMode ? 40 : 80,
+        idealEdgeLength: compactMode ? 60 : 120,
+        nodeRepulsion: compactMode ? 3000 : 6000,
+        gravity: compactMode ? 0.8 : 0.3,
+        gravityRange: 1.5,
+        tilingPaddingVertical: compactMode ? 4 : 12,
+        tilingPaddingHorizontal: compactMode ? 4 : 12,
+      },
       minZoom: 0.1, maxZoom: 4, wheelSensitivity: 0.3, boxSelectionEnabled: false,
     });
     cyRef.current = cy;
@@ -469,7 +458,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     });
 
     return () => { cy.destroy(); cyRef.current = null; };
-  }, [elements, stylesheet, layoutName]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [elements, stylesheet, compactMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // COMP-UX-1e: Pan to selected item when selection changes while graph is open
   useEffect(() => {
@@ -584,9 +573,9 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
         </div>
         <div className="flex items-center gap-1">
           <FilterBtn active={grouped} onClick={() => setGrouped(!grouped)}>Group</FilterBtn>
-          <CtrlBtn onClick={() => setLayoutName(l => l === 'fcose' ? 'dagre' : 'fcose')} title="Toggle layout">
-            {layoutName === 'fcose' ? 'Tree' : 'Pack'}
-          </CtrlBtn>
+          <FilterBtn active={compactMode} onClick={() => setCompactMode(c => !c)}>
+            Compact
+          </FilterBtn>
           <Sep />
           <CtrlBtn onClick={handleZoomOut} title="Zoom out">&minus;</CtrlBtn>
           <CtrlBtn onClick={handleFit} title="Fit to view">Fit</CtrlBtn>
