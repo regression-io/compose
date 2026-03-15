@@ -56,15 +56,27 @@ const STATUS_FILTERS = [
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 // Derive group key for an item — feature code prefix (e.g. "STRAT-ENG", "COMP-UI")
+// Known feature code prefixes — only these get their own groups
+const KNOWN_PREFIXES = new Set([
+  'COMP-UX', 'COMP-UI', 'COMP-RT', 'COMP-BENCH',
+  'STRAT-ENG', 'STRAT-COMP', 'STRAT-PAR',
+  'INIT', 'TEST',
+]);
+
 function getGroup(item) {
-  // Match only all-caps feature code prefixes (STRAT-ENG, COMP-UX, INIT, TEST)
   const title = item.title || '';
-  const codeMatch = title.match(/^([A-Z][A-Z0-9]+(?:-[A-Z][A-Z0-9]+)*)(?:-\d|:|\s)/);
-  if (codeMatch) return codeMatch[1];
+  // Try matching known prefix at start of title
+  for (const prefix of KNOWN_PREFIXES) {
+    if (title.startsWith(prefix + '-') || title.startsWith(prefix + ':') || title.startsWith(prefix + ' ')) {
+      return prefix;
+    }
+  }
+  // Try lifecycle featureCode
   const fc = item.lifecycle?.featureCode || item.featureCode;
   if (fc) {
-    const m = fc.match(/^([A-Z][A-Z0-9]+(?:-[A-Z][A-Z0-9]+)*)(?:-\d|$)/);
-    return m ? m[1] : null;
+    for (const prefix of KNOWN_PREFIXES) {
+      if (fc.startsWith(prefix + '-') || fc === prefix) return prefix;
+    }
   }
   return 'other';
 }

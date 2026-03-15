@@ -178,12 +178,21 @@ function GroupFilter({ items, hiddenGroups, onToggleGroup }) {
       const title = item.title || '';
       if (title.startsWith('`docs/') || title.startsWith('docs/')) continue;
       let group;
-      const codeMatch = title.match(/^([A-Z][A-Z0-9]+(?:-[A-Z][A-Z0-9]+)*)(?:-\d|:|\s)/);
-      if (codeMatch) group = codeMatch[1];
-      else {
+      const KNOWN = ['COMP-UX','COMP-UI','COMP-RT','COMP-BENCH','STRAT-ENG','STRAT-COMP','STRAT-PAR','INIT','TEST'];
+      let matched = false;
+      for (const prefix of KNOWN) {
+        if (title.startsWith(prefix + '-') || title.startsWith(prefix + ':') || title.startsWith(prefix + ' ')) {
+          group = prefix; matched = true; break;
+        }
+      }
+      if (!matched) {
         const fc = item.lifecycle?.featureCode || item.featureCode;
-        if (fc) { const m = fc.match(/^([A-Z][A-Z0-9]+(?:-[A-Z][A-Z0-9]+)*)(?:-\d|$)/); group = m ? m[1] : null; }
-        if (!group) group = 'other';
+        if (fc) {
+          for (const prefix of KNOWN) {
+            if (fc.startsWith(prefix + '-') || fc === prefix) { group = prefix; matched = true; break; }
+          }
+        }
+        if (!matched) group = 'other';
       }
       counts[group] = (counts[group] || 0) + 1;
       if (['in_progress', 'review', 'ready'].includes(item.status)) {
