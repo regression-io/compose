@@ -53,6 +53,7 @@ import CommandPalette from './components/vision/shared/CommandPalette.jsx';
 import ItemFormDialog from './components/vision/shared/ItemFormDialog.jsx';
 import SettingsModal from './components/vision/shared/SettingsModal.jsx';
 import GateNotificationBar from './components/vision/shared/GateNotificationBar.jsx';
+import { computeBuildStateMap } from './components/vision/graphOpsOverlays.js';
 
 /*
  * COMP-UI-1 — Cockpit shell (flat layout)
@@ -206,6 +207,7 @@ function CockpitView({
   items, filteredItems, phaseFilteredItems, phaseFilteredGates,
   connections, filteredConnections, sessions, activeBuild,
   gates, settings, selectedPhase, selectedItemId,
+  buildStateMap,
   // docs navigation
   docsSelectedFile, onDocsSelectedFileChange, docsPreviousView, onDocsBack,
   // graph track filtering
@@ -234,6 +236,9 @@ function CockpitView({
           selectedItemId={selectedItemId}
           onSelect={onSelect}
           visibleTracks={visibleTracks}
+          buildStateMap={buildStateMap}
+          resolveGate={onResolveGate}
+          gates={gates}
         />
       );
     case 'pipeline':
@@ -513,6 +518,12 @@ function AppInner() {
     const ids = new Set(filteredItems.map(i => i.id));
     return connections.filter(c => ids.has(c.fromId) && ids.has(c.toId));
   }, [connections, filteredItems, selectedPhase, selectedTrack, searchQuery]);
+
+  // COMP-UX-1c: Derived build state map for graph overlays
+  const buildStateMap = useMemo(
+    () => computeBuildStateMap(activeBuild, items, connections, gates),
+    [activeBuild, items, connections, gates],
+  );
 
   // ── Snapshot provider ───────────────────────────────────────────────────
   useEffect(() => {
@@ -878,6 +889,7 @@ function AppInner() {
                       onUpdateSettings={updateSettings}
                       onResetSettings={resetSettings}
                       visibleTracks={visibleTracks}
+                      buildStateMap={buildStateMap}
                       docsSelectedFile={docsSelectedFile}
                       onDocsSelectedFileChange={setDocsSelectedFile}
                       docsPreviousView={docsPreviousView}
