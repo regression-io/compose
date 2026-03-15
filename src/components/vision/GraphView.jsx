@@ -57,13 +57,14 @@ const STATUS_FILTERS = [
 
 // Derive group key for an item — feature code prefix (e.g. "STRAT-ENG", "COMP-UI")
 function getGroup(item) {
+  // Match only all-caps feature code prefixes (STRAT-ENG, COMP-UX, INIT, TEST)
   const title = item.title || '';
-  const codeMatch = title.match(/^([A-Z][\w-]*?)(?:-\d|:|\s)/);
+  const codeMatch = title.match(/^([A-Z][A-Z0-9]+(?:-[A-Z][A-Z0-9]+)*)(?:-\d|:|\s)/);
   if (codeMatch) return codeMatch[1];
   const fc = item.lifecycle?.featureCode || item.featureCode;
   if (fc) {
-    const m = fc.match(/^([A-Z][\w-]*?)(?:-\d|$)/);
-    return m ? m[1] : fc;
+    const m = fc.match(/^([A-Z][A-Z0-9]+(?:-[A-Z][A-Z0-9]+)*)(?:-\d|$)/);
+    return m ? m[1] : null;
   }
   return 'other';
 }
