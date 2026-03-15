@@ -57,16 +57,32 @@ function buildElements(items, connections, grouped) {
   const elements = [];
   const itemIds = new Set(items.map(i => i.id));
 
-  // Compound parent nodes by type
+  // Derive group key for an item — feature code prefix (e.g. "STRAT-ENG", "COMP-UI")
+  // Falls back to phase if no feature code pattern found
+  function getGroup(item) {
+    const title = item.title || '';
+    // Match feature code prefix: STRAT-ENG, COMP-UI, INIT, etc.
+    const codeMatch = title.match(/^([A-Z][\w-]*?)(?:-\d|:|\s)/);
+    if (codeMatch) return codeMatch[1];
+    // Try lifecycle featureCode
+    const fc = item.lifecycle?.featureCode || item.featureCode;
+    if (fc) {
+      const m = fc.match(/^([A-Z][\w-]*?)(?:-\d|$)/);
+      return m ? m[1] : fc;
+    }
+    return item.phase || 'other';
+  }
+
+  // Compound parent nodes by feature group
   if (grouped) {
-    const types = [...new Set(items.map(i => i.type).filter(Boolean))];
-    for (const type of types) {
+    const groups = [...new Set(items.map(i => getGroup(i)).filter(Boolean))];
+    for (const group of groups) {
       elements.push({
         data: {
-          id: `type-${type}`,
-          label: type.charAt(0).toUpperCase() + type.slice(1),
+          id: `group-${group}`,
+          label: group,
           isGroup: true,
-          groupType: type,
+          groupType: group,
         },
       });
     }
@@ -75,10 +91,10 @@ function buildElements(items, connections, grouped) {
   // Item nodes
   for (const item of items) {
     const slug = item.slug || item.id.slice(0, 8);
-    // Clean title: strip backticks, extract filename from paths
     let rawTitle = (item.title || slug).replace(/`/g, '');
     if (rawTitle.includes('/')) rawTitle = rawTitle.split('/').pop().replace(/\.md$/, '');
     const title = rawTitle.length > 28 ? rawTitle.slice(0, 28) + '\u2026' : rawTitle;
+    const group = getGroup(item);
 
     elements.push({
       data: {
@@ -91,7 +107,7 @@ function buildElements(items, connections, grouped) {
         title: item.title,
         description: item.description,
         slug,
-        ...(grouped && item.type ? { parent: `type-${item.type}` } : {}),
+        ...(grouped && group ? { parent: `group-${group}` } : {}),
       },
     });
   }
