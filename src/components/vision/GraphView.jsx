@@ -1,9 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import cytoscape from 'cytoscape';
 import cytoscapeDagre from 'cytoscape-dagre';
+import cytoscapeFcose from 'cytoscape-fcose';
 import { TYPE_COLORS, PHASE_LABELS, CONFIDENCE_LABELS } from './constants.js';
 
 try { cytoscape.use(cytoscapeDagre); } catch (e) { /* already registered */ }
+try { cytoscape.use(cytoscapeFcose); } catch (e) { /* already registered */ }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -98,41 +100,6 @@ function buildElements(items, connections, grouped) {
           groupType: group,
         },
       });
-    }
-    // Invisible edges between consecutive groups to enforce vertical order
-    for (let i = 0; i < sortedGroups.length - 1; i++) {
-      elements.push({
-        data: {
-          id: `_group-order-${i}`,
-          source: `group-${sortedGroups[i]}`,
-          target: `group-${sortedGroups[i + 1]}`,
-        },
-        classes: 'group-order',
-      });
-    }
-
-    // Within each group: if members have no real edges between them,
-    // add invisible row edges so dagre lays them out in a grid pattern
-    const GRID_COLS = 4;
-    for (const group of sortedGroups) {
-      const memberIds = items.filter(i => getGroup(i) === group).map(i => i.id);
-      const memberSet = new Set(memberIds);
-      const hasRealEdges = connections.some(c =>
-        memberSet.has(c.fromId) && memberSet.has(c.toId)
-      );
-      if (!hasRealEdges && memberIds.length > 1) {
-        // Chain every GRID_COLS items to create rows
-        for (let i = GRID_COLS; i < memberIds.length; i++) {
-          elements.push({
-            data: {
-              id: `_grid-${group}-${i}`,
-              source: memberIds[i - GRID_COLS],
-              target: memberIds[i],
-            },
-            classes: 'group-order',
-          });
-        }
-      }
     }
   }
 
@@ -238,7 +205,6 @@ function buildStylesheet() {
     },
     { selector: 'edge[edgeStyle="dashed"]', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3], 'target-arrow-shape': 'diamond' } },
     { selector: 'edge[edgeType="blocks"]', style: { 'target-arrow-shape': 'tee' } },
-    { selector: '.group-order', style: { opacity: 0, width: 0, 'target-arrow-shape': 'none' } },
     { selector: '.dimmed', style: { opacity: 0.35 } },
     { selector: '.highlighted', style: { 'border-width': 3, 'border-color': '#60a5fa' } },
     // COMP-UX-1c: Build state overlay styles
@@ -393,7 +359,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   const [tooltip, setTooltip] = useState(null);
   const [statusFilter, setStatusFilter] = useState('active');
   const [grouped, setGrouped] = useState(true);
-  const [rankDir, setRankDir] = useState('LR');
+  const [layoutName, setLayoutName] = useState('fcose');
   const [showLegend, setShowLegend] = useState(false);
   const [gatePopoverNodeId, setGatePopoverNodeId] = useState(null);
   const [badgePositions, setBadgePositions] = useState([]);
@@ -442,11 +408,31 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
       container: containerRef.current,
       elements,
       style: stylesheet,
-      layout: {
-        name: 'dagre', rankDir,
-        nodeSep: 20, rankSep: 40, edgeSep: 10, padding: 20,
-        animate: false, fit: true,
-      },
+      layout: layoutName === 'fcose'
+        ? {
+            name: 'fcose',
+            quality: 'proof',
+            animate: false,
+            fit: true,
+            padding: 20,
+            nodeSeparation: 80,
+            idealEdgeLength: 120,
+            nodeRepulsion: 6000,
+            gravity: 0.3,
+            gravityRange: 1.5,
+            tilingPaddingVertical: 12,
+            tilingPaddingHorizontal: 12,
+          }
+        : {
+            name: 'dagre',
+            rankDir: 'TB',
+            nodeSep: 20,
+            rankSep: 50,
+            edgeSep: 10,
+            padding: 20,
+            animate: false,
+            fit: true,
+          },
       minZoom: 0.1, maxZoom: 4, wheelSensitivity: 0.3, boxSelectionEnabled: false,
     });
     cyRef.current = cy;
@@ -483,7 +469,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     });
 
     return () => { cy.destroy(); cyRef.current = null; };
-  }, [elements, stylesheet, rankDir]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [elements, stylesheet, layoutName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // COMP-UX-1e: Pan to selected item when selection changes while graph is open
   useEffect(() => {
@@ -598,8 +584,8 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
         </div>
         <div className="flex items-center gap-1">
           <FilterBtn active={grouped} onClick={() => setGrouped(!grouped)}>Group</FilterBtn>
-          <CtrlBtn onClick={() => setRankDir(d => d === 'LR' ? 'TB' : 'LR')} title="Toggle direction">
-            {rankDir === 'LR' ? '\u2192' : '\u2193'}
+          <CtrlBtn onClick={() => setLayoutName(l => l === 'fcose' ? 'dagre' : 'fcose')} title="Toggle layout">
+            {layoutName === 'fcose' ? 'Tree' : 'Pack'}
           </CtrlBtn>
           <Sep />
           <CtrlBtn onClick={handleZoomOut} title="Zoom out">&minus;</CtrlBtn>
