@@ -448,6 +448,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     cy.on('mouseout', 'node[status]', () => setTooltip(null));
 
     cy.on('tap', 'node[status]', (evt) => {
+      clickedInGraphRef.current = true;
       highlightChain(cy, evt.target);
       onSelect(evt.target.id());
     });
@@ -460,7 +461,8 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     return () => { cy.destroy(); cyRef.current = null; };
   }, [elements, stylesheet, compactMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // COMP-UX-1e: Pan to selected item when selection changes while graph is open
+  // COMP-UX-1e: Highlight selected item; only pan if selection came from outside the graph
+  const clickedInGraphRef = useRef(false);
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy || !selectedItemId) return;
@@ -468,7 +470,11 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     if (node.length) {
       cy.elements().removeClass('dimmed highlighted');
       highlightChain(cy, node);
-      cy.animate({ center: { eles: node }, duration: 200 });
+      // Only pan when navigated from outside (View in Graph, ops strip click, etc.)
+      if (!clickedInGraphRef.current) {
+        cy.animate({ center: { eles: node }, duration: 200 });
+      }
+      clickedInGraphRef.current = false;
     }
   }, [selectedItemId]);
 
