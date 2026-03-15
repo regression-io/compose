@@ -10,6 +10,7 @@ import ContextPanel from './components/cockpit/ContextPanel.jsx';
 import ContextItemDetail from './components/cockpit/ContextItemDetail.jsx';
 import ContextStepDetail from './components/cockpit/ContextStepDetail.jsx';
 import NotificationBar from './components/cockpit/NotificationBar.jsx';
+import OpsStrip from './components/cockpit/OpsStrip.jsx';
 
 // Pure state-logic modules
 import {
@@ -928,6 +929,11 @@ function AppInner() {
               )}
             </div>
           )}
+
+          {/* ============================================================== */}
+          {/* OPS STRIP (COMP-UX-1d)                                           */}
+          {/* ============================================================== */}
+          <OpsStrip activeView={activeView} />
 
           {/* ============================================================== */}
           {/* AGENT BAR                                                        */}

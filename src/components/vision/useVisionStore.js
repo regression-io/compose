@@ -275,6 +275,23 @@ export function useVisionStore() {
     return handleResponse(res);
   }, [handleResponse]);
 
+  // Derived: recent errors within last 60s, capped at 5.
+  // Uses state + interval so errors age out even without new agentErrors arrivals.
+  const [recentErrors, setRecentErrors] = useState([]);
+  useEffect(() => {
+    function recompute() {
+      const cutoff = Date.now() - 60_000;
+      const recent = agentErrors
+        .filter(e => new Date(e.timestamp).getTime() > cutoff)
+        .slice(-5);
+      setRecentErrors(recent);
+    }
+    recompute();
+    // Re-derive every 10s so stale errors drop off
+    const interval = setInterval(recompute, 10_000);
+    return () => clearInterval(interval);
+  }, [agentErrors]);
+
   return {
     items,
     connections,
@@ -290,6 +307,7 @@ export function useVisionStore() {
     updateItemPosition,
     agentActivity,
     agentErrors,
+    recentErrors,
     sessionState,
     registerSnapshotProvider,
     gates,

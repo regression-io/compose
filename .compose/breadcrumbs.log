@@ -90,3 +90,4 @@
 2026-03-13T05:20:21+08:00 | Task 13: bridge-to-SSE smoke test
 2026-03-13T05:22:53+08:00 | Task 14: edge case hardening — adding stale gate, fresh gate, malformed, no-sentinel tests
 2026-03-13T05:26:50+08:00 | Reconciling STRAT-COMP-4/5/6/7 parallel conflicts — restoring vision-writer.js, test files, and checking all modified files
+2026-03-15T21:49:13+08:00 | COMP-UX-1d: implementing ops strip - recentErrors, OpsStripEntry, OpsStrip, App.jsx wiring, tests

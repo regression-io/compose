@@ -1,0 +1,72 @@
+/**
+ * opsStripLogic.js — Pure logic for OpsStrip, testable without React/JSX.
+ */
+
+/**
+ * Derive ops entries from vision store state.
+ */
+export function deriveEntries({ activeBuild, gates, recentErrors }) {
+  const entries = [];
+
+  // Active build entry
+  if (activeBuild && activeBuild.featureCode) {
+    const stepLabel = activeBuild.currentStep
+      ? `${activeBuild.currentStep}`
+      : 'building';
+    const progress = activeBuild.totalSteps
+      ? ` \u00B7 step ${activeBuild.currentStepIndex ?? '?'}/${activeBuild.totalSteps}`
+      : '';
+    // Include startedAt or flowId in key so subsequent builds for the same feature get unique keys
+    const buildId = activeBuild.flowId || activeBuild.startedAt || activeBuild.featureCode;
+    entries.push({
+      key: `build-${activeBuild.featureCode}-${buildId}`,
+      type: activeBuild.status === 'complete' ? 'done' : 'build',
+      label: `${activeBuild.featureCode} \u00B7 ${stepLabel}${progress}`,
+      featureCode: activeBuild.featureCode,
+    });
+  }
+
+  // Pending gate entries
+  if (Array.isArray(gates)) {
+    for (const gate of gates) {
+      if (gate.status === 'pending') {
+        const featureCode = gate.featureCode || gate.itemId || 'unknown';
+        const gateType = gate.toPhase || gate.type || 'gate';
+        entries.push({
+          key: `gate-${gate.id}`,
+          type: 'gate',
+          label: `${featureCode} ${gateType} gate`,
+          featureCode,
+          gateId: gate.id,
+        });
+      }
+    }
+  }
+
+  // Recent error entries
+  if (Array.isArray(recentErrors)) {
+    for (const err of recentErrors) {
+      const featureCode = err.featureCode || 'system';
+      const summary = (err.message || err.errorType || 'error').substring(0, 60);
+      entries.push({
+        key: `error-${err.timestamp}-${summary.substring(0, 10)}`,
+        type: 'error',
+        label: `${featureCode} \u00B7 ${summary}`,
+        featureCode,
+        timestamp: err.timestamp,
+      });
+    }
+  }
+
+  return entries;
+}
+
+/**
+ * Filter errors to last 60s, max 5.
+ */
+export function filterRecentErrors(agentErrors, now = Date.now()) {
+  const cutoff = now - 60_000;
+  return agentErrors
+    .filter(e => new Date(e.timestamp).getTime() > cutoff)
+    .slice(-5);
+}
