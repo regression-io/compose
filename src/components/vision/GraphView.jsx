@@ -359,7 +359,6 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   const [tooltip, setTooltip] = useState(null);
   const [statusFilter, setStatusFilter] = useState('active');
   const [grouped, setGrouped] = useState(true);
-  const [compactMode, setCompactMode] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [gatePopoverNodeId, setGatePopoverNodeId] = useState(null);
   const [badgePositions, setBadgePositions] = useState([]);
@@ -413,14 +412,14 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
         quality: 'proof',
         animate: false,
         fit: true,
-        padding: compactMode ? 8 : 20,
-        nodeSeparation: compactMode ? 10 : 80,
-        idealEdgeLength: compactMode ? 30 : 120,
-        nodeRepulsion: compactMode ? 800 : 6000,
-        gravity: compactMode ? 2.0 : 0.3,
-        gravityRange: compactMode ? 3.0 : 1.5,
-        tilingPaddingVertical: compactMode ? 2 : 12,
-        tilingPaddingHorizontal: compactMode ? 2 : 12,
+        padding: 20,
+        nodeSeparation: 80,
+        idealEdgeLength: 120,
+        nodeRepulsion: 6000,
+        gravity: 0.3,
+        gravityRange: 1.5,
+        tilingPaddingVertical: 12,
+        tilingPaddingHorizontal: 12,
       },
       minZoom: 0.1, maxZoom: 4, wheelSensitivity: 0.3, boxSelectionEnabled: false,
     });
@@ -456,7 +455,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     });
 
     return () => { cy.destroy(); cyRef.current = null; };
-  }, [elements, stylesheet, compactMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [elements, stylesheet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // COMP-UX-1e: Highlight selected item; only pan if selection came from outside the graph
   const clickedInGraphRef = useRef(false);
@@ -576,9 +575,6 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
         </div>
         <div className="flex items-center gap-1">
           <FilterBtn active={grouped} onClick={() => setGrouped(!grouped)}>Group</FilterBtn>
-          <FilterBtn active={compactMode} onClick={() => setCompactMode(c => !c)}>
-            Compact
-          </FilterBtn>
           <Sep />
           <CtrlBtn onClick={handleZoomOut} title="Zoom out">&minus;</CtrlBtn>
           <CtrlBtn onClick={handleFit} title="Fit to view">Fit</CtrlBtn>
