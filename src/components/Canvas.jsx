@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExternalLink, FolderOpen } from 'lucide-react';
-import VisionTracker from './vision/VisionTracker.jsx';
 import ProductGraph from './ProductGraph.jsx';
 
 const POPOUT_CHANNEL = 'compose-popout';
@@ -354,10 +353,10 @@ export default function Canvas({ fontSize = 14 }) {
     }
     return null;
   })();
-  // Resolve renderer: special schemes use explicit rendererType, file paths derive from extension
-  const activeRenderer = activeTab?.path?.startsWith('vision://') ? 'vision'
-    : activeTab?.path?.startsWith('graph://') ? 'graph'
-    : activeTab?.path?.endsWith('.html') || activeTab?.path?.endsWith('.htm') ? 'html'
+  // Resolve renderer: no tab → show empty state, special schemes use explicit type
+  const activeRenderer = !activeTab ? null
+    : activeTab.path?.startsWith('graph://') ? 'graph'
+    : activeTab.path?.endsWith('.html') || activeTab.path?.endsWith('.htm') ? 'html'
     : 'markdown';
 
   const displayName = (path) => {
@@ -485,11 +484,7 @@ export default function Canvas({ fontSize = 14 }) {
       )}
 
       {/* Content area */}
-      {activeRenderer === 'vision' ? (
-        <div className="flex-1 min-h-0">
-          <VisionTracker />
-        </div>
-      ) : activeRenderer === 'graph' ? (
+      {activeRenderer === 'graph' ? (
         <div className="flex-1 min-h-0">
           <ProductGraph />
         </div>

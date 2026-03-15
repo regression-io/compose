@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multi-View: Docs</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 540px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 24px; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Tab bar */
+.tab-bar { display: flex; align-items: center; padding: 0 16px; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; gap: 2px; }
+.tab { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 16px; border-radius: 6px 6px 0 0; cursor: pointer; transition: all 0.25s ease; user-select: none; font-weight: 600; color: #64748b; background: transparent; border: 1px solid transparent; border-bottom: none; position: relative; }
+.tab:hover { color: #94a3b8; background: #334155; }
+.tab.active { color: #3b82f6; background: #0f172a; border-color: #334155; }
+.tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px; background: #0f172a; }
+
+/* Main layout */
+.main { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+/* File tree (left) */
+.file-tree { width: 250px; min-width: 180px; max-width: 400px; background: #1e293b; border-right: 1px solid #334155; display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+.tree-header { padding: 10px 14px; border-bottom: 1px solid #334155; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; justify-content: space-between; }
+.tree-search { margin: 8px 10px; padding: 5px 10px; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 11px; outline: none; transition: border-color 0.2s; }
+.tree-search:focus { border-color: #3b82f6; }
+.tree-search::placeholder { color: #475569; }
+.tree-items { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+.tree-node { display: flex; align-items: center; padding: 4px 14px; cursor: pointer; font-size: 12px; color: #94a3b8; transition: all 0.15s; user-select: none; white-space: nowrap; position: relative; }
+.tree-node:hover { background: #334155; color: #e2e8f0; }
+.tree-node.selected { background: #3b82f620; color: #e2e8f0; }
+.tree-node .indent { display: inline-block; width: 16px; flex-shrink: 0; }
+.tree-node .arrow { display: inline-flex; width: 14px; font-size: 9px; color: #475569; flex-shrink: 0; transition: transform 0.15s; }
+.tree-node .arrow.expanded { transform: rotate(90deg); }
+.tree-node .icon { margin-right: 6px; font-size: 11px; flex-shrink: 0; }
+.tree-node .icon.folder { color: #f59e0b; }
+.tree-node .icon.file { color: #64748b; }
+.tree-node .tracked-dot { width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; margin-left: auto; flex-shrink: 0; }
+
+/* Resize handle */
+.resize-handle { width: 4px; cursor: col-resize; background: transparent; flex-shrink: 0; position: relative; z-index: 10; transition: background 0.2s; }
+.resize-handle:hover, .resize-handle.active { background: #3b82f6; }
+
+/* Preview pane (right) */
+.preview-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.preview-header { display: flex; align-items: center; padding: 8px 16px; border-bottom: 1px solid #334155; gap: 10px; flex-shrink: 0; min-height: 40px; }
+.back-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #3b82f6; background: none; border: 1px solid #3b82f640; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-weight: 600; transition: all 0.2s; flex-shrink: 0; }
+.back-btn:hover { background: #3b82f620; border-color: #3b82f6; }
+.back-btn.glow { box-shadow: 0 0 12px #3b82f640; border-color: #3b82f6; }
+.file-path { font-size: 12px; color: #64748b; flex: 1; }
+.file-path .current { color: #e2e8f0; font-weight: 600; }
+.modified-indicator { font-size: 10px; color: #f59e0b; font-weight: 600; opacity: 0; transition: opacity 0.3s; }
+.modified-indicator.visible { opacity: 1; }
+.preview-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
+.action-btn { padding: 4px 12px; border-radius: 4px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px; }
+.action-btn:hover { background: #334155; color: #e2e8f0; }
+.action-btn.active { border-color: #3b82f6; color: #3b82f6; }
+.action-btn.save-flash { border-color: #22c55e; color: #22c55e; box-shadow: 0 0 12px #22c55e40; }
+
+.preview-body { flex: 1; overflow-y: auto; padding: 24px 32px; position: relative; }
+
+/* Markdown rendered content */
+.md-content { max-width: 720px; line-height: 1.7; }
+.md-content h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 16px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+.md-content h2 { font-size: 16px; font-weight: 700; color: #e2e8f0; margin-top: 28px; margin-bottom: 12px; }
+.md-content p { font-size: 13px; color: #cbd5e1; margin-bottom: 12px; }
+.md-content .meta { display: flex; gap: 24px; margin-bottom: 20px; }
+.md-content .meta-item { font-size: 12px; }
+.md-content .meta-label { color: #64748b; font-weight: 600; }
+.md-content .meta-value { color: #e2e8f0; }
+.md-content .meta-value.status-ip { color: #3b82f6; }
+.md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 12px; }
+.md-content li { font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
+.md-content code { background: #334155; padding: 1px 5px; border-radius: 3px; font-size: 12px; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; }
+.md-content pre { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 14px; margin-bottom: 16px; overflow-x: auto; }
+.md-content pre code { background: none; padding: 0; font-size: 12px; color: #cbd5e1; }
+.md-content .checkbox { display: inline-flex; align-items: center; gap: 6px; }
+.md-content .checkbox input { accent-color: #3b82f6; }
+
+/* Edit textarea */
+.edit-area { display: none; width: 100%; height: 100%; resize: none; background: #0f172a; border: none; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; padding: 24px 32px; outline: none; }
+
+/* Graph placeholder (for back-nav animation) */
+.graph-placeholder { position: absolute; inset: 0; background: #0f172a; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+.graph-placeholder.visible { opacity: 1; }
+.graph-placeholder-content { text-align: center; }
+.graph-placeholder-content .gp-title { font-size: 16px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.graph-placeholder-content .gp-sub { font-size: 12px; color: #64748b; }
+.graph-placeholder-content .gp-nodes { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
+.graph-placeholder-content .gp-node { width: 60px; height: 30px; border-radius: 6px; border: 2px solid #334155; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #64748b; }
+.graph-placeholder-content .gp-node.highlighted { border-color: #3b82f6; color: #3b82f6; box-shadow: 0 0 8px #3b82f640; }
+
+/* Annotation */
+.annotation { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 18px; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; white-space: nowrap; max-width: 90vw; }
+.annotation.visible { opacity: 1; }
+
+/* Animations */
+@keyframes pulseBlue { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } 50% { box-shadow: 0 0 12px 3px rgba(59,130,246,0.35); } }
+@keyframes greenFlash { 0% { box-shadow: 0 0 16px 4px rgba(34,197,94,0.6); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+</style>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1><span>Multi-View:</span> Docs</h1>
+    <p>File tree with markdown preview &mdash; the same doc viewer, but now with navigation links from other views. Click a file link in the Graph or Items context panel and you land here with a Back button. Edit docs inline with the pencil toggle. Tracked files (referenced by board items) show a blue indicator.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="replay()">Replay</button>
+
+<!-- Tab bar -->
+<div class="tab-bar" id="tabBar">
+  <div class="tab" id="tabGraph">Graph</div>
+  <div class="tab" id="tabItems">Items</div>
+  <div class="tab" id="tabOps">Ops</div>
+  <div class="tab active" id="tabDocs">Docs</div>
+</div>
+
+<!-- Main -->
+<div class="main" id="mainArea">
+
+  <!-- File tree -->
+  <div class="file-tree" id="fileTree">
+    <div class="tree-header">Files</div>
+    <input class="tree-search" type="text" placeholder="Search files..." />
+    <div class="tree-items" id="treeItems">
+      <!-- docs/ -->
+      <div class="tree-node" data-depth="0">
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        docs/
+      </div>
+      <!-- docs/features/ -->
+      <div class="tree-node" data-depth="1">
+        <span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        features/
+      </div>
+      <!-- CORE-LEARN-1 (expanded) -->
+      <div class="tree-node" data-depth="2">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        CORE-LEARN-1/
+      </div>
+      <!-- design.md (selected) -->
+      <div class="tree-node selected" data-depth="3" id="treeDesign" data-file="design">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        design.md
+        <span class="tracked-dot"></span>
+      </div>
+      <!-- plan.md -->
+      <div class="tree-node" data-depth="3" id="treePlan" data-file="plan">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        plan.md
+        <span class="tracked-dot"></span>
+      </div>
+      <!-- DIST-RELEASE-1 (collapsed) -->
+      <div class="tree-node" data-depth="2">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        DIST-RELEASE-1/
+      </div>
+      <!-- GEN-REF-1 (collapsed) -->
+      <div class="tree-node" data-depth="2">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        GEN-REF-1/
+      </div>
+      <!-- docs/plans/ -->
+      <div class="tree-node" data-depth="1">
+        <span class="indent"></span>
+        <span class="arrow">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        plans/
+      </div>
+    </div>
+  </div>
+
+  <!-- Resize handle -->
+  <div class="resize-handle" id="resizeHandle"></div>
+
+  <!-- Preview pane -->
+  <div class="preview-pane" id="previewPane">
+    <div class="preview-header" id="previewHeader">
+      <button class="back-btn" id="backBtn">&larr; Back to Graph</button>
+      <span class="file-path">docs/features/CORE-LEARN-1/<span class="current" id="currentFile">design.md</span></span>
+      <span class="modified-indicator" id="modifiedIndicator">modified</span>
+      <div class="preview-actions">
+        <button class="action-btn" id="editBtn" title="Edit">&#9998; Edit</button>
+        <button class="action-btn" id="eyeBtn" title="Preview" style="display:none">&#128065; Preview</button>
+        <button class="action-btn" id="saveBtn">Save</button>
+      </div>
+    </div>
+    <div class="preview-body" id="previewBody">
+      <!-- Rendered markdown -->
+      <div class="md-content" id="mdContent">
+        <h1>CORE-LEARN-1 Design</h1>
+        <div class="meta">
+          <div class="meta-item"><span class="meta-label">Status:</span> <span class="meta-value status-ip">In Progress</span></div>
+          <div class="meta-item"><span class="meta-label">Date:</span> <span class="meta-value">2026-03-10</span></div>
+        </div>
+
+        <h2>Problem</h2>
+        <p>Current system lacks a unified learning pipeline that can handle both synchronous and asynchronous data ingestion. Users must manually coordinate between multiple tools, leading to fragmented workflows and lost context.</p>
+
+        <h2>Goals</h2>
+        <ol>
+          <li>Implement async pipeline for continuous data ingestion with backpressure handling</li>
+          <li>Maintain backward compatibility with existing <code>v1</code> sync endpoints</li>
+          <li>Support configurable retention policies per data source</li>
+          <li>Achieve &lt;100ms p99 latency for real-time inference queries</li>
+        </ol>
+
+        <h2>Architecture</h2>
+        <p>The system uses a three-tier architecture:</p>
+        <ul>
+          <li><strong>Ingestion layer</strong> &mdash; handles raw input normalization and schema validation</li>
+          <li><strong>Processing layer</strong> &mdash; applies transforms, deduplication, and enrichment</li>
+          <li><strong>Serving layer</strong> &mdash; maintains hot indexes for real-time queries</li>
+        </ul>
+        <pre><code>ingestion --&gt; processing --&gt; serving
+    |              |              |
+    v              v              v
+  raw_store    transform_log   hot_index</code></pre>
+
+        <h2>Open Questions</h2>
+        <ul>
+          <li class="checkbox"><input type="checkbox" disabled> Determine partition strategy for high-cardinality sources</li>
+          <li class="checkbox"><input type="checkbox" disabled checked> Define retention policy schema (done: see <code>retention.schema.json</code>)</li>
+          <li class="checkbox"><input type="checkbox" disabled> Benchmark cold-start latency under load</li>
+        </ul>
+      </div>
+
+      <!-- Edit textarea (hidden by default) -->
+      <textarea class="edit-area" id="editArea"># CORE-LEARN-1 Design
+
+**Status:** In Progress
+**Date:** 2026-03-10
+
+## Problem
+
+Current system lacks a unified learning pipeline that can handle both synchronous and asynchronous data ingestion. Users must manually coordinate between multiple tools, leading to fragmented workflows and lost context.
+
+## Goals
+
+1. Implement async pipeline for continuous data ingestion with backpressure handling
+2. Maintain backward compatibility with existing `v1` sync endpoints
+3. Support configurable retention policies per data source
+4. Achieve &lt;100ms p99 latency for real-time inference queries
+
+## Architecture
+
+The system uses a three-tier architecture:
+
+- **Ingestion layer** — handles raw input normalization and schema validation
+- **Processing layer** — applies transforms, deduplication, and enrichment
+- **Serving layer** — maintains hot indexes for real-time queries
+
+```
+ingestion --> processing --> serving
+    |              |              |
+    v              v              v
+  raw_store    transform_log   hot_index
+```
+
+## Open Questions
+
+- [ ] Determine partition strategy for high-cardinality sources
+- [x] Define retention policy schema (done: see `retention.schema.json`)
+- [ ] Benchmark cold-start latency under load</textarea>
+    </div>
+
+    <!-- Graph placeholder for back-nav animation -->
+    <div class="graph-placeholder" id="graphPlaceholder">
+      <div class="graph-placeholder-content">
+        <div class="gp-title">Graph View</div>
+        <div class="gp-sub">Dependency graph with your selected item</div>
+        <div class="gp-nodes">
+          <div class="gp-node">AUTH-1</div>
+          <div class="gp-node highlighted">CORE-1</div>
+          <div class="gp-node">DIST-1</div>
+          <div class="gp-node">GEN-1</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Plan.md content (hidden, swapped in during animation) -->
+<template id="planMdContent">
+  <h1>CORE-LEARN-1 Implementation Plan</h1>
+  <div class="meta">
+    <div class="meta-item"><span class="meta-label">Status:</span> <span class="meta-value status-ip">In Progress</span></div>
+    <div class="meta-item"><span class="meta-label">Created:</span> <span class="meta-value">2026-03-11</span></div>
+  </div>
+
+  <h2>Phase 1: Ingestion Layer</h2>
+  <ul>
+    <li class="checkbox"><input type="checkbox" disabled checked> Set up message queue with backpressure (Kafka)</li>
+    <li class="checkbox"><input type="checkbox" disabled checked> Implement schema validation middleware</li>
+    <li class="checkbox"><input type="checkbox" disabled> Add rate limiting per source</li>
+  </ul>
+
+  <h2>Phase 2: Processing Pipeline</h2>
+  <ul>
+    <li class="checkbox"><input type="checkbox" disabled> Build transform DAG executor</li>
+    <li class="checkbox"><input type="checkbox" disabled> Implement deduplication with bloom filters</li>
+    <li class="checkbox"><input type="checkbox" disabled> Add enrichment plugin system</li>
+  </ul>
+
+  <h2>Phase 3: Serving Layer</h2>
+  <ul>
+    <li class="checkbox"><input type="checkbox" disabled> Hot index with Redis-backed cache</li>
+    <li class="checkbox"><input type="checkbox" disabled> Query routing and load balancing</li>
+    <li class="checkbox"><input type="checkbox" disabled> Latency budget enforcement</li>
+  </ul>
+</template>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<script>
+// ─── Resize handle ───
+const resizeHandle = document.getElementById('resizeHandle');
+const fileTree = document.getElementById('fileTree');
+let isResizing = false;
+resizeHandle.addEventListener('mousedown', (e) => {
+  isResizing = true;
+  resizeHandle.classList.add('active');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+document.addEventListener('mousemove', (e) => {
+  if (!isResizing) return;
+  const w = Math.max(180, Math.min(400, e.clientX));
+  fileTree.style.width = w + 'px';
+});
+document.addEventListener('mouseup', () => {
+  isResizing = false;
+  resizeHandle.classList.remove('active');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// ─── State ───
+let isEditing = false;
+let demoTimer = null;
+const ann = document.getElementById('annotation');
+const editBtn = document.getElementById('editBtn');
+const eyeBtn = document.getElementById('eyeBtn');
+const saveBtn = document.getElementById('saveBtn');
+const mdContent = document.getElementById('mdContent');
+const editArea = document.getElementById('editArea');
+const modInd = document.getElementById('modifiedIndicator');
+const backBtn = document.getElementById('backBtn');
+const previewBody = document.getElementById('previewBody');
+
+// ─── Annotation helper ───
+function showAnnotation(text) {
+  ann.textContent = text;
+  ann.classList.add('visible');
+}
+function hideAnnotation() {
+  ann.classList.remove('visible');
+}
+
+// ─── Edit mode helpers ───
+function enterEditMode() {
+  isEditing = true;
+  mdContent.style.display = 'none';
+  editArea.style.display = 'block';
+  editBtn.style.display = 'none';
+  eyeBtn.style.display = 'inline-flex';
+  editArea.focus();
+}
+
+function exitEditMode() {
+  isEditing = false;
+  editArea.style.display = 'none';
+  mdContent.style.display = 'block';
+  editBtn.style.display = 'inline-flex';
+  eyeBtn.style.display = 'none';
+}
+
+// ─── Interactive controls ───
+editBtn.addEventListener('click', () => { enterEditMode(); });
+eyeBtn.addEventListener('click', () => { exitEditMode(); });
+saveBtn.addEventListener('click', () => {
+  modInd.classList.remove('visible');
+  saveBtn.classList.add('save-flash');
+  setTimeout(() => saveBtn.classList.remove('save-flash'), 800);
+});
+
+// ─── Tree click ───
+document.querySelectorAll('.tree-node[data-file]').forEach(node => {
+  node.addEventListener('click', () => {
+    document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+    node.classList.add('selected');
+    const file = node.dataset.file;
+    document.getElementById('currentFile').textContent = file + '.md';
+    if (file === 'plan') {
+      mdContent.innerHTML = document.getElementById('planMdContent').innerHTML;
+    }
+    // Reset edit state
+    if (isEditing) exitEditMode();
+    modInd.classList.remove('visible');
+    previewBody.scrollTop = 0;
+  });
+});
+
+// ─── Demo sequence ───
+function startDemo() {
+  document.getElementById('preamble').classList.add('hidden');
+  document.getElementById('replayBtn').classList.add('visible');
+  runSequence();
+}
+
+function replay() {
+  // Reset everything
+  hideAnnotation();
+  if (isEditing) exitEditMode();
+  modInd.classList.remove('visible');
+  previewBody.scrollTop = 0;
+  backBtn.classList.remove('glow');
+  saveBtn.classList.remove('save-flash');
+
+  // Reset to design.md
+  document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+  document.getElementById('treeDesign').classList.add('selected');
+  document.getElementById('currentFile').textContent = 'design.md';
+
+  // Reset tabs
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tabDocs').classList.add('active');
+
+  // Reset graph placeholder
+  document.getElementById('graphPlaceholder').classList.remove('visible');
+
+  // Reset file tree visibility
+  fileTree.style.display = '';
+  document.getElementById('resizeHandle').style.display = '';
+
+  // Restore original design.md content
+  mdContent.innerHTML = originalDesignContent;
+  mdContent.style.display = 'block';
+  editArea.style.display = 'none';
+  editBtn.style.display = 'inline-flex';
+  eyeBtn.style.display = 'none';
+
+  // Reset back button
+  backBtn.textContent = '\u2190 Back to Graph';
+  backBtn.style.display = '';
+  document.getElementById('previewHeader').style.display = '';
+
+  if (demoTimer) clearTimeout(demoTimer);
+  runSequence();
+}
+
+// Save original content
+const originalDesignContent = mdContent.innerHTML;
+
+function runSequence() {
+  const steps = [
+    // Step 1 (0s): Initial state
+    { delay: 0, fn: () => {
+      showAnnotation('Arrived from Graph view \u2014 Back button returns you');
+    }},
+    // Step 2 (4s): Highlight back button
+    { delay: 4000, fn: () => {
+      showAnnotation('One click to go back \u2014 context is preserved');
+      backBtn.classList.add('glow');
+    }},
+    // Step 3 (7s): Scroll markdown
+    { delay: 7000, fn: () => {
+      backBtn.classList.remove('glow');
+      showAnnotation('Full markdown preview \u2014 rendered with tables, code blocks, checkboxes');
+      previewBody.scrollTo({ top: 200, behavior: 'smooth' });
+    }},
+    // Step 4 (10s): Enter edit mode
+    { delay: 10000, fn: () => {
+      previewBody.scrollTop = 0;
+      showAnnotation('Toggle to edit mode \u2014 full markdown editing');
+      enterEditMode();
+    }},
+    // Step 5 (13s): Simulate typing
+    { delay: 13000, fn: () => {
+      showAnnotation('Unsaved changes indicator \u2014 Cmd+S to save');
+      // Simulate typing
+      const orig = editArea.value;
+      const insertPos = orig.indexOf('## Goals');
+      editArea.value = orig.slice(0, insertPos) + '> Priority: HIGH \u2014 blocking DIST-RELEASE-1\n\n' + orig.slice(insertPos);
+      editArea.scrollTop = 0;
+      modInd.classList.add('visible');
+    }},
+    // Step 6 (16s): Save
+    { delay: 16000, fn: () => {
+      showAnnotation('Saved! File written to disk');
+      modInd.classList.remove('visible');
+      saveBtn.classList.add('save-flash');
+      setTimeout(() => saveBtn.classList.remove('save-flash'), 800);
+    }},
+    // Step 7 (19s): Back to preview
+    { delay: 19000, fn: () => {
+      hideAnnotation();
+      exitEditMode();
+    }},
+    // Step 8 (22s): Click plan.md
+    { delay: 22000, fn: () => {
+      showAnnotation('Click files in the tree to browse \u2014 preview updates instantly');
+      document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+      document.getElementById('treePlan').classList.add('selected');
+      document.getElementById('currentFile').textContent = 'plan.md';
+      mdContent.innerHTML = document.getElementById('planMdContent').innerHTML;
+      previewBody.scrollTop = 0;
+    }},
+    // Step 9 (25s): Click back to graph
+    { delay: 25000, fn: () => {
+      showAnnotation('Back to Graph \u2014 your selected item is still highlighted there');
+      // Animate tab switch
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tabGraph').classList.add('active');
+      // Hide file tree
+      fileTree.style.display = 'none';
+      document.getElementById('resizeHandle').style.display = 'none';
+      // Show graph placeholder
+      document.getElementById('graphPlaceholder').classList.add('visible');
+      // Hide preview header
+      document.getElementById('previewHeader').style.display = 'none';
+      mdContent.style.display = 'none';
+    }},
+    // Step 10 (28s): Final
+    { delay: 28000, fn: () => {
+      hideAnnotation();
+    }},
+    // Loop (31s)
+    { delay: 31000, fn: () => {
+      replay();
+    }}
+  ];
+
+  steps.forEach(step => {
+    demoTimer = setTimeout(step.fn, step.delay);
+  });
+}
+</script>
+</body>
+</html>

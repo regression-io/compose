@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mid-Level: SmartMemory Feature Tree</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 600px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.7; margin-bottom: 24px; text-align: left; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Tab bar */
+.tab-strip { display: flex; align-items: center; padding: 0 16px; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; gap: 0; }
+.tab-btn { position: relative; padding: 0 16px; height: 40px; display: flex; align-items: center; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; background: none; border: none; transition: color 0.2s; user-select: none; }
+.tab-btn:hover { color: #94a3b8; }
+.tab-btn.active { color: #e2e8f0; }
+.tab-btn::after { content: ''; position: absolute; bottom: 0; left: 6px; right: 6px; height: 2px; background: transparent; border-radius: 1px; transition: background 0.2s; }
+.tab-btn.active::after { background: #3b82f6; }
+.tab-spacer { flex: 1; }
+.stat-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 10px; border-radius: 4px; font-weight: 500; }
+.stat-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.stat-pill.blue { color: #3b82f6; }
+.stat-pill.blue .dot { background: #3b82f6; }
+.stat-pill.amber { color: #f59e0b; }
+.stat-pill.amber .dot { background: #f59e0b; }
+.stat-pill.red { color: #ef4444; }
+.stat-pill.red .dot { background: #ef4444; }
+.stat-pill.green { color: #22c55e; }
+.stat-pill.green .dot { background: #22c55e; }
+
+/* Main layout */
+.main-wrap { display: flex; flex: 1; overflow: hidden; }
+
+/* Left sidebar */
+.sidebar { width: 180px; background: #1e293b; border-right: 1px solid #334155; flex-shrink: 0; overflow-y: auto; padding: 12px 0; }
+.sidebar-section { padding: 0 12px; margin-bottom: 16px; }
+.sidebar-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 8px; }
+.sidebar-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 11px; color: #94a3b8; cursor: pointer; user-select: none; }
+.sidebar-item input[type="checkbox"] { accent-color: #3b82f6; width: 12px; height: 12px; cursor: pointer; }
+.sidebar-item:hover { color: #e2e8f0; }
+.sidebar-item .track-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.sidebar-divider { height: 1px; background: #334155; margin: 8px 12px; }
+.phase-tag { font-size: 10px; padding: 2px 8px; border-radius: 3px; background: #334155; color: #94a3b8; cursor: pointer; display: inline-block; margin: 2px; user-select: none; transition: all 0.2s; }
+.phase-tag:hover { background: #475569; color: #e2e8f0; }
+.phase-tag.active { background: #3b82f620; color: #3b82f6; border: 1px solid #3b82f640; }
+
+/* Tree panel */
+.tree-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.tree-search { display: flex; align-items: center; padding: 6px 12px; border-bottom: 1px solid #334155; background: #0f172a; }
+.tree-search input { flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px 6px 30px; font-size: 12px; color: #e2e8f0; outline: none; transition: border-color 0.2s; }
+.tree-search input::placeholder { color: #475569; }
+.tree-search input:focus { border-color: #3b82f6; }
+.search-icon { position: absolute; margin-left: 10px; color: #475569; font-size: 12px; pointer-events: none; }
+.tree-search-wrap { position: relative; flex: 1; display: flex; align-items: center; }
+.tree-body { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+/* Track headers */
+.track-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; user-select: none; transition: background 0.15s; }
+.track-header:hover { background: #1e293b40; }
+.track-chevron { font-size: 10px; color: #475569; width: 14px; text-align: center; transition: transform 0.2s; flex-shrink: 0; }
+.track-chevron.collapsed { transform: rotate(-90deg); }
+.track-name { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+.track-count { font-size: 11px; color: #475569; font-weight: 500; }
+.track-badges { display: flex; gap: 6px; margin-left: auto; }
+.track-badge { font-size: 10px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px; }
+.track-badge.building { color: #3b82f6; }
+.track-badge.gate { color: #f59e0b; }
+.track-badge.error { color: #ef4444; }
+.track-badge.complete { color: #22c55e; }
+.track-items { overflow: hidden; transition: max-height 0.3s ease; }
+
+/* Feature rows */
+.feature-row { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 28px; cursor: pointer; transition: all 0.2s; border-left: 3px solid transparent; user-select: none; }
+.feature-row:hover { background: #1e293b60; }
+.feature-row.selected { border-left-color: #3b82f6; background: #1e293b; }
+.feature-row.blocked { opacity: 0.55; padding-left: 48px; }
+.feature-row.blocked-l2 { padding-left: 68px; }
+.feature-row.dimmed { opacity: 0.35; }
+.feature-row.search-hidden { display: none; }
+.feature-row.flash-green { animation: rowFlashGreen 1.2s ease; }
+
+.status-icon { width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; flex-shrink: 0; }
+.status-icon.building { background: #3b82f6; animation: pulseBlue 2s ease-in-out infinite; }
+.status-icon.gate { background: #f59e0b; }
+.status-icon.error { background: #ef4444; }
+.status-icon.complete { background: #22c55e; }
+.status-icon.planned { background: none; border: 1.5px solid #475569; }
+.status-icon.parked { background: none; border: 1.5px dashed #475569; }
+
+.feature-code { font-size: 12px; font-weight: 700; color: #e2e8f0; white-space: nowrap; flex-shrink: 0; }
+.feature-name { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feature-blocked-prefix { font-size: 11px; color: #475569; flex-shrink: 0; }
+
+/* Inline progress bar */
+.inline-progress { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
+.progress-bar { width: 60px; height: 4px; background: #334155; border-radius: 2px; overflow: hidden; display: flex; gap: 1px; }
+.progress-seg { flex: 1; border-radius: 1px; transition: background 0.4s ease; }
+.progress-seg.done { background: #3b82f6; }
+.progress-seg.active { background: #3b82f680; animation: segPulse 2s ease-in-out infinite; }
+.progress-seg.pending { background: #334155; }
+.progress-text { font-size: 10px; color: #64748b; white-space: nowrap; }
+.progress-agent { font-size: 10px; font-weight: 600; white-space: nowrap; }
+.progress-agent.claude { color: #f97316; }
+.progress-agent.codex { color: #22c55e; }
+
+/* Status labels */
+.status-label { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-left: auto; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.03em; }
+.status-label.gate-label { background: #f59e0b20; color: #f59e0b; }
+.status-label.error-label { background: #ef444420; color: #ef4444; }
+.status-label.complete-label { background: #22c55e20; color: #22c55e; }
+.status-label.parked-label { background: #64748b20; color: #64748b; }
+.blocked-text { font-size: 10px; color: #475569; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+
+/* Resizable divider */
+.divider { width: 5px; background: #334155; cursor: col-resize; flex-shrink: 0; transition: background 0.15s; position: relative; }
+.divider:hover, .divider.active { background: #3b82f6; }
+.divider::after { content: ''; position: absolute; inset: 0; width: 11px; left: -3px; }
+
+/* Context panel */
+.context-panel { width: 50%; min-width: 320px; background: #1e293b; border-left: 1px solid #334155; flex-shrink: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
+.context-panel.collapsed { width: 0; min-width: 0; overflow: hidden; }
+.cp-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #334155; flex-shrink: 0; }
+.cp-header h3 { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.cp-subtitle { font-size: 11px; color: #94a3b8; font-weight: 400; margin-left: 8px; }
+.cp-close { width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: #64748b; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+.cp-close:hover { background: #334155; color: #e2e8f0; }
+.cp-body { flex: 1; overflow-y: auto; }
+.cp-section { padding: 12px 14px; border-bottom: 1px solid #0f172a80; }
+.cp-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 8px; }
+.cp-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; }
+.cp-status.building { background: #3b82f620; color: #3b82f6; }
+.cp-status.gate { background: #f59e0b20; color: #f59e0b; }
+.cp-status.complete { background: #22c55e20; color: #22c55e; }
+.cp-status.error { background: #ef444420; color: #ef4444; }
+.cp-status.planned { background: #64748b20; color: #94a3b8; }
+.cp-detail { font-size: 11px; color: #94a3b8; line-height: 1.6; }
+
+/* Pipeline dots */
+.pipeline { display: flex; align-items: center; gap: 0; padding: 8px 0; }
+.pipe-step { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.pipe-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #475569; background: #1e293b; transition: all 0.4s ease; }
+.pipe-dot.done { background: #22c55e; border-color: #22c55e; }
+.pipe-dot.active { background: #3b82f6; border-color: #3b82f6; animation: pipePulse 2s ease-in-out infinite; }
+.pipe-dot.gate-dot { background: #f59e0b; border-color: #f59e0b; }
+.pipe-dot.error-dot { background: #ef4444; border-color: #ef4444; }
+@keyframes pipePulse { 0%,100% { box-shadow: 0 0 0 0 #3b82f640; } 50% { box-shadow: 0 0 8px 3px #3b82f640; } }
+.pipe-line { width: 16px; height: 2px; background: #475569; flex-shrink: 0; margin-top: 9px; }
+.pipe-line.done { background: #22c55e; }
+.pipe-label { font-size: 8px; color: #475569; margin-top: 4px; white-space: nowrap; }
+.pipe-label.active { color: #3b82f6; font-weight: 600; }
+.pipe-label.done { color: #22c55e; }
+
+/* Gate card */
+.gate-card { background: #1a1500; border: 1px solid #f59e0b40; border-radius: 8px; padding: 10px 12px; margin: 6px 0; }
+.gate-card .gate-title { font-size: 11px; font-weight: 700; color: #fcd34d; margin-bottom: 4px; }
+.gate-card .gate-meta { font-size: 10px; color: #94a3b8; margin-bottom: 8px; }
+.gate-card .gate-actions { display: flex; gap: 6px; }
+.gate-btn { padding: 4px 14px; border-radius: 4px; border: none; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.gate-btn.approve { background: #22c55e; color: #000; }
+.gate-btn.approve:hover { background: #16a34a; }
+.gate-btn.revise { background: #334155; color: #f59e0b; border: 1px solid #f59e0b40; }
+.gate-btn.kill { background: #334155; color: #ef4444; border: 1px solid #ef444440; }
+.gate-btn.approved { background: #334155; color: #22c55e; cursor: default; border: 1px solid #22c55e40; }
+
+/* Error card */
+.error-card { background: #1a0505; border-left: 3px solid #ef4444; border-radius: 0 8px 8px 0; padding: 10px 12px; margin: 6px 0; }
+.error-card .error-title { font-size: 11px; font-weight: 700; color: #fca5a5; margin-bottom: 4px; }
+.error-card .error-body { font-size: 10px; color: #94a3b8; line-height: 1.5; font-family: 'SF Mono', Monaco, monospace; }
+
+/* Session rows */
+.session-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; }
+.session-agent { font-weight: 600; min-width: 50px; }
+.session-agent.claude { color: #f97316; }
+.session-agent.codex { color: #22c55e; }
+.session-dur { color: #64748b; min-width: 30px; }
+.session-stats { color: #475569; font-size: 10px; }
+
+/* File list */
+.file-link { display: block; font-size: 11px; color: #3b82f6; padding: 3px 0; cursor: pointer; text-decoration: none; transition: color 0.2s; }
+.file-link:hover { color: #60a5fa; text-decoration: underline; }
+
+/* Cross-view links */
+.cross-links { display: flex; flex-direction: column; gap: 6px; }
+.cross-link { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #3b82f6; cursor: pointer; transition: all 0.2s; padding: 4px 8px; border-radius: 4px; border: 1px solid transparent; }
+.cross-link:hover { background: #3b82f610; }
+.cross-link.glow { background: #3b82f620; border-color: #3b82f640; box-shadow: 0 0 12px rgba(59,130,246,0.2); }
+
+/* Ops strip */
+.ops-strip { height: 36px; background: #1e293b; border-top: 1px solid #334155; display: flex; align-items: center; padding: 0 16px; gap: 16px; flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
+.ops-strip::-webkit-scrollbar { height: 0; }
+.ops-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; flex-shrink: 0; user-select: none; }
+.ops-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ops-dot.building { background: #3b82f6; animation: dotPulse 2s ease-in-out infinite; }
+.ops-dot.gate { background: #f59e0b; }
+.ops-dot.error { background: #ef4444; }
+.ops-dot.complete { background: #22c55e; }
+.ops-code { color: #e2e8f0; font-size: 10px; }
+.ops-detail { color: #64748b; font-weight: 400; font-size: 10px; }
+.ops-separator { width: 1px; height: 16px; background: #334155; flex-shrink: 0; }
+
+/* Annotation */
+.annotation { position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 18px; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; white-space: nowrap; max-width: 90vw; }
+.annotation.visible { opacity: 1; }
+
+/* Animations */
+@keyframes pulseBlue { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } 50% { box-shadow: 0 0 10px 3px rgba(59,130,246,0.35); } }
+@keyframes segPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes dotPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes rowFlashGreen { 0% { background: #22c55e30; } 100% { background: transparent; } }
+@keyframes greenFlash { 0% { box-shadow: 0 0 16px 4px rgba(34,197,94,0.6); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+
+/* Docs tab placeholder */
+.docs-placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: #475569; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1><span>Mid Level:</span> SmartMemory Feature Tree</h1>
+    <p>SmartMemory's features grouped by track with dependency hierarchy. Items that block others show their dependents indented below. Rollup badges on track headers show what needs attention &mdash; building, gates, errors at a glance. Select any feature to see full detail in the 50% context panel &mdash; pipeline, gates, sessions, errors, files.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="replay()">Replay</button>
+
+<!-- Tab strip -->
+<div class="tab-strip">
+  <button class="tab-btn" id="tabGraph">Graph</button>
+  <button class="tab-btn active" id="tabTree">Tree</button>
+  <button class="tab-btn" id="tabDocs">Docs</button>
+  <div class="tab-spacer"></div>
+  <span class="stat-pill blue"><span class="dot"></span><span id="pillBuilding">2 building</span></span>
+  <span class="stat-pill amber"><span class="dot"></span><span id="pillGate">1 gate</span></span>
+  <span class="stat-pill red"><span class="dot"></span><span id="pillError">1 error</span></span>
+  <span class="stat-pill green"><span class="dot"></span><span id="pillComplete">2 complete</span></span>
+</div>
+
+<!-- Main -->
+<div class="main-wrap">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Tracks</div>
+      <label class="sidebar-item"><input type="checkbox" checked><span class="track-dot" style="background:#3b82f6"></span>Knowledge</label>
+      <label class="sidebar-item"><input type="checkbox" checked><span class="track-dot" style="background:#f59e0b"></span>Distribution</label>
+      <label class="sidebar-item"><input type="checkbox" checked><span class="track-dot" style="background:#a855f7"></span>Governance</label>
+      <label class="sidebar-item"><input type="checkbox" checked><span class="track-dot" style="background:#22c55e"></span>Worker</label>
+      <label class="sidebar-item"><input type="checkbox" checked><span class="track-dot" style="background:#ef4444"></span>Agent</label>
+      <label class="sidebar-item"><input type="checkbox" checked><span class="track-dot" style="background:#64748b"></span>Async</label>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Phase Filter</div>
+      <span class="phase-tag active">All</span>
+      <span class="phase-tag">Design</span>
+      <span class="phase-tag">Implement</span>
+      <span class="phase-tag">Test</span>
+      <span class="phase-tag">Ship</span>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Status Filter</div>
+      <span class="phase-tag active">All</span>
+      <span class="phase-tag">Building</span>
+      <span class="phase-tag">Gate</span>
+      <span class="phase-tag">Error</span>
+      <span class="phase-tag">Complete</span>
+      <span class="phase-tag">Planned</span>
+    </div>
+  </div>
+
+  <!-- Tree panel -->
+  <div class="tree-wrap" id="treeWrap">
+    <div class="tree-search">
+      <div class="tree-search-wrap">
+        <span class="search-icon">&#x1F50D;</span>
+        <input type="text" id="searchInput" placeholder="Search features...">
+      </div>
+    </div>
+    <div class="tree-body" id="treeBody">
+
+      <!-- Knowledge Track -->
+      <div class="track-header" id="trackKnowledge" onclick="toggleTrack('knowledge')">
+        <span class="track-chevron" id="chevKnowledge">&#x25BE;</span>
+        <span class="track-name">Knowledge</span>
+        <span class="track-count">(12)</span>
+        <div class="track-badges">
+          <span class="track-badge building" id="knBadgeBuilding">&#x25CF;1</span>
+        </div>
+      </div>
+      <div class="track-items" id="itemsKnowledge">
+        <!-- CORE-LEARN-1 -->
+        <div class="feature-row" id="row-CORE-LEARN-1" data-id="CORE-LEARN-1" data-track="knowledge" onclick="selectFeature('CORE-LEARN-1')">
+          <span class="status-icon building" id="icon-CORE-LEARN-1"></span>
+          <span class="feature-code">CORE-LEARN-1</span>
+          <span class="feature-name">Self-Correction</span>
+          <div class="inline-progress" id="prog-CORE-LEARN-1">
+            <div class="progress-bar">
+              <span class="progress-seg done"></span><span class="progress-seg done"></span><span class="progress-seg done"></span><span class="progress-seg done"></span>
+              <span class="progress-seg active" id="seg5-cl1"></span><span class="progress-seg pending"></span><span class="progress-seg pending"></span><span class="progress-seg pending"></span>
+            </div>
+            <span class="progress-text" id="progText-CORE-LEARN-1">4/8</span>
+            <span class="progress-agent claude">Claude</span>
+            <span class="progress-text">3m</span>
+          </div>
+        </div>
+        <!-- ONTO-PROV-1 blocked by CORE-LEARN-1 -->
+        <div class="feature-row blocked" id="row-ONTO-PROV-1" data-id="ONTO-PROV-1" data-track="knowledge" onclick="selectFeature('ONTO-PROV-1')">
+          <span class="feature-blocked-prefix">&#x21B3;</span>
+          <span class="status-icon planned"></span>
+          <span class="feature-code">ONTO-PROV-1</span>
+          <span class="feature-name">Provenance Trust</span>
+          <span class="blocked-text">blocked by CORE-LEARN-1</span>
+        </div>
+        <!-- ONTO-CONF-1 blocked by ONTO-PROV-1 -->
+        <div class="feature-row blocked blocked-l2" id="row-ONTO-CONF-1" data-id="ONTO-CONF-1" data-track="knowledge" onclick="selectFeature('ONTO-CONF-1')">
+          <span class="feature-blocked-prefix">&#x21B3;</span>
+          <span class="status-icon planned"></span>
+          <span class="feature-code">ONTO-CONF-1</span>
+          <span class="feature-name">Conflict Arbitration</span>
+          <span class="blocked-text">blocked</span>
+        </div>
+        <!-- ONTO-PUB-2 -->
+        <div class="feature-row" id="row-ONTO-PUB-2" data-id="ONTO-PUB-2" data-track="knowledge" onclick="selectFeature('ONTO-PUB-2')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">ONTO-PUB-2</span>
+          <span class="feature-name">Entity Benchmark</span>
+        </div>
+        <!-- ONTO-PUB-4 -->
+        <div class="feature-row" id="row-ONTO-PUB-4" data-id="ONTO-PUB-4" data-track="knowledge" onclick="selectFeature('ONTO-PUB-4')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">ONTO-PUB-4</span>
+          <span class="feature-name">Relation Benchmark</span>
+        </div>
+        <!-- ONTO-PUB-5 -->
+        <div class="feature-row" id="row-ONTO-PUB-5" data-id="ONTO-PUB-5" data-track="knowledge" onclick="selectFeature('ONTO-PUB-5')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">ONTO-PUB-5</span>
+          <span class="feature-name">Service Enhancements</span>
+        </div>
+        <!-- CORE-EXT-1b blocked by ONTO-PUB-5 -->
+        <div class="feature-row blocked" id="row-CORE-EXT-1b" data-id="CORE-EXT-1b" data-track="knowledge" onclick="selectFeature('CORE-EXT-1b')">
+          <span class="feature-blocked-prefix">&#x21B3;</span>
+          <span class="status-icon planned"></span>
+          <span class="feature-code">CORE-EXT-1b</span>
+          <span class="feature-name">Tiered EntityRuler</span>
+          <span class="blocked-text">blocked by ONTO-PUB-5</span>
+        </div>
+        <!-- CORE-CONF-1 -->
+        <div class="feature-row" id="row-CORE-CONF-1" data-id="CORE-CONF-1" data-track="knowledge" onclick="selectFeature('CORE-CONF-1')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">CORE-CONF-1</span>
+          <span class="feature-name">Calibration</span>
+        </div>
+        <!-- ONTO-DRIFT-1 -->
+        <div class="feature-row" id="row-ONTO-DRIFT-1" data-id="ONTO-DRIFT-1" data-track="knowledge" onclick="selectFeature('ONTO-DRIFT-1')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">ONTO-DRIFT-1</span>
+          <span class="feature-name">Drift Adaptation</span>
+        </div>
+        <!-- NEURO-1a -->
+        <div class="feature-row" id="row-NEURO-1a" data-id="NEURO-1a" data-track="knowledge" onclick="selectFeature('NEURO-1a')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">NEURO-1a</span>
+          <span class="feature-name">Progressive Compression</span>
+        </div>
+        <!-- NEURO-1c -->
+        <div class="feature-row" id="row-NEURO-1c" data-id="NEURO-1c" data-track="knowledge" onclick="selectFeature('NEURO-1c')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">NEURO-1c</span>
+          <span class="feature-name">Novelty Gate</span>
+        </div>
+        <!-- NEURO-1g -->
+        <div class="feature-row" id="row-NEURO-1g" data-id="NEURO-1g" data-track="knowledge" onclick="selectFeature('NEURO-1g')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">NEURO-1g</span>
+          <span class="feature-name">Causal Discovery</span>
+        </div>
+      </div>
+
+      <!-- Distribution Track -->
+      <div class="track-header" id="trackDistribution" onclick="toggleTrack('distribution')">
+        <span class="track-chevron" id="chevDistribution">&#x25BE;</span>
+        <span class="track-name">Distribution</span>
+        <span class="track-count">(6)</span>
+        <div class="track-badges">
+          <span class="track-badge gate" id="distBadgeGate">&#x26A0;1</span>
+          <span class="track-badge complete" id="distBadgeComplete">&#x2713;1</span>
+        </div>
+      </div>
+      <div class="track-items" id="itemsDistribution">
+        <!-- DIST-ADOPT-1 -->
+        <div class="feature-row" id="row-DIST-ADOPT-1" data-id="DIST-ADOPT-1" data-track="distribution" onclick="selectFeature('DIST-ADOPT-1')">
+          <span class="status-icon gate" id="icon-DIST-ADOPT-1"></span>
+          <span class="feature-code">DIST-ADOPT-1</span>
+          <span class="feature-name">OSS Adoption</span>
+          <span class="status-label gate-label">gate</span>
+        </div>
+        <!-- DIST-INTEGRATIONS-1 blocked -->
+        <div class="feature-row blocked" id="row-DIST-INTEGRATIONS-1" data-id="DIST-INTEGRATIONS-1" data-track="distribution" onclick="selectFeature('DIST-INTEGRATIONS-1')">
+          <span class="feature-blocked-prefix">&#x21B3;</span>
+          <span class="status-icon planned"></span>
+          <span class="feature-code">DIST-INTEGRATIONS-1</span>
+          <span class="feature-name">Integration Targets</span>
+          <span class="blocked-text">blocked</span>
+        </div>
+        <!-- DIST-AGENT-HOOKS-1 blocked -->
+        <div class="feature-row blocked blocked-l2" id="row-DIST-AGENT-HOOKS-1" data-id="DIST-AGENT-HOOKS-1" data-track="distribution" onclick="selectFeature('DIST-AGENT-HOOKS-1')">
+          <span class="feature-blocked-prefix">&#x21B3;</span>
+          <span class="status-icon planned"></span>
+          <span class="feature-code">DIST-AGENT-HOOKS-1</span>
+          <span class="feature-name">Agent Lifecycle</span>
+          <span class="blocked-text">blocked</span>
+        </div>
+        <!-- DIST-BENCH-1 -->
+        <div class="feature-row" id="row-DIST-BENCH-1" data-id="DIST-BENCH-1" data-track="distribution" onclick="selectFeature('DIST-BENCH-1')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">DIST-BENCH-1</span>
+          <span class="feature-name">Benchmark Suite</span>
+        </div>
+        <!-- DIST-PUB-1 blocked -->
+        <div class="feature-row blocked" id="row-DIST-PUB-1" data-id="DIST-PUB-1" data-track="distribution" onclick="selectFeature('DIST-PUB-1')">
+          <span class="feature-blocked-prefix">&#x21B3;</span>
+          <span class="status-icon parked"></span>
+          <span class="feature-code">DIST-PUB-1</span>
+          <span class="feature-name">Technical Publication</span>
+          <span class="status-label parked-label">parked</span>
+        </div>
+        <!-- DIST-RELEASE-1 -->
+        <div class="feature-row" id="row-DIST-RELEASE-1" data-id="DIST-RELEASE-1" data-track="distribution" onclick="selectFeature('DIST-RELEASE-1')">
+          <span class="status-icon complete"></span>
+          <span class="feature-code">DIST-RELEASE-1</span>
+          <span class="feature-name">PyPI Publish</span>
+          <span class="status-label complete-label">&#x2713; 28m</span>
+        </div>
+      </div>
+
+      <!-- Governance Track -->
+      <div class="track-header" id="trackGovernance" onclick="toggleTrack('governance')">
+        <span class="track-chevron" id="chevGovernance">&#x25BE;</span>
+        <span class="track-name">Governance</span>
+        <span class="track-count">(5)</span>
+        <div class="track-badges">
+          <span class="track-badge building">&#x25CF;1</span>
+        </div>
+      </div>
+      <div class="track-items" id="itemsGovernance">
+        <!-- SEC-DOMAIN-1 -->
+        <div class="feature-row" id="row-SEC-DOMAIN-1" data-id="SEC-DOMAIN-1" data-track="governance" onclick="selectFeature('SEC-DOMAIN-1')">
+          <span class="status-icon building"></span>
+          <span class="feature-code">SEC-DOMAIN-1</span>
+          <span class="feature-name">Security Policies</span>
+          <div class="inline-progress">
+            <div class="progress-bar" style="width:80px">
+              <span class="progress-seg done"></span><span class="progress-seg done"></span><span class="progress-seg done"></span><span class="progress-seg done"></span><span class="progress-seg done"></span><span class="progress-seg done"></span>
+              <span class="progress-seg active"></span><span class="progress-seg pending"></span><span class="progress-seg pending"></span><span class="progress-seg pending"></span>
+            </div>
+            <span class="progress-text">6/10</span>
+            <span class="progress-agent codex">Codex</span>
+            <span class="progress-text">12m</span>
+          </div>
+        </div>
+        <!-- SEC-GUARDRAIL-1 blocked -->
+        <div class="feature-row blocked" id="row-SEC-GUARDRAIL-1" data-id="SEC-GUARDRAIL-1" data-track="governance" onclick="selectFeature('SEC-GUARDRAIL-1')">
+          <span class="feature-blocked-prefix">&#x21B3;</span>
+          <span class="status-icon planned"></span>
+          <span class="feature-code">SEC-GUARDRAIL-1</span>
+          <span class="feature-name">Guardrails</span>
+          <span class="blocked-text">blocked</span>
+        </div>
+        <!-- HITL-1 -->
+        <div class="feature-row" id="row-HITL-1" data-id="HITL-1" data-track="governance" onclick="selectFeature('HITL-1')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">HITL-1</span>
+          <span class="feature-name">HITL Directives</span>
+        </div>
+        <!-- GOV-ROLES-1 blocked -->
+        <div class="feature-row blocked" id="row-GOV-ROLES-1" data-id="GOV-ROLES-1" data-track="governance" onclick="selectFeature('GOV-ROLES-1')">
+          <span class="feature-blocked-prefix">&#x21B3;</span>
+          <span class="status-icon planned"></span>
+          <span class="feature-code">GOV-ROLES-1</span>
+          <span class="feature-name">Workspace Roles</span>
+          <span class="blocked-text">blocked</span>
+        </div>
+        <!-- OBS-COVERAGE-1 -->
+        <div class="feature-row" id="row-OBS-COVERAGE-1" data-id="OBS-COVERAGE-1" data-track="governance" onclick="selectFeature('OBS-COVERAGE-1')">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">OBS-COVERAGE-1</span>
+          <span class="feature-name">Coverage Analytics</span>
+        </div>
+      </div>
+
+      <!-- Worker Track (collapsed) -->
+      <div class="track-header" id="trackWorker" onclick="toggleTrack('worker')">
+        <span class="track-chevron collapsed" id="chevWorker">&#x25BE;</span>
+        <span class="track-name">Worker</span>
+        <span class="track-count">(3)</span>
+        <div class="track-badges">
+          <span class="track-badge complete">&#x2713;1</span>
+        </div>
+      </div>
+      <div class="track-items" id="itemsWorker" style="max-height:0;overflow:hidden">
+        <div class="feature-row" id="row-WORKER-POOL-1" data-id="WORKER-POOL-1" data-track="worker" onclick="selectFeature('WORKER-POOL-1')">
+          <span class="status-icon complete"></span>
+          <span class="feature-code">WORKER-POOL-1</span>
+          <span class="feature-name">Pool Manager</span>
+          <span class="status-label complete-label">&#x2713; 45m</span>
+        </div>
+        <div class="feature-row" data-track="worker">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">WORKER-SCALE-1</span>
+          <span class="feature-name">Auto-Scaling</span>
+        </div>
+        <div class="feature-row" data-track="worker">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">WORKER-HEALTH-1</span>
+          <span class="feature-name">Health Checks</span>
+        </div>
+      </div>
+
+      <!-- Agent Track (collapsed) -->
+      <div class="track-header" id="trackAgent" onclick="toggleTrack('agent')">
+        <span class="track-chevron collapsed" id="chevAgent">&#x25BE;</span>
+        <span class="track-name">Agent</span>
+        <span class="track-count">(3)</span>
+        <div class="track-badges">
+          <span class="track-badge error" id="agentBadgeError">&#x2715;1</span>
+        </div>
+      </div>
+      <div class="track-items" id="itemsAgent" style="max-height:0;overflow:hidden">
+        <div class="feature-row" id="row-MAYA-EXEC-1" data-id="MAYA-EXEC-1" data-track="agent" onclick="selectFeature('MAYA-EXEC-1')">
+          <span class="status-icon error" id="icon-MAYA-EXEC-1"></span>
+          <span class="feature-code">MAYA-EXEC-1</span>
+          <span class="feature-name">Agent Execution</span>
+          <span class="status-label error-label">error</span>
+        </div>
+        <div class="feature-row" data-track="agent">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">MAYA-PLAN-1</span>
+          <span class="feature-name">Plan Synthesis</span>
+        </div>
+        <div class="feature-row" data-track="agent">
+          <span class="status-icon planned"></span>
+          <span class="feature-code">MAYA-REFLECT-1</span>
+          <span class="feature-name">Reflection Loop</span>
+        </div>
+      </div>
+
+      <!-- Async Track (collapsed) -->
+      <div class="track-header" id="trackAsync" onclick="toggleTrack('async')">
+        <span class="track-chevron collapsed" id="chevAsync">&#x25BE;</span>
+        <span class="track-name">Async</span>
+        <span class="track-count">(2)</span>
+        <div class="track-badges">
+          <span class="track-badge" style="color:#64748b">parked</span>
+        </div>
+      </div>
+      <div class="track-items" id="itemsAsync" style="max-height:0;overflow:hidden">
+        <div class="feature-row" data-track="async">
+          <span class="status-icon parked"></span>
+          <span class="feature-code">ASYNC-QUEUE-1</span>
+          <span class="feature-name">Job Queue</span>
+          <span class="status-label parked-label">parked</span>
+        </div>
+        <div class="feature-row" data-track="async">
+          <span class="status-icon parked"></span>
+          <span class="feature-code">ASYNC-RETRY-1</span>
+          <span class="feature-name">Retry Logic</span>
+          <span class="status-label parked-label">parked</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resizable divider -->
+  <div class="divider" id="divider"></div>
+
+  <!-- Context panel -->
+  <div class="context-panel" id="contextPanel">
+    <div class="cp-header">
+      <h3 id="cpTitle">CORE-LEARN-1 <span class="cp-subtitle" id="cpSubtitle">Self-Correction</span></h3>
+      <button class="cp-close" onclick="closePanel()">&times;</button>
+    </div>
+    <div class="cp-body" id="cpBody">
+      <!-- Content injected by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- Ops strip -->
+<div class="ops-strip">
+  <div class="ops-item" id="opsLearn"><span class="ops-dot building"></span><span class="ops-code">CORE-LEARN-1</span><span class="ops-detail">4/8 Claude 3m</span></div>
+  <div class="ops-separator"></div>
+  <div class="ops-item" id="opsSec"><span class="ops-dot building"></span><span class="ops-code">SEC-DOMAIN-1</span><span class="ops-detail">6/10 Codex 12m</span></div>
+  <div class="ops-separator"></div>
+  <div class="ops-item" id="opsAdopt"><span class="ops-dot gate"></span><span class="ops-code">DIST-ADOPT-1</span><span class="ops-detail" style="color:#f59e0b">gate</span></div>
+  <div class="ops-separator"></div>
+  <div class="ops-item" id="opsMaya"><span class="ops-dot error"></span><span class="ops-code">MAYA-EXEC-1</span><span class="ops-detail" style="color:#ef4444">error</span></div>
+</div>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<script>
+// ── DATA ──
+const features = {
+  'CORE-LEARN-1': { name: 'Self-Correction', track: 'Knowledge', status: 'building', pipeline: [1,1,1,1,0,0,0,0], pipeLabels: ['design','spec','impl','test','review','gate','deploy','ship'], step: 4, total: 8, agent: 'Claude', dur: '3m', sessions: [{agent:'Claude',dur:'3m',stats:'+142 -23 across 4 files'}], files: ['src/core/learner.py','src/core/correction.py','tests/test_learner.py','design.md'], blockedBy: null, blocks: ['ONTO-PROV-1'] },
+  'ONTO-PROV-1': { name: 'Provenance Trust', track: 'Knowledge', status: 'blocked', blockedBy: 'CORE-LEARN-1', blocks: ['ONTO-CONF-1'] },
+  'ONTO-CONF-1': { name: 'Conflict Arbitration', track: 'Knowledge', status: 'blocked', blockedBy: 'ONTO-PROV-1' },
+  'ONTO-PUB-2': { name: 'Entity Benchmark', track: 'Knowledge', status: 'planned' },
+  'ONTO-PUB-4': { name: 'Relation Benchmark', track: 'Knowledge', status: 'planned' },
+  'ONTO-PUB-5': { name: 'Service Enhancements', track: 'Knowledge', status: 'planned', blocks: ['CORE-EXT-1b'] },
+  'CORE-EXT-1b': { name: 'Tiered EntityRuler', track: 'Knowledge', status: 'blocked', blockedBy: 'ONTO-PUB-5' },
+  'CORE-CONF-1': { name: 'Calibration', track: 'Knowledge', status: 'planned' },
+  'ONTO-DRIFT-1': { name: 'Drift Adaptation', track: 'Knowledge', status: 'planned' },
+  'NEURO-1a': { name: 'Progressive Compression', track: 'Knowledge', status: 'planned' },
+  'NEURO-1c': { name: 'Novelty Gate', track: 'Knowledge', status: 'planned' },
+  'NEURO-1g': { name: 'Causal Discovery', track: 'Knowledge', status: 'planned' },
+  'DIST-ADOPT-1': { name: 'OSS Adoption', track: 'Distribution', status: 'gate', pipeline: [1,1,1,0,0,0], pipeLabels: ['design','spec','plan','implement','test','ship'], step: 3, total: 6, gateType: 'plan \u2192 implement', sessions: [{agent:'Claude',dur:'8m',stats:'+89 -12 across 3 files'}], files: ['docs/adoption-plan.md','src/dist/adoption.py'], blocks: ['DIST-INTEGRATIONS-1'] },
+  'DIST-INTEGRATIONS-1': { name: 'Integration Targets', track: 'Distribution', status: 'blocked', blockedBy: 'DIST-ADOPT-1', blocks: ['DIST-AGENT-HOOKS-1'] },
+  'DIST-AGENT-HOOKS-1': { name: 'Agent Lifecycle', track: 'Distribution', status: 'blocked', blockedBy: 'DIST-INTEGRATIONS-1' },
+  'DIST-BENCH-1': { name: 'Benchmark Suite', track: 'Distribution', status: 'planned', blocks: ['DIST-PUB-1'] },
+  'DIST-PUB-1': { name: 'Technical Publication', track: 'Distribution', status: 'parked', blockedBy: 'DIST-BENCH-1' },
+  'DIST-RELEASE-1': { name: 'PyPI Publish', track: 'Distribution', status: 'complete', pipeline: [1,1,1,1,1,1], pipeLabels: ['design','spec','impl','test','publish','ship'], step: 6, total: 6, dur: '28m', sessions: [{agent:'Claude',dur:'28m',stats:'+312 -45 across 8 files'}], files: ['pyproject.toml','src/dist/release.py','.github/workflows/publish.yml'] },
+  'SEC-DOMAIN-1': { name: 'Security Policies', track: 'Governance', status: 'building', pipeline: [1,1,1,1,1,1,0,0,0,0], pipeLabels: ['design','spec','impl-1','impl-2','impl-3','impl-4','test-1','test-2','review','ship'], step: 6, total: 10, agent: 'Codex', dur: '12m', sessions: [{agent:'Codex',dur:'12m',stats:'+267 -34 across 6 files'},{agent:'Claude',dur:'4m',stats:'+45 -8 across 2 files'}], files: ['src/security/policies.py','src/security/domain.py','tests/test_policies.py','docs/security-design.md'], blocks: ['SEC-GUARDRAIL-1'] },
+  'SEC-GUARDRAIL-1': { name: 'Guardrails', track: 'Governance', status: 'blocked', blockedBy: 'SEC-DOMAIN-1' },
+  'HITL-1': { name: 'HITL Directives', track: 'Governance', status: 'planned', blocks: ['GOV-ROLES-1'] },
+  'GOV-ROLES-1': { name: 'Workspace Roles', track: 'Governance', status: 'blocked', blockedBy: 'HITL-1' },
+  'OBS-COVERAGE-1': { name: 'Coverage Analytics', track: 'Governance', status: 'planned' },
+  'MAYA-EXEC-1': { name: 'Agent Execution', track: 'Agent', status: 'error', pipeline: [1,1,1,0,0,0], pipeLabels: ['design','spec','impl','test','review','ship'], step: 3, total: 6, errorMsg: 'RuntimeError: tool_call schema validation failed at step 3 (impl). Expected tool_name to be string, got null. Session aborted after 2 retries.', sessions: [{agent:'Claude',dur:'6m',stats:'+98 -15 across 3 files (failed)'}], files: ['src/agent/executor.py','src/agent/tools.py'] }
+};
+
+let selectedFeature = null;
+let animTimeout = null;
+let animTimeouts = [];
+
+// ── TRACK TOGGLE ──
+function toggleTrack(track) {
+  const items = document.getElementById('items' + track.charAt(0).toUpperCase() + track.slice(1));
+  const chev = document.getElementById('chev' + track.charAt(0).toUpperCase() + track.slice(1));
+  if (!items || !chev) return;
+  if (items.style.maxHeight === '0px' || items.style.maxHeight === '') {
+    items.style.maxHeight = items.scrollHeight + 200 + 'px';
+    chev.classList.remove('collapsed');
+  } else {
+    items.style.maxHeight = '0px';
+    chev.classList.add('collapsed');
+  }
+}
+
+// ── FEATURE SELECTION ──
+function selectFeature(id) {
+  // Deselect previous
+  document.querySelectorAll('.feature-row.selected').forEach(r => r.classList.remove('selected'));
+  const row = document.getElementById('row-' + id);
+  if (row) row.classList.add('selected');
+  selectedFeature = id;
+  renderContextPanel(id);
+}
+
+function renderContextPanel(id) {
+  const f = features[id];
+  if (!f) return;
+  const panel = document.getElementById('contextPanel');
+  panel.classList.remove('collapsed');
+  document.getElementById('cpTitle').innerHTML = id + ' <span class="cp-subtitle">' + f.name + '</span>';
+
+  let html = '';
+
+  // Status
+  html += '<div class="cp-section"><div class="cp-label">Status</div>';
+  const statusClass = f.status === 'building' ? 'building' : f.status === 'gate' ? 'gate' : f.status === 'error' ? 'error' : f.status === 'complete' ? 'complete' : f.status === 'blocked' ? 'planned' : 'planned';
+  const statusText = f.status === 'blocked' ? 'Blocked by ' + (f.blockedBy || '...') : f.status.charAt(0).toUpperCase() + f.status.slice(1);
+  html += '<div class="cp-status ' + statusClass + '">' + statusText + '</div>';
+  if (f.status === 'building') html += '<div class="cp-detail">' + f.step + '/' + f.total + ' steps \u2022 ' + f.agent + ' \u2022 ' + f.dur + '</div>';
+  if (f.status === 'complete') html += '<div class="cp-detail">Completed in ' + (f.dur || '?') + '</div>';
+  html += '</div>';
+
+  // Pipeline
+  if (f.pipeline) {
+    html += '<div class="cp-section"><div class="cp-label">Pipeline</div><div class="pipeline" id="cpPipeline">';
+    for (let i = 0; i < f.pipeline.length; i++) {
+      if (i > 0) {
+        const lineClass = f.pipeline[i-1] === 1 ? 'done' : '';
+        html += '<div class="pipe-line ' + lineClass + '"></div>';
+      }
+      let dotClass = 'pipe-dot';
+      let labelClass = 'pipe-label';
+      if (f.status === 'error' && i === f.step) {
+        dotClass += ' error-dot';
+        labelClass += ' active';
+      } else if (f.status === 'gate' && i === f.step) {
+        dotClass += ' gate-dot';
+        labelClass += ' active';
+      } else if (f.pipeline[i] === 1) {
+        dotClass += ' done';
+        labelClass += ' done';
+      } else if (i === f.step) {
+        dotClass += ' active';
+        labelClass += ' active';
+      }
+      html += '<div class="pipe-step"><div class="' + dotClass + '" id="cpPipeDot' + i + '"></div><div class="' + labelClass + '">' + (f.pipeLabels[i] || '') + '</div></div>';
+    }
+    html += '</div></div>';
+  }
+
+  // Gate card
+  if (f.status === 'gate') {
+    html += '<div class="cp-section"><div class="cp-label">Gate</div>';
+    html += '<div class="gate-card"><div class="gate-title">Gate: ' + (f.gateType || 'approval required') + '</div>';
+    html += '<div class="gate-meta">Waiting for human approval to proceed</div>';
+    html += '<div class="gate-actions"><button class="gate-btn approve" id="cpApproveBtn" onclick="approveGate(\'' + id + '\')">Approve</button><button class="gate-btn revise">Revise</button><button class="gate-btn kill">Kill</button></div>';
+    html += '</div></div>';
+  }
+
+  // Error card
+  if (f.status === 'error' && f.errorMsg) {
+    html += '<div class="cp-section"><div class="cp-label">Error</div>';
+    html += '<div class="error-card"><div class="error-title">Build Error</div><div class="error-body">' + f.errorMsg + '</div></div></div>';
+  }
+
+  // Sessions
+  if (f.sessions) {
+    html += '<div class="cp-section"><div class="cp-label">Sessions</div>';
+    f.sessions.forEach(s => {
+      const agentClass = s.agent === 'Claude' ? 'claude' : 'codex';
+      html += '<div class="session-row"><span class="session-agent ' + agentClass + '">' + s.agent + '</span><span class="session-dur">' + s.dur + '</span><span class="session-stats">' + s.stats + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  // Files
+  if (f.files) {
+    html += '<div class="cp-section"><div class="cp-label">Files</div>';
+    f.files.forEach(file => {
+      html += '<a class="file-link" id="fileLink-' + file.replace(/[^a-zA-Z0-9]/g,'_') + '" onclick="clickFile(\'' + file + '\')">' + file + '</a>';
+    });
+    html += '</div>';
+  }
+
+  // Cross-view links
+  html += '<div class="cp-section"><div class="cp-label">Navigate</div><div class="cross-links">';
+  html += '<div class="cross-link" id="crossGraph" onclick="crossNavigate(\'graph\')"><span>\u2191</span> View in Graph</div>';
+  html += '<div class="cross-link" onclick="crossNavigate(\'docs\')"><span>\u2192</span> View in Docs</div>';
+  html += '</div></div>';
+
+  document.getElementById('cpBody').innerHTML = html;
+}
+
+function closePanel() {
+  document.getElementById('contextPanel').classList.add('collapsed');
+  document.querySelectorAll('.feature-row.selected').forEach(r => r.classList.remove('selected'));
+  selectedFeature = null;
+}
+
+function clickFile(file) {
+  // Simulate docs navigation
+  showAnnotation('Opening ' + file + ' in Docs view...');
+}
+
+function crossNavigate(view) {
+  showAnnotation('Navigating to ' + view.charAt(0).toUpperCase() + view.slice(1) + ' view...');
+}
+
+// ── GATE APPROVE ──
+function approveGate(id) {
+  const btn = document.getElementById('cpApproveBtn');
+  if (btn) { btn.className = 'gate-btn approved'; btn.textContent = 'Approved'; btn.onclick = null; }
+
+  // Update feature status
+  if (id === 'DIST-ADOPT-1') {
+    features[id].status = 'building';
+    features[id].pipeline[3] = 0; // now active at implement
+    const icon = document.getElementById('icon-DIST-ADOPT-1');
+    if (icon) { icon.className = 'status-icon building'; }
+    const row = document.getElementById('row-DIST-ADOPT-1');
+    if (row) {
+      const label = row.querySelector('.status-label');
+      if (label) label.remove();
+    }
+    // Unblock downstream
+    unblockFeature('DIST-INTEGRATIONS-1');
+  }
+  if (id === 'CORE-LEARN-1') {
+    // pipeline advance scenario
+    const f = features[id];
+    f.pipeline[f.step] = 1;
+    f.step++;
+    const progText = document.getElementById('progText-CORE-LEARN-1');
+    if (progText) progText.textContent = f.step + '/' + f.total;
+  }
+}
+
+function unblockFeature(id) {
+  const row = document.getElementById('row-' + id);
+  if (row) {
+    row.style.opacity = '1';
+    row.classList.add('flash-green');
+  }
+}
+
+// ── SEARCH ──
+const searchInput = document.getElementById('searchInput');
+searchInput.addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  document.querySelectorAll('.feature-row').forEach(row => {
+    if (!q) {
+      row.classList.remove('search-hidden');
+      return;
+    }
+    const text = row.textContent.toLowerCase();
+    row.classList.toggle('search-hidden', !text.includes(q));
+  });
+  // Show/hide track headers based on visible children
+  ['knowledge','distribution','governance','worker','agent','async'].forEach(track => {
+    const items = document.getElementById('items' + track.charAt(0).toUpperCase() + track.slice(1));
+    if (!items) return;
+    const visible = items.querySelectorAll('.feature-row:not(.search-hidden)');
+    const header = document.getElementById('track' + track.charAt(0).toUpperCase() + track.slice(1));
+    if (header) header.style.display = q && visible.length === 0 ? 'none' : '';
+    if (q && visible.length > 0 && items.style.maxHeight === '0px') {
+      items.style.maxHeight = items.scrollHeight + 200 + 'px';
+      const chev = document.getElementById('chev' + track.charAt(0).toUpperCase() + track.slice(1));
+      if (chev) chev.classList.remove('collapsed');
+    }
+  });
+});
+
+// ── RESIZABLE DIVIDER ──
+const divider = document.getElementById('divider');
+const treeWrap = document.getElementById('treeWrap');
+const contextPanel = document.getElementById('contextPanel');
+let isDragging = false;
+
+divider.addEventListener('mousedown', function(e) {
+  isDragging = true;
+  divider.classList.add('active');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', function(e) {
+  if (!isDragging) return;
+  const mainWrap = document.querySelector('.main-wrap');
+  const rect = mainWrap.getBoundingClientRect();
+  const sidebarWidth = 180;
+  const available = rect.width - sidebarWidth - 5;
+  const mouseX = e.clientX - rect.left - sidebarWidth;
+  const treeWidth = Math.max(200, Math.min(available - 200, mouseX));
+  const panelWidth = available - treeWidth;
+  treeWrap.style.flex = 'none';
+  treeWrap.style.width = treeWidth + 'px';
+  contextPanel.style.width = panelWidth + 'px';
+});
+
+document.addEventListener('mouseup', function() {
+  if (isDragging) {
+    isDragging = false;
+    divider.classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+});
+
+// ── ANNOTATION ──
+function showAnnotation(text) {
+  const el = document.getElementById('annotation');
+  el.textContent = text;
+  el.classList.add('visible');
+}
+function hideAnnotation() {
+  document.getElementById('annotation').classList.remove('visible');
+}
+
+// ── INIT ──
+// Expand the three expanded tracks
+['knowledge','distribution','governance'].forEach(t => {
+  const items = document.getElementById('items' + t.charAt(0).toUpperCase() + t.slice(1));
+  if (items) items.style.maxHeight = items.scrollHeight + 200 + 'px';
+});
+
+// Select CORE-LEARN-1 initially
+selectFeature('CORE-LEARN-1');
+
+// ── DEMO ANIMATION ──
+function clearAllTimeouts() {
+  animTimeouts.forEach(t => clearTimeout(t));
+  animTimeouts = [];
+}
+
+function sched(fn, delay) {
+  const t = setTimeout(fn, delay);
+  animTimeouts.push(t);
+  return t;
+}
+
+function startDemo() {
+  document.getElementById('preamble').classList.add('hidden');
+  document.getElementById('replayBtn').classList.add('visible');
+  runAnimation();
+}
+
+function replay() {
+  clearAllTimeouts();
+  hideAnnotation();
+  // Reset state
+  resetState();
+  runAnimation();
+}
+
+function resetState() {
+  // Reset features
+  features['CORE-LEARN-1'].status = 'building';
+  features['CORE-LEARN-1'].step = 4;
+  features['CORE-LEARN-1'].pipeline = [1,1,1,1,0,0,0,0];
+  features['DIST-ADOPT-1'].status = 'gate';
+
+  // Reset icons
+  const clIcon = document.getElementById('icon-CORE-LEARN-1');
+  if (clIcon) clIcon.className = 'status-icon building';
+  const daIcon = document.getElementById('icon-DIST-ADOPT-1');
+  if (daIcon) daIcon.className = 'status-icon gate';
+
+  // Reset row classes
+  document.querySelectorAll('.feature-row').forEach(r => {
+    r.classList.remove('flash-green','search-hidden');
+  });
+  const distRow = document.getElementById('row-DIST-ADOPT-1');
+  if (distRow && !distRow.querySelector('.status-label')) {
+    const lbl = document.createElement('span');
+    lbl.className = 'status-label gate-label';
+    lbl.textContent = 'gate';
+    distRow.appendChild(lbl);
+  }
+
+  // Reset blocked rows opacity
+  const intRow = document.getElementById('row-DIST-INTEGRATIONS-1');
+  if (intRow) intRow.style.opacity = '';
+
+  // Reset progress
+  const seg5 = document.getElementById('seg5-cl1');
+  if (seg5) { seg5.className = 'progress-seg active'; }
+  const progText = document.getElementById('progText-CORE-LEARN-1');
+  if (progText) progText.textContent = '4/8';
+
+  // Reset pills
+  document.getElementById('pillBuilding').textContent = '2 building';
+  document.getElementById('pillGate').textContent = '1 gate';
+  document.getElementById('pillComplete').textContent = '2 complete';
+
+  // Reset track badges
+  const knBadge = document.getElementById('knBadgeBuilding');
+  if (knBadge) { knBadge.innerHTML = '&#x25CF;1'; knBadge.style.display = ''; }
+
+  // Collapse agent track
+  const itemsAgent = document.getElementById('itemsAgent');
+  if (itemsAgent) itemsAgent.style.maxHeight = '0px';
+  const chevAgent = document.getElementById('chevAgent');
+  if (chevAgent) chevAgent.classList.add('collapsed');
+
+  // Clear search
+  searchInput.value = '';
+  searchInput.dispatchEvent(new Event('input'));
+
+  // Expand initial tracks, collapse others
+  ['knowledge','distribution','governance'].forEach(t => {
+    const items = document.getElementById('items' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (items) items.style.maxHeight = items.scrollHeight + 200 + 'px';
+    const chev = document.getElementById('chev' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (chev) chev.classList.remove('collapsed');
+  });
+  ['worker','async'].forEach(t => {
+    const items = document.getElementById('items' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (items) items.style.maxHeight = '0px';
+    const chev = document.getElementById('chev' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (chev) chev.classList.add('collapsed');
+  });
+
+  // Re-select CORE-LEARN-1
+  selectFeature('CORE-LEARN-1');
+}
+
+function runAnimation() {
+  // 1. (0s) Initial state — CORE-LEARN-1 selected
+  showAnnotation('Mid level \u2014 features by track with dependency hierarchy');
+
+  // 2. (4s) Pipeline step 4 completes, step 5 activates
+  sched(() => {
+    hideAnnotation();
+    const f = features['CORE-LEARN-1'];
+    f.pipeline[4] = 1;
+    f.step = 5;
+    const seg5 = document.getElementById('seg5-cl1');
+    if (seg5) { seg5.className = 'progress-seg done'; }
+    const progText = document.getElementById('progText-CORE-LEARN-1');
+    if (progText) progText.textContent = '5/8';
+    // Re-render context panel to show updated pipeline
+    renderContextPanel('CORE-LEARN-1');
+    // Show gate in pipeline (step 5 is review, which triggers gate)
+    sched(() => {
+      showAnnotation('Pipeline advances \u2014 gate card appears');
+    }, 500);
+  }, 4000);
+
+  // 3. (7s) Approve gate in panel
+  sched(() => {
+    hideAnnotation();
+    showAnnotation('Approve in detail panel \u2014 tree syncs');
+    // Simulate approve
+    const f = features['CORE-LEARN-1'];
+    f.pipeline[5] = 1;
+    f.step = 6;
+    const progText = document.getElementById('progText-CORE-LEARN-1');
+    if (progText) progText.textContent = '6/8';
+    renderContextPanel('CORE-LEARN-1');
+  }, 7000);
+
+  // 4. (10s) Click DIST-ADOPT-1
+  sched(() => {
+    hideAnnotation();
+    selectFeature('DIST-ADOPT-1');
+    showAnnotation('Gate pending \u2014 plan \u2192 implement');
+  }, 10000);
+
+  // 5. (13s) Approve DIST-ADOPT-1
+  sched(() => {
+    hideAnnotation();
+    approveGate('DIST-ADOPT-1');
+    renderContextPanel('DIST-ADOPT-1');
+    showAnnotation('Downstream dependencies unblock');
+    // Update ops strip
+    const opsAdopt = document.getElementById('opsAdopt');
+    if (opsAdopt) {
+      opsAdopt.querySelector('.ops-dot').className = 'ops-dot building';
+      opsAdopt.querySelector('.ops-detail').textContent = '3/6 Claude';
+      opsAdopt.querySelector('.ops-detail').style.color = '';
+    }
+    // Update pills
+    document.getElementById('pillBuilding').textContent = '3 building';
+    document.getElementById('pillGate').textContent = '0 gates';
+  }, 13000);
+
+  // 6. (17s) Expand Agent track, show MAYA-EXEC-1
+  sched(() => {
+    hideAnnotation();
+    toggleTrack('agent');
+    sched(() => {
+      selectFeature('MAYA-EXEC-1');
+    }, 500);
+  }, 17000);
+
+  // 7. (20s) Error investigation annotation
+  sched(() => {
+    showAnnotation('Error investigation in the detail panel');
+  }, 20000);
+
+  // 8. (23s) Click SEC-DOMAIN-1
+  sched(() => {
+    hideAnnotation();
+    selectFeature('SEC-DOMAIN-1');
+  }, 23000);
+
+  // 9. (26s) Search "benchmark"
+  sched(() => {
+    hideAnnotation();
+    showAnnotation('Search filters everything');
+    searchInput.value = 'benchmark';
+    searchInput.dispatchEvent(new Event('input'));
+  }, 26000);
+
+  // 10. (29s) Clear search, CORE-LEARN-1 completes
+  sched(() => {
+    hideAnnotation();
+    searchInput.value = '';
+    searchInput.dispatchEvent(new Event('input'));
+    sched(() => {
+      // Complete CORE-LEARN-1
+      features['CORE-LEARN-1'].status = 'complete';
+      features['CORE-LEARN-1'].pipeline = [1,1,1,1,1,1,1,1];
+      features['CORE-LEARN-1'].step = 8;
+      const icon = document.getElementById('icon-CORE-LEARN-1');
+      if (icon) icon.className = 'status-icon complete';
+      const row = document.getElementById('row-CORE-LEARN-1');
+      if (row) {
+        row.classList.add('flash-green');
+        // Remove progress bar, add complete label
+        const prog = document.getElementById('prog-CORE-LEARN-1');
+        if (prog) prog.innerHTML = '<span class="status-label complete-label">&#x2713; 3m</span>';
+      }
+      // Update track badge
+      const knBadge = document.getElementById('knBadgeBuilding');
+      if (knBadge) knBadge.style.display = 'none';
+      // Update pills
+      document.getElementById('pillBuilding').textContent = '2 building';
+      document.getElementById('pillComplete').textContent = '3 complete';
+      // Update ops strip
+      const opsLearn = document.getElementById('opsLearn');
+      if (opsLearn) {
+        opsLearn.querySelector('.ops-dot').className = 'ops-dot complete';
+        opsLearn.querySelector('.ops-detail').textContent = 'complete 3m';
+      }
+      selectFeature('CORE-LEARN-1');
+    }, 500);
+  }, 29000);
+
+  // 11. (32s) Click design.md in context panel
+  sched(() => {
+    hideAnnotation();
+    const fileLink = document.querySelector('#cpBody .file-link');
+    if (fileLink) {
+      clickFile('design.md');
+    }
+  }, 32000);
+
+  // 12. (35s) Back, "View in Graph" glows
+  sched(() => {
+    hideAnnotation();
+    selectFeature('CORE-LEARN-1');
+    sched(() => {
+      const crossGraph = document.getElementById('crossGraph');
+      if (crossGraph) crossGraph.classList.add('glow');
+      showAnnotation('Navigate up to high level');
+    }, 500);
+  }, 35000);
+
+  // 13. (38s) Done — show replay
+  sched(() => {
+    hideAnnotation();
+    showAnnotation('Demo complete \u2014 click Replay to watch again');
+  }, 38000);
+}
+</script>
+</body>
+</html>

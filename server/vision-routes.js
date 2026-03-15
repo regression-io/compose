@@ -32,9 +32,9 @@ import { fileURLToPath } from 'node:url';
 import { extractFilePaths } from './vision-utils.js';
 import { ArtifactManager } from './artifact-manager.js';
 
-import { TARGET_ROOT, resolveProjectPath, loadProjectConfig } from './project-root.js';
+import { getTargetRoot, resolveProjectPath, loadProjectConfig } from './project-root.js';
 
-const PROJECT_ROOT = TARGET_ROOT;
+const PROJECT_ROOT = getTargetRoot();
 
 /**
  * Attach vision CRUD and plan/parse REST routes to an Express app.

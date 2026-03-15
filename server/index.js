@@ -7,8 +7,9 @@ import { FileWatcherServer } from './file-watcher.js';
 import { VisionStore } from './vision-store.js';
 import { VisionServer } from './vision-server.js';
 import { SessionManager } from './session-manager.js';
-import { scanFeatures, seedFeatures } from './feature-scan.js';
-import { TARGET_ROOT, DATA_DIR, ensureDataDir, loadProjectConfig, resolveProjectPath } from './project-root.js';
+import { scanFeatures, seedFeatures, scanSubPackages, seedSubPackages, seedFromRoadmapGraph } from './feature-scan.js';
+import { attachGraphExportRoutes } from './graph-export.js';
+import { getTargetRoot, getDataDir, ensureDataDir, loadProjectConfig, resolveProjectPath, switchProject } from './project-root.js';
 
 // Load project config and verify stratum capability matches reality
 const projectConfig = loadProjectConfig();
@@ -49,11 +50,47 @@ app.use(express.json());
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/status', (_req, res) => res.json({ session: 2, phase: '0.4-brainstorm', upSince: new Date().toISOString() }));
 
+// Project info + switching
+app.get('/api/project', (_req, res) => {
+  const root = getTargetRoot();
+  res.json({
+    targetRoot: root,
+    name: path.basename(root),
+    dataDir: getDataDir(),
+  });
+});
+
+app.post('/api/project/switch', (req, res) => {
+  const { path: projectPath } = req.body || {};
+  if (!projectPath) return res.status(400).json({ error: 'path is required' });
+  try {
+    const result = switchProject(projectPath);
+    ensureDataDir();
+    // Reload store from new data directory
+    visionStore.reloadFrom(result.dataDir);
+    // Re-scan features, sub-packages, and roadmap graph from new project
+    try {
+      const features = scanFeatures();
+      if (features.length > 0) seedFeatures(features, visionStore);
+      const packages = scanSubPackages();
+      if (packages.length > 0) seedSubPackages(packages, visionStore);
+      seedFromRoadmapGraph(visionStore);
+    } catch (err) {
+      console.error('[compose] Feature scan after switch:', err.message);
+    }
+    // Broadcast new state to all connected clients
+    visionServer.scheduleBroadcast();
+    res.json({ ok: true, targetRoot: result.targetRoot, name: path.basename(result.targetRoot) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 const server = http.createServer(app);
 const fileWatcher = new FileWatcherServer();
 fileWatcher.attach(server, app);
 ensureDataDir();
-const visionStore = new VisionStore(DATA_DIR);
+const visionStore = new VisionStore(getDataDir());
 const sessionManager = new SessionManager({
   getFeaturePhase: (featureCode) => {
     const item = visionStore.getItemByFeatureCode(featureCode);
@@ -64,10 +101,13 @@ const sessionManager = new SessionManager({
 const visionServer = new VisionServer(visionStore, sessionManager, { config: projectConfig });
 visionServer.attach(server, app);
 
-// Seed feature folders into vision store on startup
+// Seed feature folders, sub-packages, and roadmap graph into vision store on startup
 try {
   const features = scanFeatures();
   if (features.length > 0) seedFeatures(features, visionStore);
+  const packages = scanSubPackages();
+  if (packages.length > 0) seedSubPackages(packages, visionStore);
+  seedFromRoadmapGraph(visionStore);
 } catch (err) {
   console.error('[compose] Feature scan startup error:', err.message);
 }

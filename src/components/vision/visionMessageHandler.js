@@ -14,7 +14,7 @@ export function handleVisionMessage(msg, refs, setters) {
   const {
     setItems, setConnections, setGates, setGateEvent,
     setRecentChanges, setUICommand, setAgentActivity,
-    setAgentErrors, setSessionState, setSettings, setActiveBuild, EMPTY_CHANGES,
+    setAgentErrors, setSessionState, setSettings, setActiveBuild, setSessions, EMPTY_CHANGES,
   } = setters;
 
   if (msg.type === 'visionState') {
@@ -44,6 +44,7 @@ export function handleVisionMessage(msg, refs, setters) {
     setItems(incoming);
     setConnections(msg.connections || []);
     setGates(msg.gates || []);
+    if (setSessions) setSessions(msg.sessions || []);
 
   } else if (msg.type === 'visionUI') {
     setUICommand(msg);

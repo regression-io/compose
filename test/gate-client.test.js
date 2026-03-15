@@ -181,7 +181,7 @@ describe('handleVisionMessage — gateResolved', () => {
     // setGates should have been called twice (once for visionState, once for gateResolved)
     assert.equal(calls.setGates.length, 2);
     const updatedGates = calls.setGates[1].resolved;
-    assert.equal(updatedGates[0].status, 'approved');
+    assert.equal(updatedGates[0].status, 'resolved');
     assert.equal(updatedGates[0].outcome, 'approved');
     assert.equal(updatedGates[0].resolvedAt, '2026-03-06T00:00:00Z');
   });

@@ -61,13 +61,20 @@ export class StratumSync {
         : f.status === 'killed' ? 'blocked'
         : 'paused';
 
+      // STRAT-PAR-3: completed_steps and active_steps are now string[] in v0.3.
+      // Fall back to [] when stratum returns the old integer format (backward compat).
+      const completedSet = Array.isArray(f.completed_steps) ? f.completed_steps : [];
+      const activeSet    = Array.isArray(f.active_steps)    ? f.active_steps    : [];
+
       return {
-        flowId:   f.flow_id,
-        flowName: f.flow_name,
+        flowId:         f.flow_id,
+        flowName:       f.flow_name,
         status,
-        stepsCompleted: f.completed_steps,
-        currentIdx:     f.completed_steps,
+        stepsCompleted: completedSet,    // string[] — set of completed step IDs
+        stepsActive:    activeSet,       // string[] — set of active (in-progress) step IDs
+        stepCount:      f.step_count ?? null,
         steps:          [],
+        // currentIdx removed — consumers use stepsCompleted.length
       };
     });
   }

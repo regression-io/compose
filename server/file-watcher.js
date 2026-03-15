@@ -9,9 +9,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { TARGET_ROOT, loadProjectConfig, ensureDataDir } from './project-root.js';
+import { getTargetRoot, loadProjectConfig, ensureDataDir } from './project-root.js';
 
-const PROJECT_ROOT = TARGET_ROOT;
+const PROJECT_ROOT = getTargetRoot();
 
 export class FileWatcherServer {
   constructor() {
@@ -43,6 +43,24 @@ export class FileWatcherServer {
         res.json({ path: filePath, content });
       } catch (err) {
         if (err.code === 'ENOENT') return res.status(404).json({ error: 'file not found' });
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // REST endpoint: PUT /api/file — write content to a file
+    app.put('/api/file', (req, res) => {
+      const filePath = req.body.path;
+      const content = req.body.content;
+      if (!filePath) return res.status(400).json({ error: 'path required' });
+      if (typeof content !== 'string') return res.status(400).json({ error: 'content required (string)' });
+
+      const resolved = this.safePath(filePath);
+      if (!resolved) return res.status(403).json({ error: 'path outside project' });
+
+      try {
+        fs.writeFileSync(resolved, content, 'utf-8');
+        res.json({ ok: true, path: filePath });
+      } catch (err) {
         res.status(500).json({ error: err.message });
       }
     });

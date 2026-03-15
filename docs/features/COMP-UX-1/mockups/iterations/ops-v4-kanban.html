@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ops V4 — Kanban Lanes</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+
+.header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1e293b; border-bottom: 1px solid #334155; font-size: 13px; font-weight: 600; }
+
+.replay-btn { margin-left: auto; font-size: 11px; padding: 4px 12px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #94a3b8; cursor: pointer; transition: all 0.2s; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; border-color: #64748b; }
+
+.lanes { flex: 1; display: flex; gap: 1px; background: #334155; overflow: hidden; }
+
+.lane { flex: 1; background: #0f172a; display: flex; flex-direction: column; min-width: 0; position: relative; }
+.lane-header { padding: 12px 14px; background: #1e293b; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.lane-header h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.lane-header.running h3 { color: #3b82f6; }
+.lane-header.waiting h3 { color: #f59e0b; }
+.lane-header.done h3 { color: #22c55e; }
+.lane-header.failed h3 { color: #ef4444; }
+.lane-count { font-size: 10px; background: #334155; color: #94a3b8; padding: 1px 6px; border-radius: 8px; transition: all 0.3s; }
+
+.lane-body { flex: 1; overflow-y: auto; padding: 8px; position: relative; }
+
+/* Cards */
+.card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; transition: all 0.5s ease; overflow: hidden; max-height: 200px; }
+.card:hover { border-color: #475569; }
+
+.card-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.card-feat { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+.card-agent { font-size: 9px; padding: 1px 5px; border-radius: 3px; }
+.card-agent.claude { background: #f9731620; color: #f97316; }
+.card-agent.codex { background: #22c55e20; color: #22c55e; }
+.card-agent.human { background: #94a3b820; color: #94a3b8; }
+.card-time { font-size: 10px; color: #475569; margin-left: auto; }
+
+.card-step { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+.card-detail { font-size: 11px; color: #64748b; }
+.card-stats { font-size: 10px; color: #475569; margin-top: 4px; display: flex; gap: 8px; }
+.card-stats .r { color: #3b82f6; }
+.card-stats .w { color: #f59e0b; }
+.card-stats .e { color: #ef4444; }
+
+/* Gate card variant */
+.card.gate { border-left: 3px solid #f59e0b; }
+.card-gate-actions { display: flex; gap: 4px; margin-top: 8px; }
+.card-gate-actions button { font-size: 10px; padding: 3px 10px; border-radius: 4px; border: 1px solid; cursor: pointer; transition: all 0.2s; }
+.btn-a { background: #22c55e15; border-color: #22c55e40; color: #22c55e; }
+.btn-a:hover { background: #22c55e30; }
+.btn-r { background: #f59e0b10; border-color: #f59e0b30; color: #f59e0b; }
+.btn-k { background: #ef444410; border-color: #ef444430; color: #ef4444; }
+
+/* Completed card */
+.card.completed { opacity: 0.7; }
+.card.completed .card-feat { color: #94a3b8; }
+
+/* Failed card */
+.card.failed { border-left: 3px solid #ef4444; }
+
+/* Empty lane */
+.lane-empty { color: #334155; font-size: 11px; text-align: center; padding: 20px; font-style: italic; opacity: 0; transition: opacity 0.5s ease; }
+.lane-empty.visible { opacity: 1; }
+
+/* Animation classes */
+.card.flash-green { animation: flashGreen 0.6s ease; }
+@keyframes flashGreen {
+  0% { background: #1e293b; }
+  30% { background: #22c55e30; box-shadow: 0 0 12px #22c55e40; }
+  100% { background: #1e293b; }
+}
+
+.card.flash-red { animation: flashRed 0.6s ease; }
+@keyframes flashRed {
+  0% { background: #1e293b; }
+  30% { background: #ef444430; box-shadow: 0 0 12px #ef444440; }
+  100% { background: #1e293b; }
+}
+
+.card.pulse-amber { animation: pulseAmber 1.5s ease infinite; }
+@keyframes pulseAmber {
+  0%, 100% { box-shadow: none; border-color: #334155; }
+  50% { box-shadow: 0 0 10px #f59e0b40; border-color: #f59e0b80; }
+}
+
+.card.slide-out-right {
+  transform: translateX(120%);
+  opacity: 0;
+  max-height: 0;
+  padding: 0 12px;
+  margin-bottom: 0;
+}
+
+.card.slide-in-left {
+  animation: slideInLeft 0.5s ease forwards;
+}
+@keyframes slideInLeft {
+  0% { transform: translateX(-120%); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.card.appear {
+  animation: cardAppear 0.4s ease forwards;
+}
+@keyframes cardAppear {
+  0% { transform: scale(0.9); opacity: 0; max-height: 0; padding: 0 12px; margin-bottom: 0; }
+  50% { max-height: 200px; padding: 10px 12px; margin-bottom: 6px; }
+  100% { transform: scale(1); opacity: 1; max-height: 200px; }
+}
+
+.card.amber-border { border: 1px solid #f59e0b80; }
+
+/* Lane count pulse */
+.lane-count.updated { animation: countPulse 0.4s ease; }
+@keyframes countPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+/* Timeline indicator */
+.timeline { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 6px 16px; font-size: 11px; color: #64748b; display: flex; align-items: center; gap: 10px; z-index: 10; }
+.timeline-bar { width: 200px; height: 3px; background: #334155; border-radius: 2px; overflow: hidden; }
+.timeline-fill { height: 100%; background: #3b82f6; border-radius: 2px; transition: width 0.3s linear; width: 0%; }
+.timeline-time { font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }
+
+/* Preamble overlay */
+.preamble-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: #1e293b;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: opacity 0.5s ease;
+}
+.preamble-overlay.hidden { opacity: 0; pointer-events: none; }
+.preamble-title { font-size: 28px; font-weight: 700; color: #e2e8f0; margin-bottom: 16px; letter-spacing: 0.02em; }
+.preamble-desc { font-size: 14px; color: #94a3b8; max-width: 520px; text-align: center; line-height: 1.6; margin-bottom: 32px; }
+.preamble-start {
+  font-size: 14px; font-weight: 600; padding: 10px 28px; border-radius: 6px;
+  border: 1px solid #3b82f6; background: #3b82f620; color: #3b82f6;
+  cursor: pointer; transition: all 0.2s;
+}
+.preamble-start:hover { background: #3b82f640; color: #e2e8f0; }
+
+/* Annotation callouts */
+.annotation {
+  position: fixed; z-index: 50;
+  background: #1e293b; border: 1px solid #3b82f6; border-radius: 6px;
+  padding: 6px 10px; font-size: 11px; color: #e2e8f0; max-width: 200px;
+  line-height: 1.4; pointer-events: none;
+  opacity: 0; transform: translateY(4px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.annotation.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="preamble-overlay" id="preamble">
+  <div class="preamble-title">V4 &mdash; Kanban Lanes</div>
+  <div class="preamble-desc">Four columns: Running (active agent work), Waiting (gates needing approval), Done (completed steps), Failed (errors). Cards move between lanes as work progresses. You see the flow of work visually.</div>
+  <button class="preamble-start" id="preambleStart">Start Demo &rarr;</button>
+</div>
+
+<div class="header">
+  <span style="color: #3b82f6; font-weight: 700; letter-spacing: 0.05em;">OPS</span>
+  <span style="color: #475569; font-size: 11px;">Kanban lanes &mdash; Running &middot; Waiting &middot; Done &middot; Failed</span>
+  <button class="replay-btn" id="replayBtn" onclick="startAnimation()">Replay</button>
+</div>
+
+<div class="lanes">
+  <!-- Running -->
+  <div class="lane" id="running-lane">
+    <div class="lane-header running">
+      <h3>Running</h3>
+      <span class="lane-count" id="running-count">2</span>
+    </div>
+    <div class="lane-body" id="running-body">
+      <div class="card" id="card-core-async-blueprint">
+        <div class="card-header">
+          <span class="card-feat">CORE-ASYNC-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">2m</span>
+        </div>
+        <div class="card-step">Step 4/8 &mdash; blueprint</div>
+        <div class="card-detail">Writing file plan and corrections table</div>
+        <div class="card-stats">
+          <span class="r">3 read</span>
+          <span class="w">2 write</span>
+        </div>
+      </div>
+
+      <div class="card" id="card-dist-release">
+        <div class="card-header">
+          <span class="card-feat">DIST-RELEASE-1</span>
+          <span class="card-agent codex">Codex</span>
+          <span class="card-time">1m</span>
+        </div>
+        <div class="card-step">Step 6/8 &mdash; implement</div>
+        <div class="card-detail" id="dist-release-detail">Fixing pyproject.toml dependency references</div>
+        <div class="card-stats">
+          <span class="r">1 read</span>
+          <span class="w">1 write</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Waiting (gates) -->
+  <div class="lane" id="waiting-lane">
+    <div class="lane-header waiting">
+      <h3>Waiting</h3>
+      <span class="lane-count" id="waiting-count">2</span>
+    </div>
+    <div class="lane-body" id="waiting-body">
+      <div class="card gate" id="card-gate-core-async">
+        <div class="card-header">
+          <span class="card-feat">CORE-ASYNC-1</span>
+          <span class="card-agent human">Gate</span>
+        </div>
+        <div class="card-step">design &rarr; prd</div>
+        <div class="card-detail">design.md 87% complete &middot; missing Open Questions</div>
+        <div class="card-gate-actions">
+          <button class="btn-a" id="approve-core-async">Approve</button>
+          <button class="btn-r">Revise</button>
+          <button class="btn-k">Kill</button>
+        </div>
+      </div>
+
+      <div class="card gate" id="card-gate-gen-ref">
+        <div class="card-header">
+          <span class="card-feat">GEN-REF-1</span>
+          <span class="card-agent human">Gate</span>
+        </div>
+        <div class="card-step">plan &rarr; implement</div>
+        <div class="card-detail">plan.md 100% complete</div>
+        <div class="card-gate-actions">
+          <button class="btn-a" id="approve-gen-ref">Approve</button>
+          <button class="btn-r">Revise</button>
+          <button class="btn-k">Kill</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done -->
+  <div class="lane" id="done-lane">
+    <div class="lane-header done">
+      <h3>Done</h3>
+      <span class="lane-count" id="done-count">3</span>
+    </div>
+    <div class="lane-body" id="done-body">
+      <div class="card completed" id="card-done-gen-ref">
+        <div class="card-header">
+          <span class="card-feat">GEN-REF-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">8m</span>
+        </div>
+        <div class="card-step">plan &mdash; completed</div>
+        <div class="card-detail">12 tasks with acceptance criteria</div>
+        <div class="card-stats"><span class="r">5r</span> <span class="w">3w</span> <span class="e">0e</span></div>
+      </div>
+
+      <div class="card completed" id="card-done-pre-async">
+        <div class="card-header">
+          <span class="card-feat">PRE-ASYNC-REF-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">6m</span>
+        </div>
+        <div class="card-step">design &mdash; completed</div>
+        <div class="card-detail">Sync I/O boundary analysis doc</div>
+        <div class="card-stats"><span class="r">4r</span> <span class="w">1w</span> <span class="e">0e</span></div>
+      </div>
+
+      <div class="card completed" id="card-done-core-async">
+        <div class="card-header">
+          <span class="card-feat">CORE-ASYNC-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">12m</span>
+        </div>
+        <div class="card-step">design &mdash; completed</div>
+        <div class="card-detail">Problem statement, goals, arch options</div>
+        <div class="card-stats"><span class="r">3r</span> <span class="w">4w</span> <span class="e">0e</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Failed -->
+  <div class="lane" id="failed-lane">
+    <div class="lane-header failed">
+      <h3>Failed</h3>
+      <span class="lane-count" id="failed-count">1</span>
+    </div>
+    <div class="lane-body" id="failed-body">
+      <div class="card failed" id="card-failed-dist">
+        <div class="card-header">
+          <span class="card-feat">DIST-RELEASE-1</span>
+          <span class="card-agent codex">Codex</span>
+          <span class="card-time">4m</span>
+        </div>
+        <div class="card-step">implement &mdash; failed</div>
+        <div class="card-detail">pyproject.toml: smartmemory-core not found in registry</div>
+        <div class="card-stats"><span class="r">1r</span> <span class="w">2w</span> <span class="e">1e</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="timeline" id="timeline">
+  <span class="timeline-time" id="timeline-time">0s</span>
+  <div class="timeline-bar"><div class="timeline-fill" id="timeline-fill"></div></div>
+  <span style="color: #475569;">30s</span>
+</div>
+
+<div class="annotation" id="annotation"></div>
+
+<script>
+const TOTAL_DURATION = 30000;
+let animationTimer = null;
+let scheduledTimeouts = [];
+
+function clearAllTimeouts() {
+  scheduledTimeouts.forEach(t => clearTimeout(t));
+  scheduledTimeouts = [];
+  if (animationTimer) { clearInterval(animationTimer); animationTimer = null; }
+}
+
+function schedule(fn, delay) {
+  scheduledTimeouts.push(setTimeout(fn, delay));
+}
+
+function showAnnotation(text, laneId, duration) {
+  duration = duration || 3000;
+  const ann = document.getElementById('annotation');
+  const lane = document.getElementById(laneId);
+  if (!lane || !ann) return;
+  const rect = lane.getBoundingClientRect();
+  ann.textContent = text;
+  ann.style.left = (rect.left + rect.width / 2 - 100) + 'px';
+  ann.style.top = (rect.top + 60) + 'px';
+  ann.classList.add('visible');
+  schedule(() => { ann.classList.remove('visible'); }, duration);
+}
+
+function updateCount(id, value) {
+  const el = document.getElementById(id);
+  el.textContent = value;
+  el.classList.remove('updated');
+  void el.offsetWidth;
+  el.classList.add('updated');
+}
+
+function moveCard(cardId, targetBodyId, extraClass, onArrival) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+
+  // Capture card HTML before removing
+  const cardHTML = card.outerHTML;
+
+  // Slide out
+  card.classList.add('slide-out-right');
+
+  schedule(() => {
+    // Remove from source
+    card.remove();
+
+    // Create in target
+    const target = document.getElementById(targetBodyId);
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = cardHTML;
+    const newCard = wrapper.firstElementChild;
+
+    // Reset classes
+    newCard.classList.remove('slide-out-right', 'gate', 'pulse-amber');
+    newCard.style.transform = '';
+    newCard.style.opacity = '';
+    newCard.style.maxHeight = '';
+    newCard.style.padding = '';
+    newCard.style.marginBottom = '';
+
+    if (extraClass) newCard.classList.add(extraClass);
+    newCard.classList.add('slide-in-left');
+
+    // Flash on arrival
+    schedule(() => {
+      newCard.classList.remove('slide-in-left');
+      if (extraClass === 'completed') {
+        newCard.classList.add('flash-green');
+        schedule(() => newCard.classList.remove('flash-green'), 600);
+      } else if (extraClass === 'failed') {
+        newCard.classList.add('flash-red');
+        schedule(() => newCard.classList.remove('flash-red'), 600);
+      }
+      if (onArrival) onArrival(newCard);
+    }, 500);
+
+    target.insertBefore(newCard, target.firstChild);
+  }, 500);
+}
+
+function addCard(targetBodyId, id, html, extraClasses) {
+  const target = document.getElementById(targetBodyId);
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html;
+  const card = wrapper.firstElementChild;
+  card.id = id;
+  if (extraClasses) extraClasses.forEach(c => card.classList.add(c));
+  card.classList.add('appear');
+  target.insertBefore(card, target.firstChild);
+  schedule(() => card.classList.remove('appear'), 500);
+  return card;
+}
+
+function showEmptyState(bodyId, message) {
+  const body = document.getElementById(bodyId);
+  const existing = body.querySelector('.lane-empty');
+  if (existing) { existing.classList.add('visible'); return; }
+  const el = document.createElement('div');
+  el.className = 'lane-empty';
+  el.textContent = message;
+  body.appendChild(el);
+  schedule(() => el.classList.add('visible'), 50);
+}
+
+function removeEmptyState(bodyId) {
+  const body = document.getElementById(bodyId);
+  const el = body.querySelector('.lane-empty');
+  if (el) el.remove();
+}
+
+function resetBoard() {
+  clearAllTimeouts();
+
+  // Hide annotation and preamble
+  const ann = document.getElementById('annotation');
+  if (ann) ann.classList.remove('visible');
+  const preamble = document.getElementById('preamble');
+  if (preamble) { preamble.classList.add('hidden'); preamble.style.display = 'none'; }
+
+  // Rebuild the entire board to initial state
+  document.getElementById('running-body').innerHTML = `
+      <div class="card" id="card-core-async-blueprint">
+        <div class="card-header">
+          <span class="card-feat">CORE-ASYNC-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">2m</span>
+        </div>
+        <div class="card-step">Step 4/8 &mdash; blueprint</div>
+        <div class="card-detail">Writing file plan and corrections table</div>
+        <div class="card-stats">
+          <span class="r">3 read</span>
+          <span class="w">2 write</span>
+        </div>
+      </div>
+      <div class="card" id="card-dist-release">
+        <div class="card-header">
+          <span class="card-feat">DIST-RELEASE-1</span>
+          <span class="card-agent codex">Codex</span>
+          <span class="card-time">1m</span>
+        </div>
+        <div class="card-step">Step 6/8 &mdash; implement</div>
+        <div class="card-detail" id="dist-release-detail">Fixing pyproject.toml dependency references</div>
+        <div class="card-stats">
+          <span class="r">1 read</span>
+          <span class="w">1 write</span>
+        </div>
+      </div>`;
+
+  document.getElementById('waiting-body').innerHTML = `
+      <div class="card gate" id="card-gate-core-async">
+        <div class="card-header">
+          <span class="card-feat">CORE-ASYNC-1</span>
+          <span class="card-agent human">Gate</span>
+        </div>
+        <div class="card-step">design &rarr; prd</div>
+        <div class="card-detail">design.md 87% complete &middot; missing Open Questions</div>
+        <div class="card-gate-actions">
+          <button class="btn-a" id="approve-core-async">Approve</button>
+          <button class="btn-r">Revise</button>
+          <button class="btn-k">Kill</button>
+        </div>
+      </div>
+      <div class="card gate" id="card-gate-gen-ref">
+        <div class="card-header">
+          <span class="card-feat">GEN-REF-1</span>
+          <span class="card-agent human">Gate</span>
+        </div>
+        <div class="card-step">plan &rarr; implement</div>
+        <div class="card-detail">plan.md 100% complete</div>
+        <div class="card-gate-actions">
+          <button class="btn-a" id="approve-gen-ref">Approve</button>
+          <button class="btn-r">Revise</button>
+          <button class="btn-k">Kill</button>
+        </div>
+      </div>`;
+
+  document.getElementById('done-body').innerHTML = `
+      <div class="card completed" id="card-done-gen-ref">
+        <div class="card-header">
+          <span class="card-feat">GEN-REF-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">8m</span>
+        </div>
+        <div class="card-step">plan &mdash; completed</div>
+        <div class="card-detail">12 tasks with acceptance criteria</div>
+        <div class="card-stats"><span class="r">5r</span> <span class="w">3w</span> <span class="e">0e</span></div>
+      </div>
+      <div class="card completed" id="card-done-pre-async">
+        <div class="card-header">
+          <span class="card-feat">PRE-ASYNC-REF-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">6m</span>
+        </div>
+        <div class="card-step">design &mdash; completed</div>
+        <div class="card-detail">Sync I/O boundary analysis doc</div>
+        <div class="card-stats"><span class="r">4r</span> <span class="w">1w</span> <span class="e">0e</span></div>
+      </div>
+      <div class="card completed" id="card-done-core-async">
+        <div class="card-header">
+          <span class="card-feat">CORE-ASYNC-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">12m</span>
+        </div>
+        <div class="card-step">design &mdash; completed</div>
+        <div class="card-detail">Problem statement, goals, arch options</div>
+        <div class="card-stats"><span class="r">3r</span> <span class="w">4w</span> <span class="e">0e</span></div>
+      </div>`;
+
+  document.getElementById('failed-body').innerHTML = `
+      <div class="card failed" id="card-failed-dist">
+        <div class="card-header">
+          <span class="card-feat">DIST-RELEASE-1</span>
+          <span class="card-agent codex">Codex</span>
+          <span class="card-time">4m</span>
+        </div>
+        <div class="card-step">implement &mdash; failed</div>
+        <div class="card-detail">pyproject.toml: smartmemory-core not found in registry</div>
+        <div class="card-stats"><span class="r">1r</span> <span class="w">2w</span> <span class="e">1e</span></div>
+      </div>`;
+
+  updateCount('running-count', 2);
+  updateCount('waiting-count', 2);
+  updateCount('done-count', 3);
+  updateCount('failed-count', 1);
+
+  document.getElementById('timeline-fill').style.width = '0%';
+  document.getElementById('timeline-time').textContent = '0s';
+}
+
+function startAnimation() {
+  resetBoard();
+
+  const startTime = Date.now();
+
+  // Timeline updater
+  animationTimer = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const pct = Math.min(100, (elapsed / TOTAL_DURATION) * 100);
+    document.getElementById('timeline-fill').style.width = pct + '%';
+    document.getElementById('timeline-time').textContent = Math.floor(elapsed / 1000) + 's';
+    if (elapsed >= TOTAL_DURATION) {
+      clearInterval(animationTimer);
+      animationTimer = null;
+    }
+  }, 200);
+
+  // ── (1s) Annotation: Running lane ──
+  schedule(() => {
+    showAnnotation('Active agent work \u2014 cards show agent, step, and I/O stats', 'running-lane', 2500);
+  }, 1000);
+
+  // ── (3s) Blueprint card completes: Running → Done ──
+  schedule(() => {
+    const card = document.getElementById('card-core-async-blueprint');
+    if (card) {
+      card.querySelector('.card-step').textContent = 'Step 8/8 — blueprint';
+      card.querySelector('.card-detail').textContent = 'Blueprint complete';
+    }
+    moveCard('card-core-async-blueprint', 'done-body', 'completed', (newCard) => {
+      newCard.querySelector('.card-step').textContent = 'blueprint — completed';
+      newCard.querySelector('.card-detail').textContent = 'File plan with 14 corrections';
+      const timeEl = newCard.querySelector('.card-time');
+      if (timeEl) timeEl.textContent = '4m';
+    });
+    schedule(() => {
+      updateCount('running-count', 1);
+      updateCount('done-count', 4);
+    }, 600);
+  }, 3000);
+
+  // ── (4s) Annotation: Card moves to Done ──
+  schedule(() => {
+    showAnnotation('Step completes \u2014 card slides to Done with green flash', 'done-lane', 2500);
+  }, 4000);
+
+  // ── (5s) First gate pulses amber ──
+  schedule(() => {
+    const gate = document.getElementById('card-gate-core-async');
+    if (gate) gate.classList.add('pulse-amber');
+  }, 5000);
+
+  // ── (7s) Annotation: Waiting lane ──
+  schedule(() => {
+    showAnnotation('Gates block here until a human approves', 'waiting-lane', 2500);
+  }, 7000);
+
+  // ── (8s) New card appears in Running: gate step with amber border ──
+  schedule(() => {
+    removeEmptyState('running-body');
+    addCard('running-body', 'card-core-async-gate-step', `
+      <div class="card amber-border">
+        <div class="card-header">
+          <span class="card-feat">CORE-ASYNC-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">0m</span>
+        </div>
+        <div class="card-step">gate step &mdash; pre-review</div>
+        <div class="card-detail">Preparing design.md for gate review</div>
+        <div class="card-stats">
+          <span class="r">1 read</span>
+          <span class="w">0 write</span>
+        </div>
+      </div>`, []);
+    updateCount('running-count', 2);
+  }, 8000);
+
+  // ── (11s) Annotation: Gate approved ──
+  schedule(() => {
+    showAnnotation('Approved! Card moves from Waiting to Done', 'waiting-lane', 2500);
+  }, 10500);
+
+  // ── (11s) First gate approved: Waiting → Done, new Running card for next step ──
+  schedule(() => {
+    const gate = document.getElementById('card-gate-core-async');
+    if (gate) gate.classList.remove('pulse-amber');
+
+    // Simulate button click visual
+    const btn = document.getElementById('approve-core-async');
+    if (btn) { btn.style.background = '#22c55e40'; btn.style.color = '#fff'; }
+
+    schedule(() => {
+      moveCard('card-gate-core-async', 'done-body', 'completed', (newCard) => {
+        newCard.classList.remove('gate');
+        newCard.querySelector('.card-step').textContent = 'design → prd — approved';
+        const actions = newCard.querySelector('.card-gate-actions');
+        if (actions) actions.remove();
+      });
+      schedule(() => {
+        updateCount('waiting-count', 1);
+        updateCount('done-count', 5);
+      }, 600);
+
+      // New running card for next step
+      schedule(() => {
+        addCard('running-body', 'card-core-async-prd', `
+          <div class="card">
+            <div class="card-header">
+              <span class="card-feat">CORE-ASYNC-1</span>
+              <span class="card-agent claude">Claude</span>
+              <span class="card-time">0m</span>
+            </div>
+            <div class="card-step">Step 1/6 &mdash; prd</div>
+            <div class="card-detail">Generating product requirements...</div>
+            <div class="card-stats">
+              <span class="r">2 read</span>
+              <span class="w">0 write</span>
+            </div>
+          </div>`, []);
+        updateCount('running-count', 3);
+      }, 800);
+    }, 400);
+  }, 11000);
+
+  // ── (15s) Running card detail updates live ──
+  schedule(() => {
+    const card = document.getElementById('card-core-async-prd');
+    if (card) {
+      card.querySelector('.card-detail').textContent = 'Writing plan.md...';
+      card.querySelector('.card-step').textContent = 'Step 3/6 — prd';
+      card.querySelector('.card-time').textContent = '1m';
+      const stats = card.querySelector('.card-stats');
+      if (stats) stats.innerHTML = '<span class="r">4 read</span> <span class="w">2 write</span>';
+    }
+  }, 15000);
+
+  // ── (18s) Annotation: Failed lane ──
+  schedule(() => {
+    showAnnotation('Errors land here \u2014 shows what went wrong', 'failed-lane', 2500);
+  }, 18500);
+
+  // ── (18s) Running card fails: Running → Failed ──
+  schedule(() => {
+    const card = document.getElementById('card-core-async-prd');
+    if (card) {
+      card.querySelector('.card-detail').textContent = 'Error: prd template not found';
+      card.querySelector('.card-step').textContent = 'Step 3/6 — prd — ERROR';
+    }
+    schedule(() => {
+      moveCard('card-core-async-prd', 'failed-body', 'failed', (newCard) => {
+        newCard.querySelector('.card-step').textContent = 'prd — failed';
+        newCard.querySelector('.card-detail').textContent = 'prd template not found in docs/templates/';
+        const stats = newCard.querySelector('.card-stats');
+        if (stats) stats.innerHTML = '<span class="r">4r</span> <span class="w">2w</span> <span class="e">1e</span>';
+      });
+      schedule(() => {
+        updateCount('running-count', 2);
+        updateCount('failed-count', 2);
+      }, 600);
+    }, 300);
+  }, 18000);
+
+  // ── (21s) Second gate approved: Waiting → Done. Show empty state. ──
+  schedule(() => {
+    const btn = document.getElementById('approve-gen-ref');
+    if (btn) { btn.style.background = '#22c55e40'; btn.style.color = '#fff'; }
+
+    schedule(() => {
+      moveCard('card-gate-gen-ref', 'done-body', 'completed', (newCard) => {
+        newCard.classList.remove('gate');
+        newCard.querySelector('.card-step').textContent = 'plan → implement — approved';
+        const actions = newCard.querySelector('.card-gate-actions');
+        if (actions) actions.remove();
+      });
+      schedule(() => {
+        updateCount('waiting-count', 0);
+        updateCount('done-count', 6);
+        showEmptyState('waiting-body', 'All clear');
+      }, 600);
+    }, 400);
+  }, 21000);
+
+  // ── (24s) New retry card in Running. Completes at 26s → Done ──
+  schedule(() => {
+    addCard('running-body', 'card-core-async-retry', `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-feat">CORE-ASYNC-1</span>
+          <span class="card-agent claude">Claude</span>
+          <span class="card-time">0m</span>
+        </div>
+        <div class="card-step">Step 3/6 &mdash; prd (retry)</div>
+        <div class="card-detail">Retrying with fallback template...</div>
+        <div class="card-stats">
+          <span class="r">2 read</span>
+          <span class="w">1 write</span>
+        </div>
+      </div>`, []);
+    updateCount('running-count', 3);
+
+    // Completes quickly at 26s
+    schedule(() => {
+      const card = document.getElementById('card-core-async-retry');
+      if (card) {
+        card.querySelector('.card-detail').textContent = 'prd.md written successfully';
+        card.querySelector('.card-step').textContent = 'Step 6/6 — prd (retry)';
+      }
+      moveCard('card-core-async-retry', 'done-body', 'completed', (newCard) => {
+        newCard.querySelector('.card-step').textContent = 'prd — completed (retry)';
+        newCard.querySelector('.card-detail').textContent = 'Product requirements with 8 acceptance criteria';
+        const timeEl = newCard.querySelector('.card-time');
+        if (timeEl) timeEl.textContent = '2m';
+      });
+      schedule(() => {
+        updateCount('running-count', 2);
+        updateCount('done-count', 7);
+      }, 600);
+    }, 2000);
+  }, 24000);
+
+  // ── (28s) Annotation: All work complete ──
+  schedule(() => {
+    showAnnotation('All work complete \u2014 lanes show final state', 'running-lane', 2500);
+  }, 28000);
+
+  // ── (27s) All remaining Running cards complete. Show empty state. ──
+  schedule(() => {
+    // Complete the gate step card
+    moveCard('card-core-async-gate-step', 'done-body', 'completed', (newCard) => {
+      newCard.classList.remove('amber-border');
+      newCard.querySelector('.card-step').textContent = 'gate step — completed';
+      newCard.querySelector('.card-detail').textContent = 'Pre-review checks passed';
+    });
+
+    schedule(() => {
+      // Complete dist-release card
+      moveCard('card-dist-release', 'done-body', 'completed', (newCard) => {
+        newCard.querySelector('.card-step').textContent = 'implement — completed';
+        newCard.querySelector('.card-detail').textContent = 'Dependencies resolved, tests passing';
+        const timeEl = newCard.querySelector('.card-time');
+        if (timeEl) timeEl.textContent = '5m';
+      });
+
+      schedule(() => {
+        updateCount('running-count', 0);
+        updateCount('done-count', 9);
+        showEmptyState('running-body', 'No active work');
+      }, 600);
+    }, 700);
+  }, 27000);
+}
+
+// Preamble: block auto-start until user clicks
+document.getElementById('preambleStart').addEventListener('click', () => {
+  const overlay = document.getElementById('preamble');
+  overlay.classList.add('hidden');
+  schedule(() => { overlay.style.display = 'none'; }, 500);
+  schedule(() => startAnimation(), 600);
+});
+</script>
+
+</body>
+</html>

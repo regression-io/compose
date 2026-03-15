@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>High-Level: Dependency Graph</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 580px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 24px; text-align: left; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Tab bar + status pills */
+.tab-strip { display: flex; align-items: center; padding: 0 16px; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; gap: 2px; }
+.tab-btn { padding: 6px 14px; border-radius: 6px 6px 0 0; background: none; border: 1px solid transparent; border-bottom: none; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.tab-btn:hover { color: #94a3b8; background: #334155; }
+.tab-btn.active { background: #0f172a; color: #3b82f6; border-color: #334155; }
+.tab-spacer { flex: 1; }
+.stat-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 10px; border-radius: 4px; cursor: pointer; transition: all 0.25s ease; user-select: none; font-weight: 500; }
+.stat-pill:hover { filter: brightness(1.2); }
+.stat-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.stat-pill.blue { color: #3b82f6; }
+.stat-pill.blue .dot { background: #3b82f6; }
+.stat-pill.amber { color: #f59e0b; }
+.stat-pill.amber .dot { background: #f59e0b; }
+.stat-pill.red { color: #ef4444; }
+.stat-pill.red .dot { background: #ef4444; }
+.stat-pill.green { color: #22c55e; }
+.stat-pill.green .dot { background: #22c55e; }
+
+/* Main layout: graph + context panel */
+.main-wrap { display: flex; flex: 1; overflow: hidden; position: relative; }
+.graph-wrap { position: relative; flex: 1; overflow: hidden; }
+#cy { width: 100%; height: 100%; }
+
+/* Context panel — 40% width */
+.context-panel { width: 40%; max-width: 480px; min-width: 340px; background: #1e293b; border-left: 1px solid #334155; flex-shrink: 0; overflow-y: auto; transform: translateX(100%); transition: transform 0.3s ease; position: absolute; right: 0; top: 0; height: 100%; z-index: 20; }
+.context-panel.open { transform: translateX(0); }
+.cp-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #334155; }
+.cp-header h3 { font-size: 14px; font-weight: 700; }
+.cp-subtitle { font-size: 11px; color: #94a3b8; font-weight: 400; margin-left: 8px; }
+.cp-close { width: 24px; height: 24px; border-radius: 4px; background: none; border: 1px solid #475569; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: all 0.2s; }
+.cp-close:hover { background: #334155; color: #e2e8f0; }
+.cp-section { padding: 14px 16px; border-bottom: 1px solid #0f172a80; }
+.cp-section-title { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+
+/* Pipeline dots (large) */
+.pipeline { display: flex; align-items: center; gap: 0; padding: 4px 0; }
+.pip-dot { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #0f172a; flex-shrink: 0; transition: background 0.4s ease; }
+.pip-dot.done { background: #22c55e; }
+.pip-dot.active { background: #3b82f6; animation: pulseBlue 2s ease-in-out infinite; }
+.pip-dot.error { background: #ef4444; color: #fff; }
+.pip-dot.gate { background: #f59e0b; }
+.pip-dot.pending { background: #334155; color: #64748b; }
+.pip-line { width: 16px; height: 2px; flex-shrink: 0; transition: background 0.4s ease; }
+.pip-line.done { background: #22c55e60; }
+.pip-line.pending { background: #334155; }
+.pip-labels { display: flex; gap: 0; margin-top: 2px; }
+.pip-label { width: 22px; text-align: center; font-size: 7px; color: #64748b; flex-shrink: 0; }
+.pip-spacer { width: 16px; flex-shrink: 0; }
+
+/* Session rows */
+.session-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 11px; }
+.session-agent { font-weight: 600; min-width: 50px; }
+.session-agent.claude { color: #f97316; }
+.session-agent.codex { color: #22c55e; }
+.session-dur { color: #64748b; min-width: 30px; }
+.session-stats { color: #475569; font-size: 10px; }
+
+/* Error item in panel */
+.error-item { background: #ef444410; border: 1px solid #ef444430; border-radius: 6px; padding: 8px 10px; font-size: 11px; color: #fca5a5; margin-bottom: 6px; }
+
+/* Gate actions */
+.gate-actions { display: flex; gap: 6px; margin-top: 8px; }
+.gate-actions button { padding: 4px 12px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.gate-actions button:hover { background: #475569; }
+.gate-actions button.primary { background: #22c55e; border-color: #22c55e; color: #000; }
+.gate-actions button.primary:hover { background: #16a34a; }
+
+/* File list */
+.file-link { display: block; font-size: 11px; color: #3b82f6; padding: 3px 0; cursor: pointer; text-decoration: none; transition: color 0.2s; }
+.file-link:hover { color: #60a5fa; text-decoration: underline; }
+
+/* Cross-view links */
+.cross-links { display: flex; flex-direction: column; gap: 6px; }
+.cross-link { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #3b82f6; cursor: pointer; transition: all 0.2s; padding: 4px 8px; border-radius: 4px; border: 1px solid transparent; }
+.cross-link:hover { background: #3b82f610; }
+.cross-link.glow { background: #3b82f620; border-color: #3b82f640; box-shadow: 0 0 12px rgba(59,130,246,0.2); }
+
+/* Badge overlays */
+.node-badge { position: absolute; z-index: 15; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.3s ease; pointer-events: auto; }
+.node-badge.gate { background: #f59e0b; color: #000; }
+.node-badge.error { background: #ef4444; color: #fff; }
+.node-badge.hidden { opacity: 0; pointer-events: none; transform: scale(0); }
+
+/* Tooltip */
+.graph-tooltip { position: absolute; z-index: 25; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 10px 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); pointer-events: none; opacity: 0; transition: opacity 0.25s ease; max-width: 300px; min-width: 200px; }
+.graph-tooltip.visible { opacity: 1; }
+.graph-tooltip .tt-code { font-size: 12px; font-weight: 700; color: #e2e8f0; margin-bottom: 2px; }
+.graph-tooltip .tt-name { font-size: 11px; color: #94a3b8; margin-bottom: 6px; }
+.graph-tooltip .tt-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px; margin-bottom: 6px; }
+.graph-tooltip .tt-status.building { background: #3b82f620; color: #3b82f6; }
+.graph-tooltip .tt-status.gate { background: #f59e0b20; color: #f59e0b; }
+.graph-tooltip .tt-status.error { background: #ef444420; color: #ef4444; }
+.graph-tooltip .tt-status.complete { background: #22c55e20; color: #22c55e; }
+.graph-tooltip .tt-status.planned { background: #64748b20; color: #94a3b8; }
+.graph-tooltip .tt-status.blocked { background: #64748b20; color: #64748b; }
+.graph-tooltip .tt-detail { font-size: 11px; color: #94a3b8; line-height: 1.5; }
+.graph-tooltip .tt-progress { width: 100%; height: 3px; background: #334155; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.graph-tooltip .tt-progress-fill { height: 100%; background: #3b82f6; border-radius: 2px; transition: width 0.5s ease; }
+
+/* Popover */
+.popover { position: absolute; z-index: 30; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 14px; width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity 0.25s ease, transform 0.25s ease; }
+.popover.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.popover-arrow { position: absolute; top: -6px; left: 20px; width: 12px; height: 6px; overflow: hidden; }
+.popover-arrow::before { content: ''; position: absolute; top: 3px; left: 2px; width: 8px; height: 8px; background: #1e293b; border: 1px solid #475569; border-right: 0; border-bottom: 0; transform: rotate(45deg); }
+.popover-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.popover-title { font-size: 13px; font-weight: 600; color: #e2e8f0; margin-bottom: 4px; }
+.popover-body { font-size: 11px; color: #94a3b8; line-height: 1.5; margin-bottom: 10px; }
+.popover-meta { font-size: 10px; color: #64748b; margin-bottom: 10px; }
+.popover-actions { display: flex; gap: 6px; }
+.popover-actions button { padding: 4px 12px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.popover-actions button:hover { background: #475569; }
+.popover-actions button.primary { background: #22c55e; border-color: #22c55e; color: #000; }
+.popover-actions button.primary:hover { background: #16a34a; }
+.popover-actions button.danger { color: #ef4444; border-color: #ef444440; }
+.popover-actions button.danger:hover { background: #ef444420; }
+
+/* ── OPS STRIP (bottom bar) ────────────────────────────── */
+.ops-strip { height: 36px; background: #1e293b; border-top: 1px solid #334155; display: flex; align-items: center; padding: 0 16px; gap: 16px; flex-shrink: 0; overflow-x: auto; overflow-y: hidden; white-space: nowrap; }
+.ops-strip::-webkit-scrollbar { height: 0; }
+
+.ops-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; cursor: pointer; padding: 2px 8px; border-radius: 4px; transition: all 0.4s ease; flex-shrink: 0; user-select: none; }
+.ops-item:hover { background: #33415580; }
+.ops-item.selected { background: #334155; }
+.ops-item.fading { opacity: 0; transform: translateX(-8px); pointer-events: none; }
+
+.ops-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ops-dot.building { background: #3b82f6; animation: dotPulse 2s ease-in-out infinite; }
+.ops-dot.gate { background: #f59e0b; }
+.ops-dot.error { background: #ef4444; }
+.ops-dot.complete { background: #22c55e; }
+
+.ops-code { color: #e2e8f0; }
+.ops-progress { width: 40px; height: 3px; background: #334155; border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+.ops-progress-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+.ops-progress-fill.blue { background: #3b82f6; }
+.ops-progress-fill.green { background: #22c55e; }
+
+.ops-detail { color: #64748b; font-weight: 400; font-size: 10px; }
+.ops-agent { font-weight: 600; font-size: 10px; }
+.ops-agent.claude { color: #f97316; }
+.ops-agent.codex { color: #22c55e; }
+
+.ops-approve-btn { padding: 1px 8px; border-radius: 3px; background: #22c55e; border: none; color: #000; font-size: 9px; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.03em; }
+.ops-approve-btn:hover { background: #16a34a; }
+
+.ops-status-text { font-size: 10px; font-weight: 400; }
+.ops-status-text.gate-text { color: #f59e0b; }
+.ops-status-text.error-text { color: #ef4444; }
+.ops-status-text.complete-text { color: #22c55e; }
+
+.ops-separator { width: 1px; height: 16px; background: #334155; flex-shrink: 0; }
+
+/* Annotation */
+.annotation { position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 18px; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; white-space: nowrap; max-width: 90vw; }
+.annotation.visible { opacity: 1; }
+
+/* Pulse animations */
+@keyframes pulseBlue { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } 50% { box-shadow: 0 0 12px 3px rgba(59,130,246,0.35); } }
+@keyframes pulseAmber { 0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); } 50% { box-shadow: 0 0 8px 2px rgba(245,158,11,0.3); } }
+@keyframes greenFlash { 0% { box-shadow: 0 0 16px 4px rgba(34,197,94,0.6); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+@keyframes dotPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes stripFlashGreen { 0% { background: #22c55e30; } 100% { background: transparent; } }
+</style>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1><span>High-Level:</span> Dependency Graph</h1>
+    <p>The high-level zoom &mdash; all features as a dependency network with live ops status overlaid on nodes. Click a node to open the detail panel (low-level). Bottom ops strip shows all active work with inline gate approvals. Navigate down to the Tree view for mid-level feature scanning.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="replay()">Replay</button>
+
+<!-- Tab bar + status pills -->
+<div class="tab-strip" id="tabStrip">
+  <button class="tab-btn active" id="tabGraph">Graph</button>
+  <button class="tab-btn" id="tabItems">Tree</button>
+  <button class="tab-btn" id="tabDocs">Docs</button>
+  <span class="tab-spacer"></span>
+  <div class="stat-pill blue" id="pillBuilding"><span class="dot"></span><span id="countBuilding">2</span></div>
+  <div class="stat-pill amber" id="pillGate"><span class="dot"></span><span id="countGate">1</span></div>
+  <div class="stat-pill red" id="pillError"><span class="dot"></span><span id="countError">1</span></div>
+</div>
+
+<!-- Main area -->
+<div class="main-wrap" id="mainWrap">
+  <div class="graph-wrap" id="graphWrap">
+    <div id="cy"></div>
+    <div class="graph-tooltip" id="tooltip"></div>
+    <div class="popover" id="popover"></div>
+  </div>
+  <div class="context-panel" id="contextPanel"></div>
+</div>
+
+<!-- Ops strip -->
+<div class="ops-strip" id="opsStrip"></div>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+<script>
+// ── Data ──────────────────────────────────────────────────
+const NODES_INIT = {
+  // Knowledge track
+  'CORE-LEARN-1':  { name: 'Self-Correction + Negative Examples', track: 'knowledge', status: 'building', agent: 'Claude', step: 5, totalSteps: 8, elapsed: '3m', phase: 'blueprint' },
+  'ONTO-PUB-2':    { name: 'Ontology Publish',     track: 'knowledge',    status: 'planned' },
+  'ONTO-PROV-1':   { name: 'Ontology Provision',   track: 'knowledge',    status: 'planned' },
+  'CORE-CONF-1':   { name: 'Core Config',          track: 'knowledge',    status: 'planned' },
+  // Distribution track
+  'DIST-ADOPT-1':  { name: 'Dist Adoption',        track: 'distribution', status: 'gate', gateFrom: 'design', gateTo: 'prd', artifact: 'design.md', artPct: 87, artWords: 1240, artMissing: 'Open Questions' },
+  'DIST-RELEASE-1':{ name: 'Dist Release',         track: 'distribution', status: 'complete', completedAgo: '28m', totalSteps: 8, agents: 3 },
+  'DIST-PUB-1':    { name: 'Dist Publish',         track: 'distribution', status: 'planned', blockedBy: 'DIST-ADOPT-1' },
+  'DIST-FEED-1':   { name: 'Dist Feedback',        track: 'distribution', status: 'planned' },
+  // Governance track
+  'SEC-DOMAIN-1':  { name: 'Security Domain',      track: 'governance',   status: 'building', agent: 'Codex', step: 6, totalSteps: 10, elapsed: '12m', phase: 'implement' },
+  'PRE-ASYNC-1':   { name: 'Pre-Async Hooks',      track: 'governance',   status: 'error', errorMsg: 'TypeError in module_x.py', errorAgent: 'Codex', errorStep: 6, errorPhase: 'implement', errorAgo: '4m', errorIO: '1r 2w 1e' },
+  'HITL-1':        { name: 'Human-in-Loop',        track: 'governance',   status: 'planned', blockedBy: 'PRE-ASYNC-1' },
+  'GOV-ROLES-1':   { name: 'Governance Roles',     track: 'governance',   status: 'planned', blockedBy: 'HITL-1' },
+};
+
+function cloneNodes() {
+  const c = {};
+  for (const [k, v] of Object.entries(NODES_INIT)) c[k] = { ...v };
+  return c;
+}
+
+let NODES = cloneNodes();
+
+const EDGES = [
+  ['ONTO-PUB-2', 'CORE-CONF-1'],
+  ['CORE-LEARN-1', 'ONTO-PROV-1'],
+  ['DIST-ADOPT-1', 'DIST-PUB-1'],
+  ['DIST-RELEASE-1', 'DIST-FEED-1'],
+  ['SEC-DOMAIN-1', 'HITL-1'],
+  ['PRE-ASYNC-1', 'HITL-1'],
+  ['HITL-1', 'GOV-ROLES-1'],
+];
+
+const TRACKS = {
+  knowledge:    { label: 'Knowledge',    color: '#3b82f620' },
+  distribution: { label: 'Distribution', color: '#22c55e20' },
+  governance:   { label: 'Governance',   color: '#f59e0b20' },
+};
+
+const C = {
+  blue: '#3b82f6', amber: '#f59e0b', red: '#ef4444', green: '#22c55e',
+  grey: '#64748b', bg: '#0f172a', nodeBg: '#1e293b', border: '#334155',
+  text: '#e2e8f0', textDim: '#94a3b8', textMuted: '#64748b'
+};
+
+const STEPS = ['speckit', 'design', 'prd', 'blueprint', 'implement', 'test', 'review', 'deploy'];
+
+function statusColor(s) {
+  if (s === 'building') return C.blue;
+  if (s === 'gate') return C.amber;
+  if (s === 'error') return C.red;
+  if (s === 'complete') return C.green;
+  return C.grey;
+}
+
+function statusLabel(s) {
+  if (s === 'building') return '\u25cf Building';
+  if (s === 'gate') return '\u26a0 Gate Pending';
+  if (s === 'error') return '\u2715 Error';
+  if (s === 'complete') return '\u2713 Complete';
+  return '\u25cb Planned';
+}
+
+// ── Build cytoscape elements ─────────────────────────────
+function buildElements() {
+  const els = [];
+  for (const [tid, t] of Object.entries(TRACKS)) {
+    els.push({ group: 'nodes', data: { id: 'track-' + tid, label: t.label, isTrack: true } });
+  }
+  for (const [id, n] of Object.entries(NODES)) {
+    const isBlocked = !!n.blockedBy;
+    let label2 = '';
+    if (n.status === 'building') label2 = `${n.agent} \u00b7 ${n.step}/${n.totalSteps} \u00b7 ${n.elapsed}`;
+    else if (n.status === 'complete') label2 = '\u2713 done';
+    else if (n.status === 'gate') label2 = '\u26a0 gate';
+    else if (n.status === 'error') label2 = '\u2715 error';
+    else if (isBlocked) label2 = '(blocked)';
+    els.push({
+      group: 'nodes',
+      data: { id, label: id, label2, status: n.status, blocked: isBlocked, track: n.track, parent: 'track-' + n.track }
+    });
+  }
+  for (const [src, tgt] of EDGES) {
+    els.push({ group: 'edges', data: { source: src, target: tgt } });
+  }
+  return els;
+}
+
+// ── State ────────────────────────────────────────────────
+let cy;
+const badges = {};
+const pulseEls = {};
+let panelOpen = false;
+let panelNodeId = null;
+let popoverOpen = false;
+let selectedStripId = null;
+const demoTimeouts = [];
+
+// ── Cytoscape init ──────────────────────────────────────
+function initCy() {
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: buildElements(),
+    style: [
+      {
+        selector: 'node[?isTrack]',
+        style: {
+          'background-color': '#1e293b10', 'border-width': 1, 'border-color': '#334155',
+          'border-style': 'dashed', 'label': 'data(label)', 'text-valign': 'top',
+          'text-halign': 'center', 'font-size': 11, 'font-weight': 700, 'color': '#475569',
+          'text-margin-y': -8, 'padding': 18, 'shape': 'round-rectangle', 'overlay-opacity': 0,
+        }
+      },
+      {
+        selector: 'node[!isTrack]',
+        style: {
+          'width': 140, 'height': 48, 'shape': 'round-rectangle',
+          'background-color': C.nodeBg, 'border-width': 2, 'border-color': C.grey,
+          'border-style': 'solid', 'label': 'data(label)', 'text-valign': 'center',
+          'text-halign': 'center', 'font-size': 10, 'font-weight': 600, 'color': C.text,
+          'text-wrap': 'wrap', 'text-max-width': 130, 'overlay-opacity': 0,
+          'transition-property': 'border-color, opacity, border-style', 'transition-duration': '0.4s',
+        }
+      },
+      { selector: 'node[status="building"]', style: { 'border-color': C.blue, 'border-width': 2.5, 'height': 56 } },
+      { selector: 'node[status="gate"]', style: { 'border-color': C.amber, 'border-width': 2.5 } },
+      { selector: 'node[status="error"]', style: { 'border-color': C.red, 'border-width': 2.5 } },
+      { selector: 'node[status="complete"]', style: { 'border-color': C.green, 'opacity': 0.7 } },
+      { selector: 'node[?blocked]', style: { 'opacity': 0.4, 'border-style': 'dashed' } },
+      {
+        selector: 'edge',
+        style: {
+          'width': 1.5, 'line-color': '#334155', 'target-arrow-color': '#334155',
+          'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'arrow-scale': 0.8,
+          'opacity': 0.6, 'transition-property': 'opacity', 'transition-duration': '0.4s',
+        }
+      },
+      { selector: '.dimmed', style: { 'opacity': 0.12 } },
+      { selector: '.highlight', style: { 'opacity': 1 } },
+      { selector: 'edge.highlight', style: { 'opacity': 0.8 } },
+      { selector: '.selected-node', style: { 'border-width': 3 } },
+    ],
+    layout: { name: 'dagre', rankDir: 'LR', nodeSep: 40, rankSep: 80, padding: 30 },
+    userZoomingEnabled: true, userPanningEnabled: true,
+    boxSelectionEnabled: false, autoungrabify: true,
+  });
+
+  cy.nodes('[!isTrack]').forEach(n => {
+    const l2 = n.data('label2');
+    if (l2) n.style('label', n.data('label') + '\n' + l2);
+  });
+
+  createBadges();
+  cy.on('render pan zoom resize', updateBadgePositions);
+  cy.on('render pan zoom resize', updatePulseOverlays);
+  updateBadgePositions();
+
+  cy.on('mouseover', 'node[!isTrack]', onNodeHover);
+  cy.on('mouseout', 'node[!isTrack]', onNodeOut);
+  cy.on('tap', 'node[!isTrack]', onNodeClick);
+  cy.on('tap', function(e) { if (e.target === cy) { closePopover(); closePanel(); } });
+}
+
+// ── Badges ──────────────────────────────────────────────
+function createBadges() {
+  const wrap = document.getElementById('graphWrap');
+  for (const [id, n] of Object.entries(NODES)) {
+    if (n.status === 'gate' || n.status === 'error') {
+      const el = document.createElement('div');
+      el.className = 'node-badge ' + (n.status === 'gate' ? 'gate' : 'error');
+      el.textContent = n.status === 'gate' ? '\u26a0' : '\u2715';
+      el.dataset.nodeId = id;
+      el.addEventListener('click', (e) => { e.stopPropagation(); onBadgeClick(id, NODES[id], el); });
+      wrap.appendChild(el);
+      badges[id] = el;
+    }
+  }
+}
+
+function updateBadgePositions() {
+  for (const [id, el] of Object.entries(badges)) {
+    const node = cy.getElementById(id);
+    if (!node || node.removed()) { el.style.display = 'none'; continue; }
+    const pos = node.renderedPosition();
+    const w = node.renderedWidth();
+    const h = node.renderedHeight();
+    el.style.left = (pos.x + w/2 - 6) + 'px';
+    el.style.top = (pos.y - h/2 - 6) + 'px';
+    el.style.display = '';
+  }
+}
+
+// ── Pulse overlays ──────────────────────────────────────
+function createPulseOverlay(nodeId) {
+  const wrap = document.getElementById('graphWrap');
+  const el = document.createElement('div');
+  el.style.cssText = 'position:absolute;pointer-events:none;border-radius:12px;z-index:5;';
+  wrap.appendChild(el);
+  pulseEls[nodeId] = el;
+  return el;
+}
+
+function updatePulseOverlays() {
+  for (const [id, el] of Object.entries(pulseEls)) {
+    const node = cy.getElementById(id);
+    if (!node || node.removed()) { el.style.display = 'none'; continue; }
+    const n = NODES[id];
+    if (n.status !== 'building') { el.style.display = 'none'; continue; }
+    const pos = node.renderedPosition();
+    const w = node.renderedWidth();
+    const h = node.renderedHeight();
+    el.style.left = (pos.x - w/2 - 4) + 'px';
+    el.style.top = (pos.y - h/2 - 4) + 'px';
+    el.style.width = (w + 8) + 'px';
+    el.style.height = (h + 8) + 'px';
+    el.style.display = '';
+    el.style.animation = 'pulseBlue 2s ease-in-out infinite';
+    el.style.border = 'none';
+  }
+}
+
+// ── Tooltip ─────────────────────────────────────────────
+const tooltipEl = document.getElementById('tooltip');
+let tooltipTimer = null;
+
+function onNodeHover(e) {
+  if (popoverOpen) return;
+  const node = e.target;
+  const id = node.id();
+  const n = NODES[id];
+  if (!n) return;
+  clearTimeout(tooltipTimer);
+
+  let html = `<div class="tt-code">${id}</div><div class="tt-name">${n.name}</div>`;
+  const s = n.status;
+  html += `<div class="tt-status ${s}">${statusLabel(s)}</div>`;
+  if (s === 'building') {
+    html += `<div class="tt-detail">Step ${n.step}/${n.totalSteps} &mdash; ${n.phase} &middot; ${n.agent} &middot; ${n.elapsed}</div>`;
+    html += `<div class="tt-progress"><div class="tt-progress-fill" style="width:${(n.step/n.totalSteps*100).toFixed(0)}%"></div></div>`;
+  } else if (s === 'gate') {
+    html += `<div class="tt-detail">Gate: ${n.gateFrom} &rarr; ${n.gateTo} &middot; ${n.artPct}% complete</div>`;
+  } else if (s === 'error') {
+    html += `<div class="tt-detail">Error: ${n.errorMsg}</div>`;
+  } else if (s === 'complete') {
+    html += `<div class="tt-detail">Completed ${n.completedAgo} ago</div>`;
+  } else if (n.blockedBy) {
+    html += `<div class="tt-detail">Blocked by: ${n.blockedBy}</div>`;
+  }
+  tooltipEl.innerHTML = html;
+  tooltipEl.classList.add('visible');
+  const pos = node.renderedPosition();
+  tooltipEl.style.left = (pos.x + 80) + 'px';
+  tooltipEl.style.top = (pos.y - 20) + 'px';
+}
+
+function onNodeOut() {
+  tooltipTimer = setTimeout(() => tooltipEl.classList.remove('visible'), 100);
+}
+
+// ── Popover ─────────────────────────────────────────────
+const popoverEl = document.getElementById('popover');
+
+function onBadgeClick(id, n, badgeEl) {
+  tooltipEl.classList.remove('visible');
+  if (n.status === 'gate') {
+    popoverEl.innerHTML = `
+      <div class="popover-arrow"></div>
+      <div class="popover-label">Gate</div>
+      <div class="popover-title">${n.gateFrom} &rarr; ${n.gateTo}</div>
+      <div class="popover-body">${n.artifact} &middot; ${n.artPct}% complete &middot; ${n.artWords} words<br>Missing: ${n.artMissing}</div>
+      <div class="popover-actions">
+        <button class="primary" data-action="approve" data-node="${id}">Approve</button>
+        <button data-action="revise">Revise</button>
+      </div>`;
+  } else if (n.status === 'error') {
+    popoverEl.innerHTML = `
+      <div class="popover-arrow"></div>
+      <div class="popover-label">Error</div>
+      <div class="popover-title">${n.errorMsg}</div>
+      <div class="popover-body">${n.errorAgent} &middot; step ${n.errorStep} ${n.errorPhase} &middot; ${n.errorAgo} ago</div>
+      <div class="popover-meta">I/O: ${n.errorIO}</div>
+      <div class="popover-actions">
+        <button class="primary">Retry</button>
+        <button>View Logs</button>
+      </div>`;
+  }
+  const rect = badgeEl.getBoundingClientRect();
+  const wrapRect = document.getElementById('graphWrap').getBoundingClientRect();
+  popoverEl.style.left = (rect.left - wrapRect.left - 10) + 'px';
+  popoverEl.style.top = (rect.bottom - wrapRect.top + 8) + 'px';
+  popoverEl.classList.add('visible');
+  popoverOpen = true;
+  const approveBtn = popoverEl.querySelector('[data-action="approve"]');
+  if (approveBtn) approveBtn.addEventListener('click', () => handleApprove(id));
+}
+
+function closePopover() {
+  popoverEl.classList.remove('visible');
+  popoverOpen = false;
+}
+
+// ── Approve gate ────────────────────────────────────────
+function handleApprove(id) {
+  popoverEl.style.borderColor = C.green;
+  setTimeout(() => {
+    closePopover();
+    popoverEl.style.borderColor = '';
+    transitionNode(id, 'building', { agent: 'Codex', step: 1, totalSteps: 6, elapsed: '0m', phase: 'speckit' });
+    if (badges[id]) badges[id].classList.add('hidden');
+    unblockDownstream(id);
+    updateCounts();
+    createPulseOverlay(id);
+    updatePulseOverlays();
+    renderOpsStrip();
+    if (panelOpen && panelNodeId === id) showContextPanel(id);
+  }, 300);
+}
+
+// ── Node state transitions ──────────────────────────────
+function transitionNode(id, newStatus, props) {
+  const n = NODES[id];
+  n.status = newStatus;
+  Object.assign(n, props || {});
+  const node = cy.getElementById(id);
+  node.data('status', newStatus);
+  node.data('blocked', false);
+  let label2 = '';
+  if (newStatus === 'building') label2 = `${n.agent} \u00b7 ${n.step}/${n.totalSteps} \u00b7 ${n.elapsed}`;
+  else if (newStatus === 'complete') label2 = '\u2713 done';
+  node.data('label2', label2);
+  node.style('label', id + (label2 ? '\n' + label2 : ''));
+}
+
+function unblockDownstream(id) {
+  for (const [nid, n] of Object.entries(NODES)) {
+    if (n.blockedBy === id) {
+      n.blockedBy = null;
+      const node = cy.getElementById(nid);
+      node.data('blocked', false);
+      node.data('label2', '');
+      node.style('label', nid);
+    }
+  }
+}
+
+function updateCounts() {
+  let building = 0, gate = 0, error = 0;
+  for (const n of Object.values(NODES)) {
+    if (n.status === 'building') building++;
+    else if (n.status === 'gate') gate++;
+    else if (n.status === 'error') error++;
+  }
+  document.getElementById('countBuilding').textContent = building;
+  document.getElementById('countGate').textContent = gate;
+  document.getElementById('countError').textContent = error;
+
+  document.getElementById('pillBuilding').style.display = building > 0 ? '' : 'none';
+  document.getElementById('pillGate').style.display = gate > 0 ? '' : 'none';
+  document.getElementById('pillError').style.display = error > 0 ? '' : 'none';
+}
+
+// ── Context Panel ───────────────────────────────────────
+const panelEl = document.getElementById('contextPanel');
+
+function onNodeClick(e) {
+  const node = e.target;
+  const id = node.id();
+  if (!NODES[id]) return;
+  if (popoverOpen) return;
+  closePopover();
+  tooltipEl.classList.remove('visible');
+  cy.nodes('[!isTrack]').removeClass('selected-node');
+  node.addClass('selected-node');
+  selectFeature(id);
+}
+
+function selectFeature(id) {
+  selectedStripId = id;
+  showContextPanel(id);
+  renderOpsStrip();
+  // Center graph on node
+  const node = cy.getElementById(id);
+  if (node && !node.removed()) {
+    cy.nodes('[!isTrack]').removeClass('selected-node');
+    node.addClass('selected-node');
+    cy.animate({ center: { eles: node }, duration: 400 });
+  }
+}
+
+function showContextPanel(id) {
+  const n = NODES[id];
+  if (!n) return;
+  panelNodeId = id;
+
+  let html = `<div class="cp-header"><h3>${id}</h3><span class="cp-subtitle">${n.name}</span><button class="cp-close" onclick="closePanel()">\u2715</button></div>`;
+
+  // Pipeline (large dots)
+  html += `<div class="cp-section"><div class="cp-section-title">Pipeline</div><div class="pipeline" id="pipelineDots">`;
+  const currentStep = n.step || 0;
+  const st = n.status;
+  STEPS.forEach((s, i) => {
+    if (i > 0) html += `<div class="pip-line ${i < currentStep ? 'done' : 'pending'}" data-pip-line="${i}"></div>`;
+    let cls = 'pending';
+    if (st === 'complete') cls = 'done';
+    else if (st === 'error' && n.errorStep && i === n.errorStep - 1) cls = 'error';
+    else if (st === 'gate' && i === 2) cls = 'gate';
+    else if (i < currentStep) cls = 'done';
+    else if (i === currentStep && st === 'building') cls = 'active';
+    html += `<div class="pip-dot ${cls}" data-pip-dot="${i}">${i+1}</div>`;
+  });
+  html += `</div><div class="pip-labels">`;
+  STEPS.forEach((s, i) => {
+    if (i > 0) html += `<div class="pip-spacer"></div>`;
+    html += `<div class="pip-label">${s.slice(0, 3)}</div>`;
+  });
+  html += `</div></div>`;
+
+  // Gate card
+  if (st === 'gate') {
+    html += `<div class="cp-section"><div class="cp-section-title">Pending Gate</div>`;
+    html += `<div style="font-size:11px;color:#f59e0b;margin-bottom:6px">${n.gateFrom} &rarr; ${n.gateTo}</div>`;
+    html += `<div style="font-size:11px;color:#94a3b8;margin-bottom:4px">${n.artifact} &middot; ${n.artPct}% complete &middot; ${n.artWords} words</div>`;
+    html += `<div style="font-size:11px;color:#64748b;margin-bottom:8px">Missing: ${n.artMissing}</div>`;
+    html += `<div class="gate-actions"><button class="primary" onclick="handleApprove('${id}')">Approve</button><button>Revise</button></div>`;
+    html += `</div>`;
+  }
+
+  // Sessions
+  html += `<div class="cp-section"><div class="cp-section-title">Sessions</div>`;
+  if (st === 'building') {
+    html += `<div class="session-row"><span class="session-agent ${n.agent.toLowerCase()}">${n.agent}</span><span class="session-dur">${n.elapsed}</span><span class="session-stats">step ${n.step}/${n.totalSteps}</span></div>`;
+    if (id === 'CORE-LEARN-1') {
+      html += `<div class="session-row"><span class="session-agent claude">Claude</span><span class="session-dur">12m</span><span class="session-stats">3r 4w 0e</span></div>`;
+    }
+  } else if (st === 'error') {
+    html += `<div class="session-row"><span class="session-agent ${n.errorAgent.toLowerCase()}">${n.errorAgent}</span><span class="session-dur">${n.errorAgo}</span><span class="session-stats">${n.errorIO}</span></div>`;
+  } else if (st === 'complete') {
+    html += `<div class="session-row"><span class="session-agent claude">Claude</span><span class="session-dur">${n.completedAgo || '0m'}</span><span class="session-stats">${n.totalSteps || 8} steps</span></div>`;
+  } else {
+    html += `<div style="font-size:11px;color:#475569">No sessions yet</div>`;
+  }
+  html += `</div>`;
+
+  // Errors
+  html += `<div class="cp-section"><div class="cp-section-title">Errors</div>`;
+  if (st === 'error') {
+    html += `<div class="error-item">${n.errorMsg}<br><span style="font-size:10px;color:#64748b">${n.errorAgent} &middot; step ${n.errorStep} ${n.errorPhase} &middot; ${n.errorAgo} ago</span></div>`;
+  } else {
+    html += `<div style="font-size:11px;color:#475569">None</div>`;
+  }
+  html += `</div>`;
+
+  // Files
+  html += `<div class="cp-section"><div class="cp-section-title">Files</div>`;
+  html += `<a class="file-link" href="#">docs/features/${id}/design.md</a>`;
+  if (st === 'building' || st === 'complete') {
+    html += `<a class="file-link" href="#">docs/features/${id}/blueprint.md</a>`;
+  }
+  if (st === 'error') {
+    html += `<a class="file-link" href="#">src/modules/${id.toLowerCase().replace(/-/g, '_')}/module_x.py</a>`;
+  }
+  html += `</div>`;
+
+  // Cross-view links
+  html += `<div class="cp-section" style="border-bottom:none"><div class="cp-section-title">Views</div>`;
+  html += `<div class="cross-links">`;
+  html += `<div class="cross-link" id="linkItems">\u2193 View in Tree</div>`;
+  html += `</div></div>`;
+
+  panelEl.innerHTML = html;
+  panelEl.classList.add('open');
+  panelOpen = true;
+}
+
+function closePanel() {
+  panelEl.classList.remove('open');
+  panelOpen = false;
+  panelNodeId = null;
+  cy.nodes('[!isTrack]').removeClass('selected-node');
+  selectedStripId = null;
+  renderOpsStrip();
+}
+
+// ── OPS STRIP ───────────────────────────────────────────
+const opsStripEl = document.getElementById('opsStrip');
+let completedFlashTimers = {};
+
+function renderOpsStrip() {
+  const stripItems = [];
+
+  for (const [id, n] of Object.entries(NODES)) {
+    if (n.status === 'building' || n.status === 'gate' || n.status === 'error' || n._showComplete) {
+      stripItems.push(id);
+    }
+  }
+
+  let html = '';
+  stripItems.forEach((id, idx) => {
+    const n = NODES[id];
+    const sel = id === selectedStripId ? ' selected' : '';
+    const fading = n._fading ? ' fading' : '';
+
+    html += `<div class="ops-item${sel}${fading}" data-ops-id="${id}" onclick="onOpsItemClick('${id}')">`;
+
+    if (n.status === 'building') {
+      html += `<span class="ops-dot building"></span>`;
+      html += `<span class="ops-code">${id}</span>`;
+      html += `<span class="ops-progress"><span class="ops-progress-fill blue" style="width:${(n.step/n.totalSteps*100).toFixed(0)}%"></span></span>`;
+      html += `<span class="ops-detail">${n.step}/${n.totalSteps}</span>`;
+      html += `<span class="ops-agent ${n.agent.toLowerCase()}">${n.agent}</span>`;
+      html += `<span class="ops-detail">${n.elapsed}</span>`;
+    } else if (n.status === 'gate') {
+      html += `<span class="ops-dot gate"></span>`;
+      html += `<span class="ops-code">${id}</span>`;
+      html += `<span class="ops-status-text gate-text">gate</span>`;
+      html += `<button class="ops-approve-btn" onclick="event.stopPropagation(); handleApprove('${id}')">Approve</button>`;
+    } else if (n.status === 'error') {
+      html += `<span class="ops-dot error"></span>`;
+      html += `<span class="ops-code">${id}</span>`;
+      html += `<span class="ops-status-text error-text">error</span>`;
+    } else if (n._showComplete) {
+      html += `<span class="ops-dot complete"></span>`;
+      html += `<span class="ops-code">${id}</span>`;
+      html += `<span class="ops-status-text complete-text">complete ${n._completeDuration || ''}</span>`;
+    }
+
+    html += `</div>`;
+
+    if (idx < stripItems.length - 1) {
+      html += `<div class="ops-separator"></div>`;
+    }
+  });
+
+  opsStripEl.innerHTML = html;
+}
+
+function onOpsItemClick(id) {
+  selectFeature(id);
+}
+
+function showCompletionInStrip(id, duration) {
+  const n = NODES[id];
+  n._showComplete = true;
+  n._completeDuration = duration;
+  renderOpsStrip();
+
+  // Flash the strip item green
+  setTimeout(() => {
+    const item = document.querySelector(`[data-ops-id="${id}"]`);
+    if (item) item.style.animation = 'stripFlashGreen 1s ease-out';
+  }, 50);
+
+  // After 3s, fade out and remove
+  completedFlashTimers[id] = setTimeout(() => {
+    n._fading = true;
+    renderOpsStrip();
+    setTimeout(() => {
+      delete n._showComplete;
+      delete n._fading;
+      delete n._completeDuration;
+      renderOpsStrip();
+    }, 500);
+  }, 3000);
+}
+
+// ── Annotation ──────────────────────────────────────────
+const annoEl = document.getElementById('annotation');
+let annoTimer = null;
+
+function showAnnotation(text, duration) {
+  annoEl.textContent = text;
+  annoEl.classList.add('visible');
+  clearTimeout(annoTimer);
+  annoTimer = setTimeout(() => annoEl.classList.remove('visible'), duration || 3000);
+}
+
+// ── Demo sequence ───────────────────────────────────────
+function clearDemoTimeouts() {
+  demoTimeouts.forEach(t => clearTimeout(t));
+  demoTimeouts.length = 0;
+  for (const t of Object.values(completedFlashTimers)) clearTimeout(t);
+  completedFlashTimers = {};
+}
+
+function at(ms, fn) {
+  demoTimeouts.push(setTimeout(fn, ms));
+}
+
+function startDemo() {
+  document.getElementById('preamble').classList.add('hidden');
+  document.getElementById('replayBtn').classList.remove('visible');
+  initCy();
+
+  createPulseOverlay('CORE-LEARN-1');
+  createPulseOverlay('SEC-DOMAIN-1');
+  updatePulseOverlays();
+
+  // Initial: select CORE-LEARN-1, render strip
+  setTimeout(() => {
+    selectFeature('CORE-LEARN-1');
+  }, 500);
+
+  renderOpsStrip();
+  runSequence();
+}
+
+function replay() {
+  clearDemoTimeouts();
+  closePopover();
+  closePanel();
+  annoEl.classList.remove('visible');
+  document.getElementById('replayBtn').classList.remove('visible');
+
+  NODES = cloneNodes();
+
+  cy.destroy();
+  for (const el of document.querySelectorAll('.node-badge')) el.remove();
+  for (const el of Object.values(pulseEls)) el.remove();
+  Object.keys(badges).forEach(k => delete badges[k]);
+  Object.keys(pulseEls).forEach(k => delete pulseEls[k]);
+
+  initCy();
+  createPulseOverlay('CORE-LEARN-1');
+  createPulseOverlay('SEC-DOMAIN-1');
+  updatePulseOverlays();
+  updateCounts();
+
+  setTimeout(() => {
+    selectFeature('CORE-LEARN-1');
+  }, 500);
+
+  renderOpsStrip();
+  runSequence();
+}
+
+function runSequence() {
+  // (0s) Initial state
+  showAnnotation('Ops strip at bottom \u2014 always shows what\u2019s active across the project', 3500);
+
+  // (4s) Hover node, then click gate badge on DIST-ADOPT-1
+  at(4000, () => {
+    // Show tooltip on DIST-ADOPT-1
+    const node = cy.getElementById('DIST-ADOPT-1');
+    const n = NODES['DIST-ADOPT-1'];
+    const pos = node.renderedPosition();
+    tooltipEl.innerHTML = `
+      <div class="tt-code">DIST-ADOPT-1</div>
+      <div class="tt-name">${n.name}</div>
+      <div class="tt-status gate">\u26a0 Gate Pending</div>
+      <div class="tt-detail">Gate: ${n.gateFrom} &rarr; ${n.gateTo} &middot; ${n.artPct}% complete</div>`;
+    tooltipEl.style.left = (pos.x + 80) + 'px';
+    tooltipEl.style.top = (pos.y - 20) + 'px';
+    tooltipEl.classList.add('visible');
+    showAnnotation('Click \u26a0 on graph for quick approval', 2500);
+  });
+
+  // (7s) Click [Approve] in ops strip instead
+  at(7000, () => {
+    tooltipEl.classList.remove('visible');
+    // Highlight the ops strip approve button briefly
+    const stripItem = document.querySelector('[data-ops-id="DIST-ADOPT-1"]');
+    if (stripItem) {
+      stripItem.style.background = '#f59e0b20';
+      setTimeout(() => { stripItem.style.background = ''; }, 600);
+    }
+    showAnnotation('Same action available in the ops strip \u2014 no need to find the node', 2500);
+  });
+
+  // (10s) Approve gate
+  at(10000, () => {
+    handleApprove('DIST-ADOPT-1');
+    showAnnotation('Gate approved \u2014 node turns blue, downstream undims', 3000);
+  });
+
+  // (14s) Click CORE-LEARN-1 in graph
+  at(14000, () => {
+    popoverOpen = false;
+    selectFeature('CORE-LEARN-1');
+    showAnnotation('Context panel for investigation \u2014 ops strip for awareness', 2500);
+  });
+
+  // (18s) Pipeline step advances
+  at(18000, () => {
+    NODES['CORE-LEARN-1'].step = 6;
+    NODES['CORE-LEARN-1'].elapsed = '5m';
+    const node = cy.getElementById('CORE-LEARN-1');
+    node.style('label', 'CORE-LEARN-1\nClaude \u00b7 6/8 \u00b7 5m');
+
+    // Update pipeline dots
+    const dot5 = panelEl.querySelector('[data-pip-dot="5"]');
+    const dot6 = panelEl.querySelector('[data-pip-dot="6"]');
+    const line5 = panelEl.querySelector('[data-pip-line="5"]');
+    if (dot5) dot5.className = 'pip-dot done';
+    if (dot6) dot6.className = 'pip-dot active';
+    if (line5) line5.className = 'pip-line done';
+
+    // Add session row
+    const sections = panelEl.querySelectorAll('.cp-section');
+    const sessionSection = sections[1]; // Sessions section (after pipeline)
+    if (sessionSection) {
+      const newRow = document.createElement('div');
+      newRow.className = 'session-row';
+      newRow.innerHTML = '<span class="session-agent claude">Claude</span><span class="session-dur">1m</span><span class="session-stats">1r 1w 0e</span>';
+      newRow.style.opacity = '0';
+      newRow.style.transition = 'opacity 0.4s ease';
+      const firstRow = sessionSection.querySelector('.session-row');
+      if (firstRow) sessionSection.insertBefore(newRow, firstRow);
+      setTimeout(() => { newRow.style.opacity = '1'; }, 50);
+    }
+
+    renderOpsStrip();
+    showAnnotation('Pipeline advances \u2014 session appears in context panel', 2500);
+  });
+
+  // (22s) Click PRE-ASYNC-1 in ops strip
+  at(22000, () => {
+    selectFeature('PRE-ASYNC-1');
+    showAnnotation('Click item in ops strip \u2014 graph navigates to it, panel shows detail', 3000);
+  });
+
+  // (26s) CORE-LEARN-1 completes
+  at(26000, () => {
+    transitionNode('CORE-LEARN-1', 'complete', { completedAgo: '28m', totalSteps: 8, agents: 2 });
+    if (pulseEls['CORE-LEARN-1']) pulseEls['CORE-LEARN-1'].style.display = 'none';
+    updateCounts();
+    showCompletionInStrip('CORE-LEARN-1', '28m');
+    showAnnotation('Completed builds flash green in strip, then clear', 3000);
+  });
+
+  // (30s) SEC-DOMAIN-1 completes
+  at(30000, () => {
+    transitionNode('SEC-DOMAIN-1', 'complete', { completedAgo: '34m', totalSteps: 10, agents: 1 });
+    if (pulseEls['SEC-DOMAIN-1']) pulseEls['SEC-DOMAIN-1'].style.display = 'none';
+    updateCounts();
+    showCompletionInStrip('SEC-DOMAIN-1', '34m');
+  });
+
+  // (34s) Strip cleaned up
+  at(34000, () => {
+    showAnnotation('Strip cleans up \u2014 only active/problematic items remain', 3000);
+  });
+
+  // (37s) View in Items link glows
+  at(37000, () => {
+    const linkItems = document.getElementById('linkItems');
+    if (linkItems) {
+      linkItems.classList.add('glow');
+    }
+    showAnnotation('Jump to Tree view for mid-level feature scanning', 2500);
+  });
+
+  // (40s) Replay
+  at(40000, () => {
+    document.getElementById('replayBtn').classList.add('visible');
+  });
+}
+</script>
+</body>
+</html>

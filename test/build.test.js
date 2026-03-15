@@ -179,7 +179,7 @@ describe('build.js', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  test('active build for different feature throws', async () => {
+  test('different feature build proceeds without blocking', async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), 'build-test-'));
     createTestProject(tmpDir);
 
@@ -192,16 +192,24 @@ describe('build.js', () => {
         startedAt: new Date().toISOString(),
         currentStepId: 'design',
         status: 'running',
+        pid: 999999, // non-existent PID
       })
     );
 
-    await assert.rejects(
-      () => runBuild('TEST-1', {
+    // Different feature should NOT block — concurrent builds are allowed.
+    // It will fail on stratum_plan (no real server) but should NOT fail
+    // with "Another build is active".
+    try {
+      await runBuild('TEST-1', {
         cwd: tmpDir,
         connectorFactory: mockConnectorFactory(),
-      }),
-      /Another build is active/
-    );
+      });
+    } catch (err) {
+      assert.ok(
+        !err.message.includes('Another build is active'),
+        'different feature should not block the new build'
+      );
+    }
 
     rmSync(tmpDir, { recursive: true, force: true });
   });

@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ops V3 — Unified Timeline with Sidebar</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+
+.header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1e293b; border-bottom: 1px solid #334155; font-size: 13px; font-weight: 600; }
+
+.main { flex: 1; display: flex; overflow: hidden; }
+
+/* Left: summary sidebar */
+.summary { width: 220px; border-right: 1px solid #334155; padding: 16px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex-shrink: 0; }
+
+.summary-section h4 { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stat-card { background: #1e293b; border-radius: 6px; padding: 10px; text-align: center; transition: transform 0.3s ease; }
+.stat-value { font-size: 20px; font-weight: 700; color: #e2e8f0; transition: transform 0.3s ease, color 0.3s ease; }
+.stat-value.blue { color: #3b82f6; }
+.stat-value.green { color: #22c55e; }
+.stat-value.amber { color: #f59e0b; }
+.stat-value.red { color: #ef4444; }
+.stat-label { font-size: 9px; color: #64748b; text-transform: uppercase; margin-top: 2px; }
+
+.active-build { background: #1e293b; border-radius: 8px; padding: 12px; border: 1px solid #334155; }
+.active-build .build-feat { font-size: 13px; font-weight: 600; color: #3b82f6; margin-bottom: 4px; }
+.active-build .build-step { font-size: 11px; color: #94a3b8; transition: color 0.3s ease; }
+.active-build .build-agent { font-size: 11px; color: #f97316; }
+.mini-progress { height: 4px; background: #334155; border-radius: 2px; margin-top: 8px; }
+.mini-progress-fill { height: 100%; background: #3b82f6; border-radius: 2px; transition: width 0.8s ease; }
+
+.pending-gate { display: flex; align-items: center; gap: 6px; padding: 8px; background: #1e293b; border-radius: 6px; margin-bottom: 4px; border: 1px solid #334155; transition: border-color 0.3s ease, opacity 0.5s ease; }
+.pending-gate .dot { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; }
+.pending-gate .name { font-size: 11px; color: #e2e8f0; flex: 1; }
+.pending-gate button { font-size: 9px; padding: 2px 6px; border-radius: 3px; border: 1px solid #22c55e40; background: #22c55e15; color: #22c55e; cursor: pointer; transition: all 0.2s ease; }
+.pending-gate button:hover { background: #22c55e30; }
+.pending-gate .approved-text { font-size: 9px; color: #22c55e; font-weight: 600; }
+
+/* Right: timeline */
+.timeline { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.timeline h3 { font-size: 11px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+.tl-group { margin-bottom: 20px; }
+.tl-group-header { font-size: 11px; color: #64748b; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #1e293b; }
+
+.tl-event { display: flex; gap: 12px; padding: 6px 0; position: relative; }
+.tl-event::before { content: ''; position: absolute; left: 11px; top: 24px; bottom: -6px; width: 1px; background: #1e293b; }
+.tl-event:last-child::before { display: none; }
+
+.tl-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; z-index: 1; }
+.tl-icon.step { background: #3b82f620; color: #3b82f6; border: 1px solid #3b82f640; }
+.tl-icon.done { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e40; }
+.tl-icon.gate { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b40; }
+.tl-icon.error { background: #ef444420; color: #ef4444; border: 1px solid #ef444440; }
+.tl-icon.session { background: #8b5cf620; color: #8b5cf6; border: 1px solid #8b5cf640; }
+.tl-icon.complete { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e40; }
+
+.tl-body { flex: 1; min-width: 0; }
+.tl-title { font-size: 12px; color: #e2e8f0; display: flex; align-items: center; gap: 6px; }
+.tl-title .agent { font-size: 10px; padding: 1px 5px; border-radius: 3px; }
+.tl-title .agent.claude { background: #f9731620; color: #f97316; }
+.tl-title .agent.codex { background: #22c55e20; color: #22c55e; }
+.tl-title .time { font-size: 10px; color: #475569; margin-left: auto; }
+.tl-detail { font-size: 11px; color: #64748b; margin-top: 2px; }
+.tl-stats { font-size: 10px; color: #475569; margin-top: 2px; display: flex; gap: 8px; }
+.tl-stats .r { color: #3b82f6; }
+.tl-stats .w { color: #f59e0b; }
+.tl-stats .e { color: #ef4444; }
+
+/* Gate inline action */
+.tl-gate-actions { display: flex; gap: 4px; margin-top: 6px; }
+.tl-gate-actions button { font-size: 10px; padding: 3px 10px; border-radius: 4px; border: 1px solid; cursor: pointer; transition: all 0.2s ease; }
+.tl-btn-approve { background: #22c55e15; border-color: #22c55e40; color: #22c55e; }
+.tl-btn-approve:hover { background: #22c55e30; }
+.tl-btn-revise { background: #f59e0b10; border-color: #f59e0b30; color: #f59e0b; }
+.tl-approved-text { font-size: 11px; color: #22c55e; font-weight: 600; margin-top: 6px; }
+
+/* Animation: slide-down + fade-in for new timeline events */
+@keyframes slideInEvent {
+  0% { opacity: 0; transform: translateY(-20px); max-height: 0; }
+  30% { opacity: 0; max-height: 120px; }
+  100% { opacity: 1; transform: translateY(0); max-height: 120px; }
+}
+
+.tl-event.anim-in {
+  animation: slideInEvent 0.6s ease forwards;
+}
+
+/* Pulse animation for stat values */
+@keyframes pulseValue {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+.stat-value.pulse {
+  animation: pulseValue 0.6s ease;
+}
+
+/* Red flash for error increment */
+@keyframes redFlash {
+  0% { box-shadow: none; }
+  30% { box-shadow: 0 0 12px #ef444480; }
+  100% { box-shadow: none; }
+}
+
+.stat-card.red-flash {
+  animation: redFlash 0.8s ease;
+}
+
+/* Green border flash for approved gate */
+@keyframes greenBorderFlash {
+  0% { border-color: #334155; box-shadow: none; }
+  30% { border-color: #22c55e; box-shadow: 0 0 12px #22c55e40; }
+  100% { border-color: #22c55e60; box-shadow: none; }
+}
+
+.tl-event.approved-flash {
+  animation: greenBorderFlash 0.8s ease;
+  border-radius: 6px;
+}
+
+/* Pulsing blue icon */
+@keyframes pulseBlue {
+  0%, 100% { box-shadow: 0 0 0 0 #3b82f660; }
+  50% { box-shadow: 0 0 8px 4px #3b82f630; }
+}
+
+.tl-icon.pulsing {
+  animation: pulseBlue 1.5s ease infinite;
+}
+
+/* Green sparkle */
+@keyframes sparkle {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.6) drop-shadow(0 0 6px #22c55e80); }
+}
+
+.tl-icon.sparkle {
+  animation: sparkle 1s ease infinite;
+}
+
+/* Replay button */
+.replay-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 100;
+  transition: background 0.2s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+.replay-btn.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.replay-btn:hover { background: #2563eb; }
+
+/* Preamble overlay */
+.preamble-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0f172af0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+.preamble-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.preamble-card {
+  background: #1e293b;
+  border: 1px solid #3b82f6;
+  border-radius: 12px;
+  padding: 40px 48px;
+  max-width: 520px;
+  text-align: center;
+}
+.preamble-card h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 14px;
+}
+.preamble-card p {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+.preamble-card button {
+  padding: 10px 28px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.preamble-card button:hover { background: #2563eb; }
+
+/* Annotation callouts */
+.annotation {
+  position: fixed;
+  background: #1e293b;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: #e2e8f0;
+  max-width: 200px;
+  z-index: 150;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+  line-height: 1.4;
+}
+.annotation.visible {
+  opacity: 1;
+}
+.annotation::before {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #3b82f6;
+  border-radius: 50%;
+  top: 10px;
+  left: -3px;
+}
+
+/* Sidebar gate slide-out */
+@keyframes fadeOutGate {
+  0% { opacity: 1; max-height: 50px; }
+  100% { opacity: 0; max-height: 0; padding: 0; margin: 0; border: none; }
+}
+.pending-gate.fade-out {
+  animation: fadeOutGate 0.5s ease forwards;
+  overflow: hidden;
+}
+
+/* Amber pulse for gate count */
+@keyframes amberPulse {
+  0% { transform: scale(1); color: #f59e0b; }
+  30% { transform: scale(1.5); color: #fbbf24; }
+  100% { transform: scale(1); color: #f59e0b; }
+}
+.stat-value.amber-pulse {
+  animation: amberPulse 0.7s ease;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span style="color: #3b82f6; font-weight: 700; letter-spacing: 0.05em;">OPS</span>
+  <span style="color: #475569; font-size: 11px;">Sidebar summary + unified timeline</span>
+</div>
+
+<div class="main">
+  <!-- Summary sidebar -->
+  <div class="summary">
+    <div class="summary-section">
+      <h4>Overview</h4>
+      <div class="stat-grid">
+        <div class="stat-card" id="stat-builds"><div class="stat-value blue" id="val-builds">1</div><div class="stat-label">Active Build</div></div>
+        <div class="stat-card" id="stat-gates"><div class="stat-value amber" id="val-gates">2</div><div class="stat-label">Gates</div></div>
+        <div class="stat-card" id="stat-sessions"><div class="stat-value green" id="val-sessions">4</div><div class="stat-label">Sessions</div></div>
+        <div class="stat-card" id="stat-errors"><div class="stat-value red" id="val-errors">1</div><div class="stat-label">Errors</div></div>
+      </div>
+    </div>
+
+    <div class="summary-section">
+      <h4>Active Build</h4>
+      <div class="active-build" id="active-build">
+        <div class="build-feat">CORE-ASYNC-1</div>
+        <div class="build-step" id="build-step">Step 4/8 &mdash; blueprint</div>
+        <div class="build-agent" id="build-agent">Claude &middot; 2m 32s</div>
+        <div class="mini-progress"><div class="mini-progress-fill" id="progress-fill" style="width: 50%"></div></div>
+      </div>
+    </div>
+
+    <div class="summary-section" id="gates-section">
+      <h4>Pending Gates</h4>
+      <div class="pending-gate" id="sidebar-gate-1">
+        <div class="dot"></div>
+        <span class="name">CORE-ASYNC-1</span>
+        <button id="sidebar-approve-1">Approve</button>
+      </div>
+      <div class="pending-gate" id="sidebar-gate-2">
+        <div class="dot"></div>
+        <span class="name">GEN-REF-1</span>
+        <button id="sidebar-approve-2">Approve</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="timeline" id="timeline-scroll">
+    <h3>Activity Timeline</h3>
+
+    <div class="tl-group" id="today-group">
+      <div class="tl-group-header">Today</div>
+      <!-- Dynamic events inserted here -->
+
+      <div class="tl-event" id="existing-1">
+        <div class="tl-icon step">&#9679;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            CORE-ASYNC-1 &mdash; blueprint step started
+            <span class="agent claude">Claude</span>
+            <span class="time">2m ago</span>
+          </div>
+          <div class="tl-detail">Writing blueprint.md with file plan and corrections table</div>
+        </div>
+      </div>
+
+      <div class="tl-event" id="existing-gate-1">
+        <div class="tl-icon gate">&#9632;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            CORE-ASYNC-1 &mdash; gate: design &rarr; prd
+            <span class="time">5m ago</span>
+          </div>
+          <div class="tl-detail">design.md 87% complete &middot; missing: Open Questions</div>
+          <div class="tl-gate-actions" id="existing-gate-1-actions">
+            <button class="tl-btn-approve">Approve</button>
+            <button class="tl-btn-revise">Revise</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-event">
+        <div class="tl-icon session">&#9830;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            CORE-ASYNC-1 &mdash; session completed
+            <span class="agent claude">Claude</span>
+            <span class="time">8m ago</span>
+          </div>
+          <div class="tl-detail">Wrote design.md with problem statement, goals, and architecture options</div>
+          <div class="tl-stats"><span class="r">3 read</span> <span class="w">4 write</span> <span class="e">0 errors</span> &middot; 12m</div>
+        </div>
+      </div>
+
+      <div class="tl-event">
+        <div class="tl-icon done">&#10003;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            GEN-REF-1 &mdash; plan step completed
+            <span class="agent claude">Claude</span>
+            <span class="time">20m ago</span>
+          </div>
+          <div class="tl-detail">plan.md with 12 tasks, all acceptance criteria defined</div>
+        </div>
+      </div>
+
+      <div class="tl-event" id="existing-gate-2">
+        <div class="tl-icon gate">&#9632;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            GEN-REF-1 &mdash; gate: plan &rarr; implement
+            <span class="time">20m ago</span>
+          </div>
+          <div class="tl-detail">plan.md 100% complete &middot; 890 words</div>
+          <div class="tl-gate-actions" id="existing-gate-2-actions">
+            <button class="tl-btn-approve">Approve</button>
+            <button class="tl-btn-revise">Revise</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-event">
+        <div class="tl-icon error">!</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            DIST-RELEASE-1 &mdash; test failure
+            <span class="agent codex">Codex</span>
+            <span class="time">35m ago</span>
+          </div>
+          <div class="tl-detail">pyproject.toml dependency mismatch &mdash; smartmemory-core not found</div>
+          <div class="tl-stats"><span class="r">1 read</span> <span class="w">2 write</span> <span class="e">1 error</span> &middot; 4m</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tl-group">
+      <div class="tl-group-header">Yesterday</div>
+
+      <div class="tl-event">
+        <div class="tl-icon done">&#10003;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            DIST-RELEASE-1 &mdash; build completed
+            <span class="time">18h ago</span>
+          </div>
+          <div class="tl-detail">All 8 steps passed &middot; 3 agents &middot; 42m total</div>
+        </div>
+      </div>
+
+      <div class="tl-event">
+        <div class="tl-icon done">&#10003;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            PRE-ASYNC-REF-1 &mdash; design completed
+            <span class="agent claude">Claude</span>
+            <span class="time">22h ago</span>
+          </div>
+          <div class="tl-detail">Refactor strategy doc with sync I/O boundary analysis</div>
+          <div class="tl-stats"><span class="r">4 read</span> <span class="w">1 write</span> <span class="e">0 errors</span> &middot; 6m</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preamble overlay -->
+<div class="preamble-overlay" id="preamble">
+  <div class="preamble-card">
+    <h1>V3 &mdash; Timeline + Sidebar</h1>
+    <p>Summary sidebar on the left with stat cards, active build status, and quick gate actions. Unified timeline on the right mixing steps, gates, sessions, and errors chronologically. The timeline tells the story of what happened.</p>
+    <button onclick="dismissPreamble()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Annotation callouts -->
+<div class="annotation" id="ann-stats" style="top: 80px; left: 240px;">At-a-glance numbers &mdash; builds, gates, sessions, errors</div>
+<div class="annotation" id="ann-active-build" style="top: 220px; left: 240px;">Current build progress with agent and elapsed time</div>
+<div class="annotation" id="ann-sidebar-gate" style="top: 360px; left: 240px;">Quick approve without scrolling the timeline</div>
+<div class="annotation" id="ann-timeline-event" style="top: 120px; right: 40px; left: auto;">Events appear in real-time as agents work</div>
+<div class="annotation" id="ann-gate-approved" style="top: 120px; right: 40px; left: auto;">Approve inline &mdash; buttons replaced with confirmation</div>
+<div class="annotation" id="ann-error-flash" style="top: 80px; left: 240px;">Error count flashes red when problems occur</div>
+<div class="annotation" id="ann-build-complete" style="top: 120px; right: 40px; left: auto;">Build complete &mdash; green sparkle on the timeline</div>
+
+<button class="replay-btn" id="replay-btn" onclick="startDemo()">Replay</button>
+
+<script>
+// --- Helpers ---
+function createEvent(html) {
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html.trim();
+  return wrapper.firstElementChild;
+}
+
+function insertAtTop(eventEl) {
+  const group = document.getElementById('today-group');
+  const header = group.querySelector('.tl-group-header');
+  eventEl.classList.add('anim-in');
+  header.insertAdjacentElement('afterend', eventEl);
+  // Scroll timeline to top
+  document.getElementById('timeline-scroll').scrollTop = 0;
+}
+
+function pulseStatValue(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('pulse');
+  void el.offsetWidth; // reflow
+  el.classList.add('pulse');
+}
+
+function flashStatCard(id, cls) {
+  const el = document.getElementById(id);
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+
+function updateStatValue(id, val) {
+  const el = document.getElementById(id);
+  el.textContent = val;
+  pulseStatValue(id);
+}
+
+// --- Preamble ---
+function dismissPreamble() {
+  document.getElementById('preamble').classList.add('hidden');
+  setTimeout(startDemo, 500);
+}
+
+// --- Annotation helpers ---
+function showAnnotation(id) {
+  document.getElementById(id).classList.add('visible');
+}
+function hideAnnotation(id) {
+  document.getElementById(id).classList.remove('visible');
+}
+function flashAnnotation(id, startMs, durationMs) {
+  durationMs = durationMs || 3000;
+  scheduleAt(startMs, () => showAnnotation(id));
+  scheduleAt(startMs + durationMs, () => hideAnnotation(id));
+}
+function hideAllAnnotations() {
+  document.querySelectorAll('.annotation').forEach(el => el.classList.remove('visible'));
+}
+
+// Store timeouts for cleanup on replay
+let demoTimeouts = [];
+
+function scheduleAt(ms, fn) {
+  demoTimeouts.push(setTimeout(fn, ms));
+}
+
+// --- Reset state ---
+function resetState() {
+  demoTimeouts.forEach(clearTimeout);
+  demoTimeouts = [];
+
+  // Remove all dynamically added events
+  document.querySelectorAll('.tl-event.dynamic').forEach(el => el.remove());
+
+  // Reset stat values
+  document.getElementById('val-builds').textContent = '1';
+  document.getElementById('val-gates').textContent = '2';
+  document.getElementById('val-sessions').textContent = '4';
+  document.getElementById('val-errors').textContent = '1';
+
+  // Reset build info
+  document.getElementById('build-step').innerHTML = 'Step 4/8 &mdash; blueprint';
+  document.getElementById('build-step').style.color = '';
+  document.getElementById('build-agent').innerHTML = 'Claude &middot; 2m 32s';
+  document.getElementById('progress-fill').style.width = '50%';
+  document.getElementById('progress-fill').style.background = '';
+
+  // Reset existing gate actions
+  document.getElementById('existing-gate-1-actions').innerHTML =
+    '<button class="tl-btn-approve">Approve</button><button class="tl-btn-revise">Revise</button>';
+  document.getElementById('existing-gate-1').classList.remove('approved-flash');
+
+  document.getElementById('existing-gate-2-actions').innerHTML =
+    '<button class="tl-btn-approve">Approve</button><button class="tl-btn-revise">Revise</button>';
+  document.getElementById('existing-gate-2').classList.remove('approved-flash');
+
+  // Reset sidebar gates
+  const gatesSection = document.getElementById('gates-section');
+  // Rebuild sidebar gates
+  document.getElementById('sidebar-gate-1')?.remove();
+  document.getElementById('sidebar-gate-2')?.remove();
+  const gateSectionH4 = gatesSection.querySelector('h4');
+  gateSectionH4.insertAdjacentHTML('afterend',
+    '<div class="pending-gate" id="sidebar-gate-2"><div class="dot"></div><span class="name">GEN-REF-1</span><button id="sidebar-approve-2">Approve</button></div>');
+  gateSectionH4.insertAdjacentHTML('afterend',
+    '<div class="pending-gate" id="sidebar-gate-1"><div class="dot"></div><span class="name">CORE-ASYNC-1</span><button id="sidebar-approve-1">Approve</button></div>');
+
+  // Remove pulse/flash classes
+  document.querySelectorAll('.pulse, .amber-pulse, .red-flash').forEach(el => {
+    el.classList.remove('pulse', 'amber-pulse', 'red-flash');
+  });
+
+  // Hide all annotations
+  hideAllAnnotations();
+
+  // Hide replay button
+  document.getElementById('replay-btn').classList.remove('visible');
+
+  // Scroll to top
+  document.getElementById('timeline-scroll').scrollTop = 0;
+}
+
+// --- Demo sequence ---
+function startDemo() {
+  resetState();
+
+  // --- Annotation callouts aligned to demo events ---
+  // 1s: Stat cards (before first event)
+  flashAnnotation('ann-stats', 1000, 3000);
+  // 4s: Active build card (after blueprint done updates sidebar)
+  flashAnnotation('ann-active-build', 4000, 3000);
+  // 9s: Sidebar gate (after gate count pulses, before sidebar approve)
+  flashAnnotation('ann-sidebar-gate', 9000, 3000);
+  // 16s: Timeline event slides in (plan step started)
+  flashAnnotation('ann-timeline-event', 16000, 3000);
+  // 12s: Gate approved in timeline
+  flashAnnotation('ann-gate-approved', 12000, 3000);
+  // 19s: Error count flashes red
+  flashAnnotation('ann-error-flash', 19000, 3000);
+  // 29.5s: Build complete sparkle
+  flashAnnotation('ann-build-complete', 29500, 3000);
+
+  // (3s) Blueprint step completed
+  scheduleAt(3000, () => {
+    const ev = createEvent(`
+      <div class="tl-event dynamic" id="evt-blueprint-done">
+        <div class="tl-icon done">&#10003;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            CORE-ASYNC-1 &mdash; blueprint step completed
+            <span class="agent claude">Claude</span>
+            <span class="time">just now</span>
+          </div>
+          <div class="tl-detail">blueprint.md with file plan, 6 modules, corrections table</div>
+        </div>
+      </div>
+    `);
+    insertAtTop(ev);
+    // Update sidebar build progress
+    document.getElementById('build-step').innerHTML = 'Step 5/8 &mdash; gate';
+    document.getElementById('progress-fill').style.width = '62%';
+    pulseStatValue('val-builds');
+  });
+
+  // (6s) Gate: blueprint -> plan
+  scheduleAt(6000, () => {
+    const ev = createEvent(`
+      <div class="tl-event dynamic" id="evt-gate-bp">
+        <div class="tl-icon gate">&#9632;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            CORE-ASYNC-1 &mdash; gate: blueprint &rarr; plan
+            <span class="time">just now</span>
+          </div>
+          <div class="tl-detail">blueprint.md 94% complete &middot; 1,240 words</div>
+          <div class="tl-gate-actions" id="evt-gate-bp-actions">
+            <button class="tl-btn-approve" id="btn-approve-bp">Approve</button>
+            <button class="tl-btn-revise">Revise</button>
+          </div>
+        </div>
+      </div>
+    `);
+    insertAtTop(ev);
+    // Update gate count to 3
+    updateStatValue('val-gates', '3');
+  });
+
+  // (9s) Sidebar gate count pulses, progress bar advances
+  scheduleAt(9000, () => {
+    const gateVal = document.getElementById('val-gates');
+    gateVal.classList.remove('amber-pulse');
+    void gateVal.offsetWidth;
+    gateVal.classList.add('amber-pulse');
+    document.getElementById('progress-fill').style.width = '68%';
+  });
+
+  // (12s) User clicks Approve on the timeline gate
+  scheduleAt(12000, () => {
+    const gateEvent = document.getElementById('evt-gate-bp');
+    const actions = document.getElementById('evt-gate-bp-actions');
+    // Flash green border
+    gateEvent.classList.add('approved-flash');
+    // Replace buttons with approved text
+    actions.innerHTML = '<span class="tl-approved-text">Approved &#10003;</span>';
+    // Decrement gate count
+    updateStatValue('val-gates', '2');
+    // Remove sidebar gate for CORE-ASYNC-1
+    const sidebarGate = document.getElementById('sidebar-gate-1');
+    if (sidebarGate) sidebarGate.classList.add('fade-out');
+    setTimeout(() => { if (sidebarGate) sidebarGate.remove(); }, 500);
+    // Advance build
+    document.getElementById('build-step').innerHTML = 'Step 5/8 &mdash; plan';
+    document.getElementById('progress-fill').style.width = '72%';
+  });
+
+  // (16s) Plan step started
+  scheduleAt(16000, () => {
+    const ev = createEvent(`
+      <div class="tl-event dynamic" id="evt-plan-start">
+        <div class="tl-icon step pulsing">&#9679;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            CORE-ASYNC-1 &mdash; plan step started
+            <span class="agent claude">Claude</span>
+            <span class="time">just now</span>
+          </div>
+          <div class="tl-detail">Generating plan.md with task breakdown and acceptance criteria</div>
+        </div>
+      </div>
+    `);
+    insertAtTop(ev);
+    document.getElementById('build-step').innerHTML = 'Step 5/8 &mdash; plan (running)';
+    document.getElementById('build-agent').innerHTML = 'Claude &middot; 0m 12s';
+    updateStatValue('val-sessions', '5');
+  });
+
+  // (19s) Session completed with stats
+  scheduleAt(19000, () => {
+    const ev = createEvent(`
+      <div class="tl-event dynamic" id="evt-session-stats">
+        <div class="tl-icon session">&#9830;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            CORE-ASYNC-1 &mdash; session completed
+            <span class="agent claude">Claude</span>
+            <span class="time">just now</span>
+          </div>
+          <div class="tl-detail">Plan generation with dependency graph and risk assessment</div>
+          <div class="tl-stats"><span class="r">5 read</span> <span class="w">3 write</span> <span class="e">1 error</span> &middot; 8m</div>
+        </div>
+      </div>
+    `);
+    insertAtTop(ev);
+    // Error count increments
+    updateStatValue('val-errors', '2');
+    flashStatCard('stat-errors', 'red-flash');
+    updateStatValue('val-sessions', '6');
+    // Stop pulsing on plan step icon
+    const planIcon = document.querySelector('#evt-plan-start .tl-icon');
+    if (planIcon) planIcon.classList.remove('pulsing');
+  });
+
+  // (23s) Second gate approved via sidebar quick approve
+  scheduleAt(23000, () => {
+    // Flash the sidebar gate
+    const sidebarGate2 = document.getElementById('sidebar-gate-2');
+    if (sidebarGate2) {
+      const btn = sidebarGate2.querySelector('button');
+      if (btn) {
+        btn.textContent = 'Approved';
+        btn.style.borderColor = '#22c55e';
+        btn.style.background = '#22c55e30';
+        btn.style.cursor = 'default';
+      }
+      sidebarGate2.style.borderColor = '#22c55e60';
+      setTimeout(() => {
+        sidebarGate2.classList.add('fade-out');
+        setTimeout(() => sidebarGate2.remove(), 500);
+      }, 600);
+    }
+    // Update the existing GEN-REF-1 gate in timeline
+    const gate2Actions = document.getElementById('existing-gate-2-actions');
+    const gate2Event = document.getElementById('existing-gate-2');
+    if (gate2Actions) gate2Actions.innerHTML = '<span class="tl-approved-text">Approved &#10003;</span>';
+    if (gate2Event) gate2Event.classList.add('approved-flash');
+    // Decrement gate count
+    updateStatValue('val-gates', '1');
+  });
+
+  // (27s) Rapid-fire: implement started, implement completed, build complete
+  scheduleAt(27000, () => {
+    const ev1 = createEvent(`
+      <div class="tl-event dynamic">
+        <div class="tl-icon step pulsing">&#9679;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            CORE-ASYNC-1 &mdash; implement step started
+            <span class="agent claude">Claude</span>
+            <span class="time">just now</span>
+          </div>
+          <div class="tl-detail">Implementing 6 modules from plan.md task list</div>
+        </div>
+      </div>
+    `);
+    insertAtTop(ev1);
+    document.getElementById('build-step').innerHTML = 'Step 7/8 &mdash; implement';
+    document.getElementById('progress-fill').style.width = '85%';
+  });
+
+  scheduleAt(28200, () => {
+    const ev2 = createEvent(`
+      <div class="tl-event dynamic">
+        <div class="tl-icon done">&#10003;</div>
+        <div class="tl-body">
+          <div class="tl-title">
+            CORE-ASYNC-1 &mdash; implement step completed
+            <span class="agent claude">Claude</span>
+            <span class="time">just now</span>
+          </div>
+          <div class="tl-detail">6/6 modules written &middot; 14 files &middot; 1,892 lines</div>
+          <div class="tl-stats"><span class="r">12 read</span> <span class="w">14 write</span> <span class="e">0 errors</span> &middot; 18m</div>
+        </div>
+      </div>
+    `);
+    insertAtTop(ev2);
+    document.getElementById('progress-fill').style.width = '95%';
+    updateStatValue('val-sessions', '7');
+    // Stop pulsing on previous event icons
+    document.querySelectorAll('.tl-icon.pulsing').forEach(el => el.classList.remove('pulsing'));
+  });
+
+  scheduleAt(29500, () => {
+    const ev3 = createEvent(`
+      <div class="tl-event dynamic">
+        <div class="tl-icon complete sparkle" style="font-size: 12px;">&#10003;</div>
+        <div class="tl-body">
+          <div class="tl-title" style="color: #22c55e; font-weight: 600;">
+            CORE-ASYNC-1 &mdash; Build complete &#10003;
+            <span class="time">just now</span>
+          </div>
+          <div class="tl-detail" style="color: #94a3b8;">All 8 steps passed &middot; 1 agent &middot; 28m total</div>
+        </div>
+      </div>
+    `);
+    insertAtTop(ev3);
+    document.getElementById('build-step').innerHTML = 'Complete &#10003;';
+    document.getElementById('build-step').style.color = '#22c55e';
+    document.getElementById('progress-fill').style.width = '100%';
+    document.getElementById('progress-fill').style.background = '#22c55e';
+    document.getElementById('build-agent').innerHTML = 'Claude &middot; 28m total';
+    updateStatValue('val-gates', '0');
+
+    // Show replay button after sequence ends
+    setTimeout(() => {
+      document.getElementById('replay-btn').classList.add('visible');
+    }, 1500);
+  });
+}
+
+// Show preamble on load — demo starts when user clicks "Start Demo"
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('preamble').classList.remove('hidden');
+});
+</script>
+
+</body>
+</html>

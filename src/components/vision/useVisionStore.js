@@ -84,6 +84,11 @@ export function useVisionStore() {
   const [gateEvent, setGateEvent] = useState(null);
   const [settings, setSettings] = useState(null);
   const [activeBuild, setActiveBuild] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  // Global phase filter — shared across all views so every panel respects the same selection
+  const [selectedPhase, setSelectedPhase] = useState(() => {
+    try { return localStorage.getItem('compose:selectedPhase') || null; } catch { return null; }
+  });
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const snapshotProviderRef = useRef(null);
@@ -95,6 +100,14 @@ export function useVisionStore() {
 
   // Keep gatesRef in sync for use inside the WS handler closure
   useEffect(() => { gatesRef.current = gates; }, [gates]);
+
+  // Persist global phase selection to localStorage
+  useEffect(() => {
+    try {
+      if (selectedPhase) localStorage.setItem('compose:selectedPhase', selectedPhase);
+      else localStorage.removeItem('compose:selectedPhase');
+    } catch { /* ignore in SSR / test contexts */ }
+  }, [selectedPhase]);
 
   useEffect(() => {
     function connect() {
@@ -116,7 +129,7 @@ export function useVisionStore() {
           }, {
             setItems, setConnections, setGates, setGateEvent,
             setRecentChanges, setUICommand, setAgentActivity,
-            setAgentErrors, setSessionState, setSettings, setActiveBuild, EMPTY_CHANGES,
+            setAgentErrors, setSessionState, setSettings, setActiveBuild, setSessions, EMPTY_CHANGES,
           });
         } catch {
           // ignore
@@ -160,14 +173,6 @@ export function useVisionStore() {
         }
       })
       .catch(() => { console.warn('[vision] Failed to hydrate session state'); });
-  }, []);
-
-  // Hydrate active build state on mount
-  useEffect(() => {
-    fetch('/api/build/state')
-      .then(r => r.json())
-      .then(data => setActiveBuild(data.state ?? null))
-      .catch(() => {});
   }, []);
 
   // 30s polling fallback for build state (covers missed fs.watch events)
@@ -318,5 +323,9 @@ export function useVisionStore() {
     resetSettings,
     activeBuild,
     setActiveBuild,
+    sessions,
+    // Global phase filter (shared across all views)
+    selectedPhase,
+    setSelectedPhase,
   };
 }

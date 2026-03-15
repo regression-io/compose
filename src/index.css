@@ -44,47 +44,47 @@
   }
 
   .dark {
-    /* Base44 palette: deep blue-black background + indigo primary */
-    --background: 240 10% 4%;
+    /* Deep blue-slate palette — matches graph view */
+    --background: 222 47% 6%;      /* #0f172a */
     --foreground: 210 40% 98%;
-    --card: 240 10% 6%;
+    --card: 217 33% 12%;           /* #1e293b */
     --card-foreground: 210 40% 98%;
-    --popover: 240 10% 8%;
+    --popover: 217 33% 14%;
     --popover-foreground: 210 40% 98%;
-    --primary: 239 84% 67%;
+    --primary: 217 91% 60%;        /* #3b82f6 — blue-500 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 4% 16%;
+    --secondary: 217 19% 17%;      /* #283548 */
     --secondary-foreground: 210 40% 98%;
-    --muted: 240 4% 16%;
+    --muted: 217 19% 17%;
     --muted-foreground: 215 20% 65%;
-    /* Compose semantic: accent = amber, not neutral */
-    --accent: 43 96% 56%;
-    --accent-foreground: 240 10% 4%;
+    /* Accent = blue, not amber */
+    --accent: 217 91% 60%;         /* #3b82f6 */
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    /* Base44 borders */
-    --border: 240 4% 16%;
-    --input: 240 4% 16%;
-    --ring: 239 84% 67%;
+    /* Borders — slate blue */
+    --border: 215 14% 20%;         /* #334155 */
+    --input: 215 14% 20%;
+    --ring: 217 91% 60%;
     /* Sidebar */
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-background: 222 47% 7%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    /* Compose semantic */
+    --sidebar-accent: 217 19% 15%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 215 14% 18%;
+    --sidebar-ring: 217 91% 60%;
+    /* Semantic */
     --success: 142 71% 45%;
-    --warning: 32 95% 52%;
+    --warning: 38 92% 50%;
     --artifact: 282 40% 60%;
-    /* Charts (base44) */
-    --chart-1: 220 70% 50%;
+    /* Charts */
+    --chart-1: 217 91% 60%;
     --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
+    --chart-3: 199 89% 48%;
     --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --chart-5: 142 71% 45%;
   }
 }
 
@@ -108,7 +108,7 @@
   /* Brand (base44 indigo primary) */
   --color-primary: #818CF8;
   --color-secondary: #6366F1;
-  --color-accent: #FBBF24;
+  --color-accent: #3b82f6;
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-error: #EF4444;
@@ -203,27 +203,28 @@
   --row-chevron: 16px;
 }
 
-/* Dark mode overrides (base44 deep blue-black palette) */
+/* Dark mode overrides — deep blue-slate palette matching graph view */
 .dark {
-  --color-background: #0b0b14;
-  --color-surface: #0e0e19;
-  --color-surface-overlay: #161625;
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-overlay: #283548;
   --color-text-primary: #f1f5f9;
   --color-text-secondary: #94a3b8;
   --color-text-tertiary: #64748b;
   --color-text-muted: #475569;
-  --input-border-color: rgba(255, 255, 255, 0.06);
-  --border-standard: rgba(255, 255, 255, 0.06);
+  --input-border-color: #334155;
+  --border-standard: #334155;
   --border-soft: rgba(255, 255, 255, 0.04);
-  --border-emphasis: rgba(255, 255, 255, 0.10);
-  --border-focus: rgba(99, 102, 241, 0.40);
+  --border-emphasis: #475569;
+  --border-focus: rgba(59, 130, 246, 0.40);
   --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
-  --accent-glow: rgba(251, 191, 36, 0.12);
-  --primary-glow: rgba(99, 102, 241, 0.15);
-  --compose-void: #060609;
-  --compose-inset: #08080f;
-  /* Agent activity category colors (dark mode — brighter on dark bg) */
-  --color-category-writing: #fbbf24;
+  --accent-glow: rgba(59, 130, 246, 0.12);
+  --primary-glow: rgba(59, 130, 246, 0.15);
+  --compose-void: #0b1120;
+  --compose-inset: #0d1526;
+  --color-accent: #3b82f6;
+  /* Agent activity category colors (dark mode) */
+  --color-category-writing: #60a5fa;
   --color-category-executing: #f97316;
   --color-category-fetching: #06b6d4;
   --color-category-delegating: #a855f7;

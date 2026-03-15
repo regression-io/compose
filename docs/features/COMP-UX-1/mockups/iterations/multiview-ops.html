@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multi-View: Ops</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Header */
+.header { display: flex; align-items: center; gap: 0; padding: 0 16px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; height: 40px; }
+.tab-bar { display: flex; gap: 0; height: 100%; }
+.tab { display: flex; align-items: center; padding: 0 16px; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s ease; height: 100%; }
+.tab:hover { color: #94a3b8; background: #1e293b80; }
+.tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+.header-stats { display: flex; gap: 10px; font-size: 11px; color: #94a3b8; margin-left: auto; }
+.header-stats .stat { transition: all 0.3s ease; }
+.header-stats .stat.blue { color: #3b82f6; }
+.header-stats .stat.green { color: #22c55e; }
+.header-stats .stat.amber { color: #f59e0b; }
+.header-stats .stat.red { color: #ef4444; }
+
+/* Main layout: feature list + context panel */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* Feature list */
+.feature-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+
+/* Feature row */
+.feature-row { position: relative; min-height: 44px; padding: 10px 16px 10px 20px; border-left: 4px solid transparent; border-bottom: 1px solid #1e293b; cursor: pointer; user-select: none; transition: all 0.3s ease; }
+.feature-row:hover { background: #1e293b40; }
+.feature-row.selected { background: #1e293b80; }
+.feature-row.state-running { border-left-color: #3b82f6; }
+.feature-row.state-gate { border-left-color: #f59e0b; }
+.feature-row.state-error { border-left-color: #ef4444; }
+.feature-row.state-complete { border-left-color: #22c55e; }
+.feature-row.state-complete .row-header { opacity: 0.5; }
+.feature-row.state-complete:hover .row-header { opacity: 0.8; }
+.feature-row.state-complete.selected .row-header { opacity: 0.7; }
+
+/* Row header */
+.row-header { display: flex; align-items: center; gap: 10px; min-height: 24px; transition: opacity 0.3s ease; }
+.row-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: background 0.3s ease; }
+.row-status-dot.running { background: #3b82f6; animation: pulse 1.5s ease-in-out infinite; }
+.row-status-dot.gate { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+.row-status-dot.error { background: #ef4444; }
+.row-status-dot.complete { background: #22c55e; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.row-name { font-size: 13px; font-weight: 600; color: #e2e8f0; white-space: nowrap; }
+
+/* Progress bar */
+.row-progress { display: flex; gap: 2px; width: 120px; flex-shrink: 0; }
+.row-progress .seg { height: 4px; flex: 1; border-radius: 2px; transition: background 0.5s ease; }
+.row-progress .seg.done { background: #22c55e; }
+.row-progress .seg.active { background: #3b82f6; animation: pulse 1.5s ease-in-out infinite; }
+.row-progress .seg.gate-active { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+.row-progress .seg.pending { background: #334155; }
+
+.row-step { font-size: 11px; color: #94a3b8; white-space: nowrap; min-width: 50px; }
+.row-agent { font-size: 10px; white-space: nowrap; }
+.row-agent.claude { color: #f97316; }
+.row-agent.codex { color: #22c55e; }
+.row-time { font-size: 11px; color: #475569; white-space: nowrap; min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Badges */
+.badge { display: inline-flex; align-items: center; font-size: 9px; padding: 1px 6px; border-radius: 8px; font-weight: 600; cursor: pointer; position: relative; transition: all 0.3s ease; z-index: 2; }
+.badge-gate { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b40; }
+.badge-gate:hover { background: #f59e0b30; }
+.badge-error { background: #ef444420; color: #ef4444; border: 1px solid #ef444440; }
+.badge-error:hover { background: #ef444430; }
+.badge.fade-out { opacity: 0; width: 0; padding: 0; margin: 0; overflow: hidden; }
+.badge-complete { background: #22c55e15; color: #22c55e; border: 1px solid #22c55e30; cursor: default; font-size: 10px; }
+
+.row-badges { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+
+/* Popover */
+.popover { position: absolute; z-index: 50; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 12px; width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity 0.2s ease, transform 0.2s ease; }
+.popover.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.popover-arrow { position: absolute; top: -6px; width: 12px; height: 6px; overflow: hidden; }
+.popover-arrow::before { content: ''; position: absolute; top: 3px; left: 2px; width: 8px; height: 8px; background: #1e293b; border: 1px solid #475569; border-right: 0; border-bottom: 0; transform: rotate(45deg); }
+.popover-title { font-size: 11px; color: #94a3b8; margin-bottom: 6px; }
+.popover-body { font-size: 12px; color: #e2e8f0; margin-bottom: 8px; line-height: 1.4; }
+.popover-meta { font-size: 10px; color: #64748b; margin-bottom: 8px; }
+.popover-actions { display: flex; gap: 6px; }
+.popover-actions button { font-size: 10px; padding: 4px 12px; border-radius: 4px; cursor: pointer; border: 1px solid; transition: all 0.2s ease; font-weight: 500; }
+.btn-approve { background: #22c55e15; border-color: #22c55e40; color: #22c55e; }
+.btn-approve:hover { background: #22c55e30; }
+.btn-revise { background: #f59e0b15; border-color: #f59e0b40; color: #f59e0b; }
+.btn-revise:hover { background: #f59e0b30; }
+.btn-kill { background: #ef444415; border-color: #ef444440; color: #ef4444; }
+.btn-kill:hover { background: #ef444430; }
+.popover-approved { font-size: 11px; color: #22c55e; font-weight: 600; animation: flashIn 0.3s ease; }
+
+@keyframes flashIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+
+/* Detail area (expanded) */
+.detail-area { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+.detail-inner { padding: 12px 16px 14px 20px; background: #0f172a; border-left: 4px solid transparent; }
+.feature-row.state-running .detail-inner { border-left-color: #3b82f6; }
+.feature-row.state-gate .detail-inner { border-left-color: #f59e0b; }
+.feature-row.state-error .detail-inner { border-left-color: #ef4444; }
+.feature-row.state-complete .detail-inner { border-left-color: #22c55e; }
+
+/* Pipeline dots in detail */
+.detail-pipeline { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-size: 11px; color: #94a3b8; }
+.detail-pipeline .dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid; display: flex; align-items: center; justify-content: center; font-size: 6px; transition: all 0.3s ease; }
+.detail-pipeline .dot.done { border-color: #22c55e60; background: #22c55e20; color: #22c55e; }
+.detail-pipeline .dot.active { border-color: #3b82f6; background: #3b82f620; color: #3b82f6; box-shadow: 0 0 6px #3b82f630; }
+.detail-pipeline .dot.gate-dot { border-color: #f59e0b80; background: #f59e0b15; color: #f59e0b; }
+.detail-pipeline .dot.pending { border-color: #334155; background: transparent; color: #475569; }
+.detail-pipeline .dot-line { width: 8px; height: 1px; background: #334155; }
+.detail-pipeline .step-label { font-size: 10px; color: #64748b; margin-left: 4px; }
+
+/* Detail events */
+.detail-events { display: flex; flex-direction: column; gap: 4px; }
+.detail-event { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 4px 0; }
+.detail-event .ev-icon { width: 12px; text-align: center; flex-shrink: 0; }
+.detail-event .ev-icon.green { color: #22c55e; }
+.detail-event .ev-icon.blue { color: #3b82f6; }
+.detail-event .ev-icon.purple { color: #8b5cf6; }
+.detail-event .ev-icon.red { color: #ef4444; }
+.detail-event .ev-icon.amber { color: #f59e0b; }
+.detail-event .ev-text { color: #94a3b8; flex: 1; }
+.detail-event .ev-stats { font-size: 10px; color: #64748b; font-family: 'SF Mono', monospace; }
+.detail-event .ev-time { font-size: 10px; color: #475569; white-space: nowrap; margin-left: auto; }
+
+/* Context panel */
+.context-panel { width: 320px; border-left: 1px solid #334155; background: #1e293b; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; transition: opacity 0.3s ease; }
+.ctx-header { padding: 16px; border-bottom: 1px solid #334155; }
+.ctx-title { font-size: 14px; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
+.ctx-subtitle { font-size: 11px; color: #64748b; }
+.ctx-section { padding: 12px 16px; border-bottom: 1px solid #33415540; }
+.ctx-section-title { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+
+/* Context pipeline dots */
+.ctx-pipeline { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.ctx-pipeline .cdot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid; display: flex; align-items: center; justify-content: center; font-size: 7px; }
+.ctx-pipeline .cdot.done { border-color: #22c55e60; background: #22c55e20; color: #22c55e; }
+.ctx-pipeline .cdot.active { border-color: #3b82f6; background: #3b82f620; color: #3b82f6; box-shadow: 0 0 6px #3b82f630; }
+.ctx-pipeline .cdot.gate-dot { border-color: #f59e0b80; background: #f59e0b15; color: #f59e0b; }
+.ctx-pipeline .cdot.pending { border-color: #334155; background: transparent; color: #475569; }
+.ctx-pipeline .cdot-line { width: 6px; height: 1px; background: #334155; }
+
+/* Context gate */
+.ctx-gate { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #f59e0b08; border: 1px solid #f59e0b30; border-radius: 6px; }
+.ctx-gate .gate-icon { color: #f59e0b; font-size: 12px; }
+.ctx-gate .gate-text { font-size: 11px; color: #e2e8f0; flex: 1; }
+.ctx-gate .gate-meta { font-size: 10px; color: #64748b; }
+.ctx-gate-actions { display: flex; gap: 4px; margin-top: 6px; }
+.ctx-gate-actions button { font-size: 9px; padding: 3px 8px; border-radius: 4px; cursor: pointer; border: 1px solid; }
+
+/* Context info rows */
+.ctx-info { display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 3px 0; }
+.ctx-info-label { color: #64748b; }
+.ctx-info-value { color: #e2e8f0; font-weight: 500; }
+.ctx-info-value.green { color: #22c55e; }
+.ctx-info-value.amber { color: #f59e0b; }
+.ctx-info-value.red { color: #ef4444; }
+.ctx-info-value.blue { color: #3b82f6; }
+
+/* Context files list */
+.ctx-file { font-size: 11px; color: #94a3b8; padding: 2px 0; display: flex; align-items: center; gap: 6px; }
+.ctx-file::before { content: ''; width: 3px; height: 3px; border-radius: 50%; background: #475569; flex-shrink: 0; }
+
+/* Context error */
+.ctx-error { padding: 8px 10px; background: #ef444408; border: 1px solid #ef444430; border-radius: 6px; font-size: 11px; color: #fca5a5; line-height: 1.4; }
+.ctx-error-label { font-size: 10px; color: #ef4444; font-weight: 600; margin-bottom: 4px; }
+
+/* Cross-view links */
+.ctx-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #3b82f6; cursor: pointer; padding: 4px 0; transition: color 0.2s ease; }
+.ctx-link:hover { color: #60a5fa; }
+.ctx-link.highlight { background: #3b82f615; padding: 4px 8px; border-radius: 4px; border: 1px solid #3b82f630; }
+
+/* Animations */
+@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes greenFlash { 0% { box-shadow: none; } 30% { box-shadow: inset 0 0 12px #22c55e20, 0 0 8px #22c55e10; } 100% { box-shadow: none; } }
+@keyframes redFlash { 0% { background: transparent; } 30% { background: #ef444412; } 100% { background: transparent; } }
+.slide-down { animation: slideDown 0.4s ease; }
+.green-flash { animation: greenFlash 0.6s ease; }
+.red-flash { animation: redFlash 0.6s ease; }
+
+@keyframes rowEnter { from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; } to { opacity: 1; max-height: 60px; padding-top: 10px; padding-bottom: 10px; } }
+.row-enter { animation: rowEnter 0.5s ease; }
+
+@keyframes glowApprove { 0%,100% { box-shadow: 0 0 4px #22c55e20; } 50% { box-shadow: 0 0 12px #22c55e50; } }
+.glow { animation: glowApprove 1s ease-in-out infinite; }
+
+/* Preamble overlay */
+.preamble-overlay { position: fixed; inset: 0; z-index: 200; background: #0f172af0; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble-overlay.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 480px; padding: 40px 36px; text-align: center; }
+.preamble-card h1 { font-size: 20px; font-weight: 700; color: #e2e8f0; margin-bottom: 14px; letter-spacing: -0.01em; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 28px; text-align: left; }
+.preamble-start { font-size: 13px; font-weight: 600; padding: 10px 28px; border-radius: 8px; background: #1e293b; border: 1px solid #3b82f6; color: #3b82f6; cursor: pointer; transition: all 0.2s ease; }
+.preamble-start:hover { background: #1e293b; box-shadow: 0 0 16px #3b82f630; color: #60a5fa; }
+
+/* Replay button */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+
+/* Annotation callout */
+.annotation { position: fixed; z-index: 150; background: #1e293b; border: 1px solid #3b82f6; border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #e2e8f0; max-width: 220px; line-height: 1.4; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity 0.3s ease, transform 0.3s ease; }
+.annotation.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- Preamble overlay -->
+<div class="preamble-overlay" id="preamble">
+  <div class="preamble-card">
+    <h1>Multi-View: Ops</h1>
+    <p>Feature rows with progress bars, agent badges, and inline expansion &mdash; purpose-built for monitoring builds. Same context panel as Graph and Items views. Gate badges trigger quick-approve popovers. Expand rows for investigation. Everything synced &mdash; approve a gate here and it updates in Graph and Items too.</p>
+    <button class="preamble-start" onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Annotation callout -->
+<div class="annotation" id="annotation"></div>
+
+<button class="replay-btn" onclick="replay()">Replay</button>
+
+<div class="header">
+  <div class="tab-bar">
+    <div class="tab" id="tabGraph">Graph</div>
+    <div class="tab" id="tabItems">Items</div>
+    <div class="tab active" id="tabOps">Ops</div>
+    <div class="tab" id="tabDocs">Docs</div>
+  </div>
+  <div class="header-stats" id="headerStats">
+    <span class="stat blue" id="statBld">2 bld</span>
+    <span class="stat amber" id="statGates">1g</span>
+    <span class="stat red" id="statErrors">1e</span>
+    <span class="stat green" id="statComplete">1 done</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="feature-list" id="featureList">
+
+    <!-- CORE-LEARN-1 (building, selected) -->
+    <div class="feature-row state-running selected" id="row-learn" onclick="selectRow(event, 'learn')">
+      <div class="row-header">
+        <div class="row-status-dot running" id="dot-learn"></div>
+        <span class="row-name">CORE-LEARN-1</span>
+        <div class="row-progress" id="progress-learn">
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg active"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+        </div>
+        <span class="row-step" id="step-learn">5/8</span>
+        <span class="row-agent claude" id="agent-learn">Claude</span>
+        <span class="row-time" id="time-learn">3m</span>
+        <div class="row-badges" id="badges-learn"></div>
+      </div>
+      <div class="detail-area" id="detail-learn">
+        <div class="detail-inner">
+          <div class="detail-pipeline" id="pipeline-learn">
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot active">&#9679;</div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div>
+            <span class="step-label">step 5/8 &middot; implement</span>
+          </div>
+          <div class="detail-events" id="events-learn">
+            <div class="detail-event"><span class="ev-icon purple">&#9670;</span><span class="ev-text">Session: implement step</span><span class="ev-stats">4r 2w 0e &middot; 3m</span><span class="ev-time">just now</span></div>
+            <div class="detail-event"><span class="ev-icon green">&#10003;</span><span class="ev-text">Blueprint completed</span><span class="ev-time">5m ago</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEC-DOMAIN-1 (building, expanded) -->
+    <div class="feature-row state-running" id="row-sec" onclick="selectRow(event, 'sec')">
+      <div class="row-header">
+        <div class="row-status-dot running" id="dot-sec"></div>
+        <span class="row-name">SEC-DOMAIN-1</span>
+        <div class="row-progress" id="progress-sec">
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg active"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+        </div>
+        <span class="row-step" id="step-sec">6/10</span>
+        <span class="row-agent codex" id="agent-sec">Codex</span>
+        <span class="row-time" id="time-sec">12m</span>
+        <div class="row-badges" id="badges-sec"></div>
+      </div>
+      <div class="detail-area" id="detail-sec" style="max-height: 200px;">
+        <div class="detail-inner">
+          <div class="detail-pipeline" id="pipeline-sec">
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot active">&#9679;</div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div>
+            <span class="step-label">step 6/10 &middot; implement</span>
+          </div>
+          <div class="detail-events" id="events-sec">
+            <div class="detail-event"><span class="ev-icon purple">&#9670;</span><span class="ev-text">Session completed</span><span class="ev-stats">5r 3w 0e &middot; 8m</span><span class="ev-time">4m ago</span></div>
+            <div class="detail-event"><span class="ev-icon green">&#10003;</span><span class="ev-text">Blueprint completed</span><span class="ev-time">12m ago</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIST-ADOPT-1 (gate) -->
+    <div class="feature-row state-gate" id="row-adopt" onclick="selectRow(event, 'adopt')">
+      <div class="row-header">
+        <div class="row-status-dot gate" id="dot-adopt"></div>
+        <span class="row-name">DIST-ADOPT-1</span>
+        <div class="row-progress" id="progress-adopt">
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg gate-active"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+        </div>
+        <span class="row-step" id="step-adopt">7/10</span>
+        <span class="row-agent" id="agent-adopt" style="color:#475569;"></span>
+        <span class="row-time" id="time-adopt">9m</span>
+        <div class="row-badges" id="badges-adopt">
+          <span class="badge badge-gate" id="badge-gate-adopt" onclick="showPopover(event, 'popover-adopt-gate')">&#9888; gate</span>
+        </div>
+      </div>
+      <div class="detail-area" id="detail-adopt">
+        <div class="detail-inner">
+          <div class="detail-pipeline" id="pipeline-adopt">
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot gate-dot">&#9632;</div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div>
+            <span class="step-label">step 7/10 &middot; gate</span>
+          </div>
+          <div class="detail-events" id="events-adopt">
+            <div class="detail-event"><span class="ev-icon amber">&#9632;</span><span class="ev-text">Gate: implement &rarr; validate</span><span class="ev-time">2m ago</span></div>
+            <div class="detail-event"><span class="ev-icon purple">&#9670;</span><span class="ev-text">Session completed</span><span class="ev-stats">6r 4w 0e &middot; 7m</span><span class="ev-time">3m ago</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- Gate popover -->
+      <div class="popover" id="popover-adopt-gate" style="top: 44px; right: 16px;">
+        <div class="popover-arrow" style="right: 20px;"></div>
+        <div class="popover-title">Gate: implement &rarr; validate</div>
+        <div class="popover-body">src/domain/*.ts &middot; 4 files changed &middot; tests passing</div>
+        <div class="popover-meta">Artifact: implementation &middot; DIST-ADOPT-1</div>
+        <div class="popover-actions" id="popover-actions-adopt">
+          <button class="btn-approve" id="popover-approve-adopt" onclick="approveGate(event, 'adopt')">Approve</button>
+          <button class="btn-revise" onclick="closeAllPopovers()">Revise</button>
+          <button class="btn-kill" onclick="closeAllPopovers()">Kill</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRE-ASYNC-1 (error) -->
+    <div class="feature-row state-error" id="row-async" onclick="selectRow(event, 'async')">
+      <div class="row-header">
+        <div class="row-status-dot error" id="dot-async"></div>
+        <span class="row-name">PRE-ASYNC-1</span>
+        <div class="row-progress" id="progress-async">
+          <div class="seg done"></div>
+          <div class="seg done"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+        </div>
+        <span class="row-step" id="step-async">2/8</span>
+        <span class="row-agent claude" id="agent-async">Claude</span>
+        <span class="row-time" id="time-async">4m</span>
+        <div class="row-badges" id="badges-async">
+          <span class="badge badge-error" id="badge-error-async" onclick="showPopover(event, 'popover-async-error')">&#10005; error</span>
+        </div>
+      </div>
+      <div class="detail-area" id="detail-async">
+        <div class="detail-inner">
+          <div class="detail-pipeline" id="pipeline-async">
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot done">&#10003;</div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div>
+            <span class="step-label">step 2/8 &middot; prd</span>
+          </div>
+          <div class="ctx-error" style="margin-bottom: 8px;">
+            <div class="ctx-error-label">Error in prd step</div>
+            Missing template file: templates/async-refactor.md
+          </div>
+          <div class="detail-events" id="events-async">
+            <div class="detail-event"><span class="ev-icon red">&#10005;</span><span class="ev-text">Session failed: missing template</span><span class="ev-time">1m ago</span></div>
+            <div class="detail-event"><span class="ev-icon green">&#10003;</span><span class="ev-text">Design completed</span><span class="ev-time">4m ago</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- Error popover -->
+      <div class="popover" id="popover-async-error" style="top: 44px; right: 16px;">
+        <div class="popover-arrow" style="right: 20px;"></div>
+        <div class="popover-title">Error in session</div>
+        <div class="popover-body">Missing template file: templates/async-refactor.md<br><span style="color:#64748b;font-size:10px;">Claude &middot; prd step &middot; 1m ago</span></div>
+        <div class="popover-actions">
+          <button class="btn-revise" onclick="closeAllPopovers()">Dismiss</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIST-RELEASE-1 (complete) -->
+    <div class="feature-row state-complete" id="row-release" onclick="selectRow(event, 'release')">
+      <div class="row-header">
+        <div class="row-status-dot complete" id="dot-release"></div>
+        <span class="row-name">DIST-RELEASE-1</span>
+        <div class="row-progress" id="progress-release">
+          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+          <div class="seg done"></div><div class="seg done"></div>
+        </div>
+        <span class="row-step" id="step-release" style="color:#22c55e80;">complete</span>
+        <span class="row-agent" id="agent-release" style="color:#475569;"></span>
+        <span class="row-time" id="time-release">28m</span>
+        <div class="row-badges" id="badges-release">
+          <span class="badge badge-complete">&#10003;</span>
+        </div>
+      </div>
+      <div class="detail-area" id="detail-release">
+        <div class="detail-inner">
+          <div class="detail-events">
+            <div class="detail-event"><span class="ev-icon green">&#10003;</span><span class="ev-text">Build complete &middot; all steps passed</span><span class="ev-time">28m ago</span></div>
+            <div class="detail-event"><span class="ev-icon purple">&#9670;</span><span class="ev-text">Final session completed</span><span class="ev-stats">2r 4w 0e &middot; 6m</span><span class="ev-time">30m ago</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Context panel -->
+  <div class="context-panel" id="contextPanel">
+    <div class="ctx-header">
+      <div class="ctx-title" id="ctxTitle">CORE-LEARN-1</div>
+      <div class="ctx-subtitle" id="ctxSubtitle">Building &middot; step 5/8 &middot; implement</div>
+    </div>
+    <div class="ctx-section">
+      <div class="ctx-section-title">Pipeline</div>
+      <div class="ctx-pipeline" id="ctxPipeline">
+        <div class="cdot done">&#10003;</div><div class="cdot-line"></div>
+        <div class="cdot done">&#10003;</div><div class="cdot-line"></div>
+        <div class="cdot done">&#10003;</div><div class="cdot-line"></div>
+        <div class="cdot done">&#10003;</div><div class="cdot-line"></div>
+        <div class="cdot active">&#9679;</div><div class="cdot-line"></div>
+        <div class="cdot pending"></div><div class="cdot-line"></div>
+        <div class="cdot pending"></div><div class="cdot-line"></div>
+        <div class="cdot pending"></div>
+      </div>
+    </div>
+    <div class="ctx-section" id="ctxGateSection" style="display:none;">
+      <div class="ctx-section-title">Gate</div>
+      <div id="ctxGateContent"></div>
+    </div>
+    <div class="ctx-section">
+      <div class="ctx-section-title">Details</div>
+      <div id="ctxDetails">
+        <div class="ctx-info"><span class="ctx-info-label">Status</span><span class="ctx-info-value blue" id="ctxStatus">Building</span></div>
+        <div class="ctx-info"><span class="ctx-info-label">Sessions</span><span class="ctx-info-value" id="ctxSessions">2</span></div>
+        <div class="ctx-info"><span class="ctx-info-label">Errors</span><span class="ctx-info-value" id="ctxErrors">0</span></div>
+        <div class="ctx-info"><span class="ctx-info-label">Agent</span><span class="ctx-info-value" id="ctxAgent">Claude</span></div>
+        <div class="ctx-info"><span class="ctx-info-label">Elapsed</span><span class="ctx-info-value" id="ctxElapsed">3m</span></div>
+      </div>
+    </div>
+    <div class="ctx-section" id="ctxErrorSection" style="display:none;">
+      <div class="ctx-section-title">Errors</div>
+      <div id="ctxErrorContent"></div>
+    </div>
+    <div class="ctx-section">
+      <div class="ctx-section-title">Files</div>
+      <div id="ctxFiles">
+        <div class="ctx-file">design.md</div>
+        <div class="ctx-file">blueprint.md</div>
+        <div class="ctx-file">src/learn/index.ts</div>
+      </div>
+    </div>
+    <div class="ctx-section" style="border-bottom: none;">
+      <div id="ctxLinks">
+        <span class="ctx-link" id="ctxLinkGraph">View in Graph &rarr;</span><br>
+        <span class="ctx-link" id="ctxLinkItems">View in Items &rarr;</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let timers = [];
+function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
+function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
+
+// Context panel data per feature
+const contextData = {
+  learn: {
+    title: 'CORE-LEARN-1',
+    subtitle: 'Building \u00b7 step 5/8 \u00b7 implement',
+    pipeline: ['done','done','done','done','active','pending','pending','pending'],
+    gate: null,
+    status: ['Building', 'blue'],
+    sessions: '2',
+    errors: '0',
+    agent: 'Claude',
+    elapsed: '3m',
+    error: null,
+    files: ['design.md', 'blueprint.md', 'src/learn/index.ts']
+  },
+  sec: {
+    title: 'SEC-DOMAIN-1',
+    subtitle: 'Building \u00b7 step 6/10 \u00b7 implement',
+    pipeline: ['done','done','done','done','done','active','pending','pending','pending','pending'],
+    gate: null,
+    status: ['Building', 'blue'],
+    sessions: '3',
+    errors: '0',
+    agent: 'Codex',
+    elapsed: '12m',
+    error: null,
+    files: ['design.md', 'blueprint.md', 'src/domain/auth.ts', 'src/domain/policy.ts']
+  },
+  adopt: {
+    title: 'DIST-ADOPT-1',
+    subtitle: 'Gate \u00b7 step 7/10 \u00b7 implement \u2192 validate',
+    pipeline: ['done','done','done','done','done','done','gate','pending','pending','pending'],
+    gate: { text: 'implement \u2192 validate', meta: 'src/domain/*.ts \u00b7 4 files changed' },
+    status: ['Gate', 'amber'],
+    sessions: '2',
+    errors: '0',
+    agent: '\u2014',
+    elapsed: '9m',
+    error: null,
+    files: ['design.md', 'src/adopt/handler.ts', 'src/adopt/events.ts', 'tests/adopt.test.ts']
+  },
+  async: {
+    title: 'PRE-ASYNC-1',
+    subtitle: 'Error \u00b7 step 2/8 \u00b7 prd',
+    pipeline: ['done','done','pending','pending','pending','pending','pending','pending'],
+    gate: null,
+    status: ['Error', 'red'],
+    sessions: '1',
+    errors: '1',
+    agent: 'Claude',
+    elapsed: '4m',
+    error: 'Missing template file: templates/async-refactor.md',
+    files: ['design.md']
+  },
+  release: {
+    title: 'DIST-RELEASE-1',
+    subtitle: 'Complete \u00b7 8/8',
+    pipeline: ['done','done','done','done','done','done','done','done'],
+    gate: null,
+    status: ['Complete', 'green'],
+    sessions: '4',
+    errors: '0',
+    agent: '\u2014',
+    elapsed: '28m',
+    error: null,
+    files: ['design.md', 'blueprint.md', 'src/release/index.ts', 'CHANGELOG.md']
+  }
+};
+
+let selectedRow = 'learn';
+
+function updateContextPanel(id) {
+  const d = contextData[id];
+  if (!d) return;
+  selectedRow = id;
+
+  document.getElementById('ctxTitle').textContent = d.title;
+  document.getElementById('ctxSubtitle').textContent = d.subtitle;
+
+  // Pipeline
+  const pp = document.getElementById('ctxPipeline');
+  pp.innerHTML = d.pipeline.map((s, i) => {
+    const cls = s === 'gate' ? 'gate-dot' : s;
+    const icon = s === 'done' ? '&#10003;' : s === 'active' ? '&#9679;' : s === 'gate' ? '&#9632;' : '';
+    const dot = '<div class="cdot ' + cls + '">' + icon + '</div>';
+    return (i > 0 ? '<div class="cdot-line"></div>' : '') + dot;
+  }).join('');
+
+  // Gate
+  const gs = document.getElementById('ctxGateSection');
+  if (d.gate) {
+    gs.style.display = '';
+    document.getElementById('ctxGateContent').innerHTML =
+      '<div class="ctx-gate"><span class="gate-icon">&#9888;</span><div><div class="gate-text">Gate: ' + d.gate.text + '</div><div class="gate-meta">' + d.gate.meta + '</div></div></div>' +
+      '<div class="ctx-gate-actions"><button class="btn-approve" onclick="approveGate(event, \'' + id + '\')">Approve</button><button class="btn-revise">Revise</button><button class="btn-kill">Kill</button></div>';
+  } else {
+    gs.style.display = 'none';
+  }
+
+  // Details
+  document.getElementById('ctxStatus').textContent = d.status[0];
+  document.getElementById('ctxStatus').className = 'ctx-info-value ' + d.status[1];
+  document.getElementById('ctxSessions').textContent = d.sessions;
+  document.getElementById('ctxErrors').textContent = d.errors;
+  document.getElementById('ctxErrors').className = 'ctx-info-value' + (parseInt(d.errors) > 0 ? ' red' : '');
+  document.getElementById('ctxAgent').textContent = d.agent;
+  document.getElementById('ctxElapsed').textContent = d.elapsed;
+
+  // Error
+  const es = document.getElementById('ctxErrorSection');
+  if (d.error) {
+    es.style.display = '';
+    document.getElementById('ctxErrorContent').innerHTML =
+      '<div class="ctx-error"><div class="ctx-error-label">Error</div>' + d.error + '</div>';
+  } else {
+    es.style.display = 'none';
+  }
+
+  // Files
+  document.getElementById('ctxFiles').innerHTML = d.files.map(f => '<div class="ctx-file">' + f + '</div>').join('');
+
+  // Highlight links
+  document.getElementById('ctxLinkGraph').className = 'ctx-link';
+  document.getElementById('ctxLinkItems').className = 'ctx-link';
+
+  // Row selection highlight
+  document.querySelectorAll('.feature-row').forEach(r => r.classList.remove('selected'));
+  const row = document.getElementById('row-' + id);
+  if (row) row.classList.add('selected');
+}
+
+function selectRow(e, id) {
+  if (e.target.closest('.badge') || e.target.closest('.popover') || e.target.closest('button')) return;
+  // Toggle expand
+  const detail = document.getElementById('detail-' + id);
+  if (detail.style.maxHeight && detail.style.maxHeight !== '0px') {
+    detail.style.maxHeight = '0px';
+  } else {
+    detail.style.maxHeight = detail.scrollHeight + 'px';
+  }
+  // Update context panel
+  updateContextPanel(id);
+}
+
+function expandRow(id) {
+  const detail = document.getElementById('detail-' + id);
+  detail.style.maxHeight = detail.scrollHeight + 'px';
+}
+
+function collapseRow(id) {
+  const detail = document.getElementById('detail-' + id);
+  detail.style.maxHeight = '0px';
+}
+
+// Popovers
+function showPopover(e, id) {
+  e.stopPropagation();
+  closeAllPopovers();
+  document.getElementById(id).classList.add('visible');
+  setTimeout(() => {
+    document.addEventListener('click', closeAllPopoversHandler, { once: true });
+  }, 10);
+}
+function closeAllPopovers() {
+  document.querySelectorAll('.popover.visible').forEach(p => p.classList.remove('visible'));
+}
+function closeAllPopoversHandler(e) {
+  if (!e.target.closest('.popover')) closeAllPopovers();
+}
+
+// Gate approval
+function approveGate(e, id) {
+  e.stopPropagation();
+  const pop = document.querySelector('.popover.visible');
+  if (pop) {
+    const actions = pop.querySelector('.popover-actions');
+    if (actions) actions.innerHTML = '<span class="popover-approved">Approved &#10003;</span>';
+    setTimeout(() => pop.classList.remove('visible'), 600);
+  }
+  // Remove badge
+  const badge = document.getElementById('badge-gate-' + id);
+  if (badge) { badge.classList.add('fade-out'); setTimeout(() => badge.style.display = 'none', 300); }
+  // Row state -> running
+  const row = document.getElementById('row-' + id);
+  row.className = row.className.replace(/state-\w+/, 'state-running');
+  if (row.classList.contains('selected')) row.classList.add('selected');
+  const dot = document.getElementById('dot-' + id);
+  if (dot) { dot.className = 'row-status-dot running'; }
+
+  // Update progress bar: gate-active -> active
+  const segs = document.querySelectorAll('#progress-' + id + ' .seg');
+  segs.forEach(s => { if (s.classList.contains('gate-active')) { s.classList.remove('gate-active'); s.classList.add('active'); } });
+
+  // Update context data
+  if (contextData[id]) {
+    contextData[id].gate = null;
+    contextData[id].status = ['Building', 'blue'];
+    contextData[id].subtitle = contextData[id].subtitle.replace('Gate', 'Building').replace('gate', 'building');
+    contextData[id].pipeline = contextData[id].pipeline.map(s => s === 'gate' ? 'active' : s);
+  }
+
+  // Update context panel if selected
+  if (selectedRow === id) updateContextPanel(id);
+
+  // Update header stats
+  updateHeaderStats();
+}
+
+function updateHeaderStats() {
+  let bld = 0, gates = 0, errors = 0, complete = 0;
+  document.querySelectorAll('.feature-row').forEach(r => {
+    if (r.classList.contains('state-running')) bld++;
+    else if (r.classList.contains('state-gate')) gates++;
+    else if (r.classList.contains('state-error')) errors++;
+    else if (r.classList.contains('state-complete')) complete++;
+  });
+  document.getElementById('statBld').textContent = bld + ' bld';
+  document.getElementById('statBld').className = 'stat' + (bld > 0 ? ' blue' : '');
+  document.getElementById('statGates').textContent = gates + 'g';
+  document.getElementById('statGates').className = 'stat' + (gates > 0 ? ' amber' : '');
+  document.getElementById('statErrors').textContent = errors + 'e';
+  document.getElementById('statErrors').className = 'stat' + (errors > 0 ? ' red' : '');
+  document.getElementById('statComplete').textContent = complete + ' done';
+  document.getElementById('statComplete').className = 'stat' + (complete > 0 ? ' green' : '');
+}
+
+// Annotation helpers
+function showAnnotationAt(text, pos) {
+  const el = document.getElementById('annotation');
+  el.textContent = text;
+  el.style.left = pos.left || '';
+  el.style.right = pos.right || '';
+  el.style.top = pos.top || '';
+  el.style.bottom = pos.bottom || '';
+  el.classList.add('visible');
+}
+function hideAnnotation() {
+  document.getElementById('annotation').classList.remove('visible');
+}
+
+function setProgress(id, segs) {
+  const container = document.getElementById('progress-' + id);
+  container.innerHTML = segs.map(s => '<div class="seg ' + s + '"></div>').join('');
+}
+
+// Preamble
+function startDemo() {
+  document.getElementById('preamble').classList.add('hidden');
+  setTimeout(runScenario, 400);
+}
+
+// ── Initial state capture for replay ──
+let initialListHTML = '';
+function captureInitial() {
+  initialListHTML = document.getElementById('featureList').innerHTML;
+}
+
+function resetState() {
+  clearTimers();
+  closeAllPopovers();
+  hideAnnotation();
+  document.getElementById('featureList').innerHTML = initialListHTML;
+  // Reset context data
+  contextData.learn.pipeline = ['done','done','done','done','active','pending','pending','pending'];
+  contextData.learn.subtitle = 'Building \u00b7 step 5/8 \u00b7 implement';
+  contextData.learn.status = ['Building', 'blue'];
+  contextData.learn.elapsed = '3m';
+  contextData.adopt.gate = { text: 'implement \u2192 validate', meta: 'src/domain/*.ts \u00b7 4 files changed' };
+  contextData.adopt.status = ['Gate', 'amber'];
+  contextData.adopt.subtitle = 'Gate \u00b7 step 7/10 \u00b7 implement \u2192 validate';
+  contextData.adopt.pipeline = ['done','done','done','done','done','done','gate','pending','pending','pending'];
+  updateContextPanel('learn');
+  updateHeaderStats();
+}
+
+// ── Animation sequence (~38s) ──
+function runScenario() {
+
+  // (0s) Initial state: SEC-DOMAIN-1 expanded, CORE-LEARN-1 selected (context panel shows it)
+  at(0, () => {
+    showAnnotationAt('Ops view \u2014 one row per feature build, inline expansion for detail', {left:'24px', top:'60px'});
+  });
+  at(3500, hideAnnotation);
+
+  // (4s) CORE-LEARN-1 progress advances 5->6. Context panel pipeline dot advances.
+  at(4000, () => {
+    setProgress('learn', ['done','done','done','done','done','active','pending','pending']);
+    document.getElementById('step-learn').textContent = '6/8';
+    contextData.learn.pipeline = ['done','done','done','done','done','active','pending','pending'];
+    contextData.learn.subtitle = 'Building \u00b7 step 6/8 \u00b7 implement';
+    updateContextPanel('learn');
+    showAnnotationAt('Progress updates in real-time across row AND context panel', {right:'340px', top:'80px'});
+  });
+  at(6500, hideAnnotation);
+
+  // (7s) Click gate badge on DIST-ADOPT-1 -> gate popover appears
+  at(7000, () => {
+    document.getElementById('popover-adopt-gate').classList.add('visible');
+    showAnnotationAt('Click \u26a0 for quick gate approval \u2014 no need to expand', {right:'60px', top:'220px'});
+  });
+  at(9500, hideAnnotation);
+
+  // (10s) Approve -> popover closes, badge fades, border turns blue, progress advances
+  at(10000, () => {
+    const pop = document.getElementById('popover-adopt-gate');
+    const actions = document.getElementById('popover-actions-adopt');
+    actions.innerHTML = '<span class="popover-approved">Approved &#10003;</span>';
+
+    setTimeout(() => {
+      pop.classList.remove('visible');
+      // Update row
+      const badge = document.getElementById('badge-gate-adopt');
+      if (badge) { badge.classList.add('fade-out'); setTimeout(() => badge.style.display = 'none', 300); }
+      document.getElementById('row-adopt').className = 'feature-row state-running';
+      document.getElementById('dot-adopt').className = 'row-status-dot running';
+      setProgress('adopt', ['done','done','done','done','done','done','done','active','pending','pending']);
+      document.getElementById('step-adopt').textContent = '8/10';
+      document.getElementById('agent-adopt').textContent = 'Codex';
+      document.getElementById('agent-adopt').className = 'row-agent codex';
+      // Context data
+      contextData.adopt.gate = null;
+      contextData.adopt.status = ['Building', 'blue'];
+      contextData.adopt.subtitle = 'Building \u00b7 step 8/10 \u00b7 validate';
+      contextData.adopt.pipeline = ['done','done','done','done','done','done','done','active','pending','pending'];
+      contextData.adopt.agent = 'Codex';
+      updateHeaderStats();
+    }, 600);
+
+    showAnnotationAt('Approved! Row updates \u2014 now building. Graph view would update too.', {right:'60px', top:'220px'});
+  });
+  at(13500, hideAnnotation);
+
+  // (14s) Click SEC-DOMAIN-1 row -> it collapses. Click DIST-ADOPT-1 row -> it expands. Context panel swaps.
+  at(14000, () => {
+    collapseRow('sec');
+    setTimeout(() => {
+      expandRow('adopt');
+      updateContextPanel('adopt');
+      document.getElementById('row-adopt').classList.add('selected');
+      document.getElementById('row-learn').classList.remove('selected');
+      showAnnotationAt('Click rows to expand/collapse \u2014 context panel follows selection', {right:'340px', top:'200px'});
+    }, 400);
+  });
+  at(17500, hideAnnotation);
+
+  // (18s) New event slides into expanded DIST-ADOPT-1 detail
+  at(18000, () => {
+    const events = document.getElementById('events-adopt');
+    if (events) {
+      const ev = document.createElement('div');
+      ev.className = 'detail-event slide-down';
+      ev.innerHTML = '<span class="ev-icon blue">\u25cf</span><span class="ev-text">implement step started</span><span class="ev-stats">Codex</span><span class="ev-time">just now</span>';
+      events.insertBefore(ev, events.firstChild);
+      const detail = document.getElementById('detail-adopt');
+      detail.style.maxHeight = detail.scrollHeight + 'px';
+    }
+  });
+
+  // (21s) Click error badge on PRE-ASYNC-1 -> error popover shows
+  at(21000, () => {
+    document.getElementById('popover-async-error').classList.add('visible');
+    showAnnotationAt('Error details via popover \u2014 quick inspection', {right:'60px', top:'280px'});
+  });
+  at(23500, hideAnnotation);
+
+  // (24s) Close popover. Click PRE-ASYNC-1 row -> context panel shows error detail
+  at(24000, () => {
+    closeAllPopovers();
+    collapseRow('adopt');
+    setTimeout(() => {
+      expandRow('async');
+      updateContextPanel('async');
+      document.getElementById('row-async').classList.add('selected');
+      document.getElementById('row-adopt').classList.remove('selected');
+    }, 300);
+  });
+
+  // (27s) CORE-LEARN-1 completes -> row transitions to complete state
+  at(27000, () => {
+    setProgress('learn', ['done','done','done','done','done','done','done','done']);
+    document.getElementById('step-learn').textContent = 'complete';
+    document.getElementById('step-learn').style.color = '#22c55e80';
+    document.getElementById('agent-learn').textContent = '';
+    document.getElementById('row-learn').className = 'feature-row state-complete';
+    document.getElementById('dot-learn').className = 'row-status-dot complete';
+    document.getElementById('badges-learn').innerHTML = '<span class="badge badge-complete">&#10003;</span>';
+    document.getElementById('row-learn').classList.add('green-flash');
+    document.getElementById('time-learn').textContent = '8m';
+
+    // Update context data
+    contextData.learn.status = ['Complete', 'green'];
+    contextData.learn.subtitle = 'Complete \u00b7 8/8';
+    contextData.learn.pipeline = ['done','done','done','done','done','done','done','done'];
+    contextData.learn.elapsed = '8m';
+
+    // Switch selection to learn to show cross-view link
+    updateContextPanel('learn');
+    document.getElementById('row-async').classList.remove('selected');
+    document.getElementById('row-learn').classList.add('selected');
+    collapseRow('async');
+    // Highlight the cross-view link
+    document.getElementById('ctxLinkGraph').className = 'ctx-link highlight';
+
+    updateHeaderStats();
+    showAnnotationAt('Build done \u2014 row collapses. Cross-view links always available.', {right:'340px', top:'80px'});
+  });
+  at(29500, hideAnnotation);
+
+  // (30s) DIST-ADOPT-1 progress reaches end -> complete state
+  at(30000, () => {
+    setProgress('adopt', ['done','done','done','done','done','done','done','done','done','done']);
+    document.getElementById('step-adopt').textContent = 'complete';
+    document.getElementById('step-adopt').style.color = '#22c55e80';
+    document.getElementById('agent-adopt').textContent = '';
+    document.getElementById('row-adopt').className = 'feature-row state-complete';
+    document.getElementById('dot-adopt').className = 'row-status-dot complete';
+    document.getElementById('badges-adopt').innerHTML = '<span class="badge badge-complete">&#10003;</span>';
+    document.getElementById('row-adopt').classList.add('green-flash');
+    document.getElementById('time-adopt').textContent = '14m';
+
+    contextData.adopt.status = ['Complete', 'green'];
+    contextData.adopt.subtitle = 'Complete \u00b7 10/10';
+    contextData.adopt.pipeline = ['done','done','done','done','done','done','done','done','done','done'];
+    contextData.adopt.elapsed = '14m';
+
+    updateHeaderStats();
+  });
+
+  // (33s) New row slides in: TEST-INFRA-1
+  at(33000, () => {
+    const list = document.getElementById('featureList');
+    const newRow = document.createElement('div');
+    newRow.className = 'feature-row state-running row-enter';
+    newRow.id = 'row-test';
+    newRow.setAttribute('onclick', "selectRow(event, 'test')");
+    newRow.innerHTML = `
+      <div class="row-header">
+        <div class="row-status-dot running" id="dot-test"></div>
+        <span class="row-name">TEST-INFRA-1</span>
+        <div class="row-progress" id="progress-test">
+          <div class="seg active"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+        </div>
+        <span class="row-step" id="step-test">1/6</span>
+        <span class="row-agent claude">Claude</span>
+        <span class="row-time">0m</span>
+        <div class="row-badges"></div>
+      </div>
+      <div class="detail-area" id="detail-test" style="max-height:0;">
+        <div class="detail-inner">
+          <div class="detail-pipeline">
+            <div class="dot active">&#9679;</div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div>
+            <span class="step-label">step 1/6 &middot; design</span>
+          </div>
+          <div class="detail-events">
+            <div class="detail-event"><span class="ev-icon blue">&#9679;</span><span class="ev-text">Build started</span><span class="ev-time">just now</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+    // Insert before the completed rows (after async)
+    const releaseRow = document.getElementById('row-release');
+    list.insertBefore(newRow, releaseRow);
+
+    // Add context data
+    contextData.test = {
+      title: 'TEST-INFRA-1',
+      subtitle: 'Building \u00b7 step 1/6 \u00b7 design',
+      pipeline: ['active','pending','pending','pending','pending','pending'],
+      gate: null,
+      status: ['Building', 'blue'],
+      sessions: '1',
+      errors: '0',
+      agent: 'Claude',
+      elapsed: '0m',
+      error: null,
+      files: ['design.md']
+    };
+
+    updateHeaderStats();
+    showAnnotationAt('New builds appear automatically as agents start work', {left:'24px', bottom:'80px'});
+  });
+  at(35500, hideAnnotation);
+
+  // (36s) Select TEST-INFRA-1 to show it in context panel
+  at(36000, () => {
+    updateContextPanel('test');
+    document.getElementById('row-learn').classList.remove('selected');
+    const testRow = document.getElementById('row-test');
+    if (testRow) testRow.classList.add('selected');
+  });
+
+  // (38s) Final state - replay available
+}
+
+function replay() {
+  resetState();
+  document.getElementById('preamble').classList.remove('hidden');
+}
+
+// Init
+window.addEventListener('DOMContentLoaded', () => {
+  captureInitial();
+});
+
+// Close popovers on escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeAllPopovers();
+});
+</script>
+
+</body>
+</html>

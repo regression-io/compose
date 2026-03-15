@@ -7,9 +7,9 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
-import { TARGET_ROOT } from './project-root.js';
+import { getTargetRoot } from './project-root.js';
 
-const PROJECT_ROOT = TARGET_ROOT;
+const PROJECT_ROOT = getTargetRoot();
 
 // ---------------------------------------------------------------------------
 // Route registration

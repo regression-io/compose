@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPS v6 — Feature Rows</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0f172a;
+    color: #e2e8f0;
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    min-height: 100vh;
+    padding: 24px 32px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .header-label {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #f8fafc;
+  }
+
+  .header-stats {
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  .header-stats .stat-gates { color: #f59e0b; }
+  .header-stats .stat-errors { color: #ef4444; }
+
+  /* Replay */
+  .replay-btn {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    z-index: 100;
+    transition: all 0.2s;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .replay-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .replay-btn:hover {
+    background: #334155;
+    color: #e2e8f0;
+  }
+
+  /* Feature table */
+  .feature-table {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* Feature row */
+  .feature-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 100px 70px 50px auto auto 28px;
+    align-items: center;
+    gap: 12px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 0 16px;
+    height: 44px;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+
+  .feature-row.complete {
+    height: 32px;
+    opacity: 0.7;
+  }
+
+  .feature-row.complete:hover { opacity: 1; }
+
+  .feature-row.entering {
+    animation: slideIn 0.4s ease forwards;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* Feature code */
+  .feat-code {
+    font-weight: 700;
+    color: #3b82f6;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .complete .feat-code { color: #22c55e; }
+
+  /* Progress bar */
+  .progress-bar {
+    display: flex;
+    gap: 3px;
+    height: 6px;
+    align-items: center;
+  }
+
+  .progress-segment {
+    flex: 1;
+    height: 100%;
+    border-radius: 3px;
+    background: #334155;
+    transition: background 0.3s ease;
+  }
+
+  .progress-segment.done { background: #3b82f6; }
+  .progress-segment.active {
+    background: #3b82f6;
+    animation: segmentPulse 1.5s ease-in-out infinite;
+  }
+  .progress-segment.gate {
+    background: #f59e0b;
+    animation: segmentPulse 1.5s ease-in-out infinite;
+  }
+  .progress-segment.error { background: #ef4444; }
+
+  .complete .progress-segment.done { background: #22c55e; }
+
+  @keyframes segmentPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Step label */
+  .step-label {
+    font-size: 11px;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+
+  .complete .step-label { color: #22c55e; }
+
+  /* Agent badge */
+  .agent-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .agent-badge.claude {
+    background: rgba(251, 146, 60, 0.15);
+    color: #fb923c;
+  }
+
+  .agent-badge.codex {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+  }
+
+  .agent-badge.none { display: none; }
+
+  /* Elapsed */
+  .elapsed {
+    font-size: 11px;
+    color: #64748b;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* Badges */
+  .badges {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-width: 80px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .badge.gate-badge {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+
+  .badge.gate-badge:hover {
+    background: rgba(245, 158, 11, 0.25);
+  }
+
+  .badge.gate-badge.pulse {
+    animation: gatePulse 0.8s ease-in-out 3;
+  }
+
+  @keyframes gatePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.3); }
+  }
+
+  .badge.error-badge {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .badge.error-badge:hover {
+    background: rgba(239, 68, 68, 0.25);
+  }
+
+  .badge.flash-in {
+    animation: badgeFlash 0.5s ease;
+  }
+
+  @keyframes badgeFlash {
+    0% { transform: scale(1.3); opacity: 0; }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .badge.fade-out {
+    animation: badgeFade 0.3s ease forwards;
+  }
+
+  @keyframes badgeFade {
+    to { transform: scale(0.8); opacity: 0; }
+  }
+
+  /* Chevron */
+  .chevron {
+    color: #475569;
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.2s;
+    text-align: center;
+  }
+
+  .chevron:hover { color: #94a3b8; }
+
+  /* Popover */
+  .popover-anchor { position: relative; }
+
+  .popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 320px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    padding: 16px;
+    z-index: 50;
+    transform: scale(0.95);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  .popover.open {
+    transform: scale(1);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .popover::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 24px;
+    width: 12px;
+    height: 12px;
+    background: #1e293b;
+    border-left: 1px solid #334155;
+    border-top: 1px solid #334155;
+    transform: rotate(45deg);
+  }
+
+  .popover-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 10px;
+  }
+
+  .popover-detail {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+  }
+
+  .popover-detail span { color: #cbd5e1; }
+
+  .popover-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .popover-btn {
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #94a3b8;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .popover-btn:hover {
+    background: #1e293b;
+    color: #e2e8f0;
+  }
+
+  .popover-btn.approve {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+
+  .popover-btn.approve:hover {
+    background: rgba(34, 197, 94, 0.25);
+  }
+
+  .popover-btn.kill {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.2);
+  }
+
+  .popover-btn.kill:hover {
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  .popover-link {
+    font-size: 11px;
+    color: #3b82f6;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .popover-link:hover { text-decoration: underline; }
+
+  .green-flash {
+    animation: greenFlash 0.4s ease;
+  }
+
+  @keyframes greenFlash {
+    0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+    50% { box-shadow: 0 0 12px 4px rgba(34, 197, 94, 0.3); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+
+  /* Hidden helper */
+  .hidden { display: none !important; }
+
+  /* Preamble overlay */
+  .preamble-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.92);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.4s ease;
+  }
+
+  .preamble-overlay.dismissed {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .preamble-card {
+    background: #1e293b;
+    border: 1px solid #3b82f6;
+    border-radius: 14px;
+    padding: 40px 48px;
+    max-width: 480px;
+    text-align: center;
+  }
+
+  .preamble-card h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+
+  .preamble-card p {
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.6;
+    margin-bottom: 28px;
+  }
+
+  .preamble-start {
+    background: #3b82f6;
+    color: #f8fafc;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .preamble-start:hover {
+    background: #2563eb;
+  }
+
+  /* Annotation callouts */
+  .callout {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    background: #1e293b;
+    border: 1px solid #3b82f6;
+    color: #e2e8f0;
+    font-size: 11px;
+    line-height: 1.4;
+    max-width: 200px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    z-index: 150;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    text-align: center;
+  }
+
+  .callout.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<div class="preamble-overlay" id="preamble">
+  <div class="preamble-card">
+    <h1>V6 &mdash; Feature Rows + Popovers</h1>
+    <p>One row per feature build with progress bar, current step, agent, and status badges. Click a gate badge for a quick approval popover. Click an error badge for error details. Completed builds collapse. Scales to 10+ concurrent builds.</p>
+    <button class="preamble-start" id="preamble-start">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<div class="callout" id="callout"></div>
+
+<div class="header">
+  <span class="header-label">OPS</span>
+  <span class="header-stats" id="header-stats">
+    <span id="stat-builds">4 builds</span> &middot;
+    <span class="stat-gates" id="stat-gates">2 gates</span> &middot;
+    <span class="stat-errors" id="stat-errors">0 errors</span>
+  </span>
+</div>
+
+<button class="replay-btn" id="replay-btn" onclick="replay()">Replay</button>
+
+<div class="feature-table" id="feature-table">
+
+  <!-- CORE-ASYNC-1 -->
+  <div class="feature-row" id="row-core" data-feature="CORE-ASYNC-1">
+    <span class="feat-code">CORE-ASYNC-1</span>
+    <div class="progress-bar" id="pb-core"></div>
+    <span class="step-label" id="sl-core">5/8 gate</span>
+    <span class="agent-badge claude">Claude</span>
+    <span class="elapsed" id="el-core">3m</span>
+    <div class="badges popover-anchor" id="badges-core">
+      <span class="badge gate-badge" id="gate-core">&#9888; 1 gate</span>
+      <div class="popover" id="pop-gate-core">
+        <div class="popover-title">Gate: design &rarr; impl</div>
+        <div class="popover-detail">Phase transition: <span>design &rarr; impl</span></div>
+        <div class="popover-detail">Artifact status: <span>87% complete, 1240 words</span></div>
+        <div class="popover-actions">
+          <button class="popover-btn approve" id="btn-approve-core">Approve</button>
+          <button class="popover-btn">Revise</button>
+          <button class="popover-btn kill">Kill</button>
+        </div>
+      </div>
+    </div>
+    <span class="chevron">&#x203A;</span>
+  </div>
+
+  <!-- GEN-REF-1 -->
+  <div class="feature-row" id="row-gen" data-feature="GEN-REF-1">
+    <span class="feat-code">GEN-REF-1</span>
+    <div class="progress-bar" id="pb-gen"></div>
+    <span class="step-label" id="sl-gen">8/10 impl</span>
+    <span class="agent-badge codex">Codex</span>
+    <span class="elapsed" id="el-gen">12m</span>
+    <div class="badges popover-anchor" id="badges-gen">
+      <span class="badge gate-badge" id="gate-gen">&#9888; 1 gate</span>
+      <div class="popover" id="pop-gate-gen">
+        <div class="popover-title">Gate: impl &rarr; test</div>
+        <div class="popover-detail">Phase transition: <span>impl &rarr; test</span></div>
+        <div class="popover-detail">Artifact status: <span>92% complete, 3420 words</span></div>
+        <div class="popover-actions">
+          <button class="popover-btn approve" id="btn-approve-gen">Approve</button>
+          <button class="popover-btn">Revise</button>
+          <button class="popover-btn kill">Kill</button>
+        </div>
+      </div>
+    </div>
+    <span class="chevron">&#x203A;</span>
+  </div>
+
+  <!-- DIST-RELEASE-1 -->
+  <div class="feature-row complete" id="row-dist" data-feature="DIST-RELEASE-1">
+    <span class="feat-code">DIST-RELEASE-1</span>
+    <div class="progress-bar" id="pb-dist"></div>
+    <span class="step-label">complete &#x2713;</span>
+    <span class="agent-badge none"></span>
+    <span class="elapsed">28m</span>
+    <div class="badges"></div>
+    <span class="chevron">&#x203A;</span>
+  </div>
+
+  <!-- PRE-ASYNC-1 -->
+  <div class="feature-row" id="row-pre" data-feature="PRE-ASYNC-1">
+    <span class="feat-code">PRE-ASYNC-1</span>
+    <div class="progress-bar" id="pb-pre"></div>
+    <span class="step-label" id="sl-pre">2/8 prd</span>
+    <span class="agent-badge claude">Claude</span>
+    <span class="elapsed" id="el-pre">1m</span>
+    <div class="badges"></div>
+    <span class="chevron">&#x203A;</span>
+  </div>
+
+</div>
+
+<script>
+  // --- Progress bar initialization ---
+  function buildSegments(id, total, done, activeType) {
+    const bar = document.getElementById(id);
+    bar.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const seg = document.createElement('div');
+      seg.className = 'progress-segment';
+      seg.dataset.index = i;
+      if (i < done) seg.classList.add('done');
+      else if (i === done) seg.classList.add(activeType || 'active');
+      bar.appendChild(seg);
+    }
+  }
+
+  function setProgress(id, total, done, activeType) {
+    const bar = document.getElementById(id);
+    const segs = bar.children;
+    for (let i = 0; i < total; i++) {
+      segs[i].className = 'progress-segment';
+      if (i < done) segs[i].classList.add('done');
+      else if (i === done && activeType) segs[i].classList.add(activeType);
+    }
+  }
+
+  function completeProgress(id) {
+    const bar = document.getElementById(id);
+    for (const seg of bar.children) {
+      seg.className = 'progress-segment done';
+    }
+  }
+
+  // Init
+  function initBars() {
+    buildSegments('pb-core', 8, 4, 'gate');   // 5/8 gate — 4 done, 5th is gate
+    buildSegments('pb-gen', 10, 7, 'active');  // 8/10 impl — 7 done, 8th active
+    buildSegments('pb-dist', 9, 9, null);      // complete
+    buildSegments('pb-pre', 8, 1, 'active');   // 2/8 prd — 1 done, 2nd active
+  }
+
+  // --- Animation timeline ---
+  let timers = [];
+
+  function at(ms, fn) {
+    timers.push(setTimeout(fn, ms));
+  }
+
+  function clearTimers() {
+    timers.forEach(t => clearTimeout(t));
+    timers = [];
+  }
+
+  function openPopover(id) {
+    document.getElementById(id).classList.add('open');
+  }
+
+  function closePopover(id) {
+    document.getElementById(id).classList.remove('open');
+  }
+
+  function updateStats(builds, gates, errors) {
+    document.getElementById('stat-builds').textContent = builds + ' builds';
+    document.getElementById('stat-gates').textContent = gates + ' gates';
+    document.getElementById('stat-errors').textContent = errors + ' errors';
+  }
+
+  // --- Callout system ---
+  const calloutEl = document.getElementById('callout');
+  let calloutTimer = null;
+
+  function showCallout(text, duration) {
+    if (calloutTimer) clearTimeout(calloutTimer);
+    calloutEl.textContent = text;
+    calloutEl.classList.add('visible');
+    calloutTimer = setTimeout(() => {
+      calloutEl.classList.remove('visible');
+    }, duration || 2500);
+  }
+
+  function hideCallout() {
+    calloutEl.classList.remove('visible');
+    if (calloutTimer) { clearTimeout(calloutTimer); calloutTimer = null; }
+  }
+
+  function runAnimation() {
+    clearTimers();
+    hideCallout();
+    const replayBtn = document.getElementById('replay-btn');
+    replayBtn.classList.remove('visible');
+
+    // Reset state
+    const table = document.getElementById('feature-table');
+    const newRow = document.getElementById('row-test');
+    if (newRow) newRow.remove();
+
+    // Reset rows
+    document.getElementById('row-core').className = 'feature-row';
+    document.getElementById('row-gen').className = 'feature-row';
+
+    // Reset badges
+    const gateCoreEl = document.getElementById('gate-core');
+    gateCoreEl.className = 'badge gate-badge';
+    gateCoreEl.classList.remove('hidden');
+
+    const gateGenEl = document.getElementById('gate-gen');
+    gateGenEl.className = 'badge gate-badge';
+    gateGenEl.classList.remove('hidden');
+
+    // Remove error badge if exists
+    const errBadge = document.getElementById('error-gen');
+    if (errBadge) errBadge.remove();
+    const errPop = document.getElementById('pop-error-gen');
+    if (errPop) errPop.remove();
+
+    // Close any open popovers
+    document.querySelectorAll('.popover.open').forEach(p => p.classList.remove('open'));
+
+    // Reset labels
+    document.getElementById('sl-core').textContent = '5/8 gate';
+    document.getElementById('sl-gen').textContent = '8/10 impl';
+    document.getElementById('sl-pre').textContent = '2/8 prd';
+    document.getElementById('el-core').textContent = '3m';
+    document.getElementById('el-gen').textContent = '12m';
+    document.getElementById('el-pre').textContent = '1m';
+
+    initBars();
+    updateStats(4, 2, 0);
+
+    // Callout: feature row explanation
+    at(500, () => {
+      showCallout('Each feature gets one row \u2014 progress bar shows how far along', 2500);
+    });
+
+    // (3s) PRE-ASYNC advances to 3/8
+    at(3000, () => {
+      setProgress('pb-pre', 8, 2, 'active');
+      document.getElementById('sl-pre').textContent = '3/8 arch';
+      document.getElementById('el-pre').textContent = '2m';
+    });
+
+    // (5s) CORE-ASYNC gate pulses
+    at(5000, () => {
+      gateCoreEl.classList.add('pulse');
+      showCallout('Amber badge means a gate needs your approval', 2500);
+    });
+
+    // (8s) Gate popover opens on CORE-ASYNC
+    at(8000, () => {
+      openPopover('pop-gate-core');
+      showCallout('Click the badge \u2014 popover shows details and action buttons', 2500);
+    });
+
+    // (11s) Approve gate on CORE-ASYNC
+    at(11000, () => {
+      showCallout('Approved! Badge disappears, progress advances', 2500);
+      closePopover('pop-gate-core');
+      const row = document.getElementById('row-core');
+      row.classList.add('green-flash');
+      setTimeout(() => row.classList.remove('green-flash'), 500);
+
+      gateCoreEl.classList.add('fade-out');
+      setTimeout(() => gateCoreEl.classList.add('hidden'), 300);
+
+      setProgress('pb-core', 8, 5, 'active');
+      document.getElementById('sl-core').textContent = '6/8 test';
+      document.getElementById('el-core').textContent = '5m';
+      updateStats(4, 1, 0);
+    });
+
+    // (14s) GEN-REF advances, error appears
+    at(14000, () => {
+      setProgress('pb-gen', 10, 8, 'active');
+      document.getElementById('sl-gen').textContent = '9/10 test';
+      document.getElementById('el-gen').textContent = '15m';
+
+      // Add error badge
+      const badges = document.getElementById('badges-gen');
+      const errBadge = document.createElement('span');
+      errBadge.className = 'badge error-badge flash-in';
+      errBadge.id = 'error-gen';
+      errBadge.innerHTML = '&#x2716; 1 error';
+      errBadge.onclick = () => {
+        const pop = document.getElementById('pop-error-gen');
+        if (pop) pop.classList.toggle('open');
+      };
+      badges.appendChild(errBadge);
+
+      // Add error popover
+      const errPop = document.createElement('div');
+      errPop.className = 'popover';
+      errPop.id = 'pop-error-gen';
+      errPop.innerHTML = `
+        <div class="popover-title" style="color:#ef4444">Error in test step</div>
+        <div class="popover-detail" style="font-family:monospace;color:#fca5a5;margin-bottom:10px">TypeError: undefined is not a function</div>
+        <div class="popover-detail">Step: <span>9/10 test</span></div>
+        <div class="popover-detail">Agent: <span>Codex</span></div>
+        <div class="popover-detail">Session: <span>sess-gen-ref-4a2</span></div>
+        <div style="margin-top:12px"><a class="popover-link">View Session &rarr;</a></div>
+      `;
+      errPop.innerHTML = '<div style="position:absolute;top:-6px;right:24px;width:12px;height:12px;background:#1e293b;border-left:1px solid #334155;border-top:1px solid #334155;transform:rotate(45deg)"></div>' + errPop.innerHTML;
+      badges.appendChild(errPop);
+
+      updateStats(4, 1, 1);
+    });
+
+    // (17s) Error popover opens
+    at(17000, () => {
+      openPopover('pop-error-gen');
+      showCallout('Red badge \u2014 click for error details and session context', 2500);
+    });
+
+    // (19s) Error popover closes
+    at(19000, () => {
+      closePopover('pop-error-gen');
+    });
+
+    // (22s) GEN-REF gate popover opens
+    at(22000, () => {
+      openPopover('pop-gate-gen');
+    });
+
+    // (24s) Approve GEN-REF gate
+    at(24000, () => {
+      closePopover('pop-gate-gen');
+      const row = document.getElementById('row-gen');
+      row.classList.add('green-flash');
+      setTimeout(() => row.classList.remove('green-flash'), 500);
+
+      gateGenEl.classList.add('fade-out');
+      setTimeout(() => gateGenEl.classList.add('hidden'), 300);
+
+      setProgress('pb-gen', 10, 9, 'active');
+      document.getElementById('sl-gen').textContent = '10/10 deploy';
+      document.getElementById('el-gen').textContent = '17m';
+      updateStats(4, 0, 1);
+    });
+
+    // (27s) PRE-ASYNC and CORE-ASYNC rapid advance
+    at(27000, () => {
+      // CORE-ASYNC cascade
+      let coreStep = 6;
+      const coreLabels = ['test', 'verify', 'deploy'];
+      function advanceCore() {
+        if (coreStep >= 8) return;
+        setProgress('pb-core', 8, coreStep, 'active');
+        document.getElementById('sl-core').textContent = `${coreStep + 1}/8 ${coreLabels[coreStep - 6] || ''}`;
+        coreStep++;
+        setTimeout(advanceCore, 400);
+      }
+      advanceCore();
+
+      // PRE-ASYNC cascade
+      let preStep = 3;
+      const preLabels = ['design', 'impl', 'test', 'verify', 'deploy'];
+      function advancePre() {
+        if (preStep >= 8) return;
+        setProgress('pb-pre', 8, preStep, 'active');
+        document.getElementById('sl-pre').textContent = `${preStep + 1}/8 ${preLabels[preStep - 3] || ''}`;
+        preStep++;
+        setTimeout(advancePre, 350);
+      }
+      advancePre();
+    });
+
+    // (30s) Both complete
+    at(30000, () => {
+      showCallout('Feature done \u2014 row collapses to minimal height', 2500);
+      // CORE-ASYNC complete
+      completeProgress('pb-core');
+      document.getElementById('sl-core').textContent = 'complete \u2713';
+      document.getElementById('el-core').textContent = '8m';
+      document.getElementById('row-core').classList.add('complete');
+      document.querySelector('#row-core .feat-code').style.color = '#22c55e';
+
+      // PRE-ASYNC complete
+      completeProgress('pb-pre');
+      document.getElementById('sl-pre').textContent = 'complete \u2713';
+      document.getElementById('el-pre').textContent = '6m';
+      document.getElementById('row-pre').classList.add('complete');
+      document.querySelector('#row-pre .feat-code').style.color = '#22c55e';
+
+      // GEN-REF also finishes
+      completeProgress('pb-gen');
+      document.getElementById('sl-gen').textContent = 'complete \u2713';
+      document.getElementById('el-gen').textContent = '19m';
+      document.getElementById('row-gen').classList.add('complete');
+      document.querySelector('#row-gen .feat-code').style.color = '#22c55e';
+
+      // Remove error badge
+      const eb = document.getElementById('error-gen');
+      if (eb) { eb.classList.add('fade-out'); setTimeout(() => eb.remove(), 300); }
+      const ep = document.getElementById('pop-error-gen');
+      if (ep) ep.remove();
+
+      updateStats(4, 0, 0);
+    });
+
+    // (33s) New row slides in
+    at(33000, () => {
+      showCallout('New builds appear automatically', 2500);
+      const row = document.createElement('div');
+      row.className = 'feature-row entering';
+      row.id = 'row-test';
+      row.innerHTML = `
+        <span class="feat-code">TEST-INFRA-1</span>
+        <div class="progress-bar" id="pb-test"></div>
+        <span class="step-label">1/6 prd</span>
+        <span class="agent-badge claude">Claude</span>
+        <span class="elapsed">0m</span>
+        <div class="badges"></div>
+        <span class="chevron">&#x203A;</span>
+      `;
+      table.appendChild(row);
+      buildSegments('pb-test', 6, 0, 'active');
+      updateStats(5, 0, 0);
+    });
+
+    // (35s) Show replay
+    at(35000, () => {
+      replayBtn.classList.add('visible');
+    });
+  }
+
+  function replay() {
+    // Reset feat-code colors
+    document.querySelectorAll('.feat-code').forEach(el => el.style.color = '');
+    runAnimation();
+  }
+
+  // --- Preamble gate ---
+  const preambleEl = document.getElementById('preamble');
+  document.getElementById('preamble-start').addEventListener('click', () => {
+    preambleEl.classList.add('dismissed');
+    setTimeout(() => { preambleEl.style.display = 'none'; }, 400);
+    runAnimation();
+  });
+
+  // Init bars for the static initial state visible behind the overlay
+  initBars();
+</script>
+
+</body>
+</html>

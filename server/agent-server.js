@@ -18,11 +18,11 @@ import cors from 'cors';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { requireSensitiveToken } from './security.js';
 import { HOOK_OPTIONS } from './agent-hooks.js';
-import { TARGET_ROOT, DATA_DIR } from './project-root.js';
+import { getTargetRoot, getDataDir } from './project-root.js';
 import { BuildStreamBridge } from './build-stream-bridge.js';
 
 const PORT = process.env.AGENT_PORT || 3002;
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const SETTINGS_FILE = path.join(getDataDir(), 'settings.json');
 
 function _readModelSetting() {
   try {
@@ -161,7 +161,7 @@ app.get('/api/agent/session/status', (_req, res) => {
 
 function _buildOptions(prompt, resumeId) {
   return {
-    cwd: TARGET_ROOT,
+    cwd: getTargetRoot(),
     model: _readModelSetting() || 'claude-sonnet-4-6',
     permissionMode: 'acceptEdits',
     settingSources: ['project'],
@@ -212,7 +212,7 @@ const server = http.createServer(app);
 
 // Build stream bridge — tails JSONL from CLI build, rebroadcasts via SSE
 const _bridge = new BuildStreamBridge(
-  path.join(TARGET_ROOT, '.compose'),
+  path.join(getTargetRoot(), '.compose'),
   broadcast
 );
 

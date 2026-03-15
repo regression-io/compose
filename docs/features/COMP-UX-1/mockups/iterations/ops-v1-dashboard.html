@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ops V1 — Dashboard Grid</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+
+.header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1e293b; border-bottom: 1px solid #334155; font-size: 13px; font-weight: 600; }
+.header .tab { padding: 4px 12px; border-radius: 4px; color: #94a3b8; cursor: pointer; }
+.header .tab.active { background: #3b82f6; color: #fff; }
+.badge { font-size: 10px; background: #ef444430; color: #ef4444; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+
+.content { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: 1px; background: #334155; overflow: hidden; }
+
+/* Top strip — spans full width */
+.pipeline-strip { grid-column: 1 / -1; background: #1e293b; padding: 16px 20px; }
+.pipeline-strip h3 { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+.pipeline-label { font-size: 12px; color: #94a3b8; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.pipeline-label .feat { color: #3b82f6; font-weight: 600; }
+.pipeline-label .agent { color: #f97316; font-size: 11px; }
+.pipeline-label .time { color: #475569; font-size: 11px; margin-left: auto; }
+
+.steps { display: flex; gap: 4px; align-items: center; }
+.step { width: 48px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 500; border: 1px solid; transition: all 0.6s ease; }
+.step.done { background: #22c55e15; border-color: #22c55e40; color: #22c55e; }
+.step.active { background: #3b82f620; border-color: #3b82f6; color: #60a5fa; box-shadow: 0 0 8px #3b82f630; }
+.step.pending { background: #1e293b; border-color: #334155; color: #475569; }
+.step.gate { background: #f59e0b15; border-color: #f59e0b50; color: #f59e0b; }
+.arrow { color: #334155; font-size: 10px; }
+
+.progress-bar { height: 3px; background: #334155; border-radius: 2px; margin-top: 10px; }
+.progress-fill { height: 100%; background: #3b82f6; border-radius: 2px; transition: width 0.8s ease; }
+
+/* Left column — gates */
+.gates-col { background: #0f172a; padding: 16px; overflow-y: auto; }
+.gates-col h3 { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+
+.gate-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 8px; transition: all 0.5s ease; overflow: hidden; }
+.gate-card .gate-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.gate-card .gate-feat { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+.gate-card .gate-transition { font-size: 11px; color: #64748b; }
+.gate-card .gate-transition .from { color: #94a3b8; }
+.gate-card .gate-transition .to { color: #3b82f6; }
+.gate-card .gate-artifact { font-size: 10px; color: #475569; margin-bottom: 10px; }
+.gate-card .gate-artifact .pct { color: #22c55e; }
+.gate-actions { display: flex; gap: 6px; }
+.gate-actions button { font-size: 11px; padding: 4px 12px; border-radius: 4px; border: 1px solid; cursor: pointer; font-weight: 500; }
+.btn-approve { background: #22c55e20; border-color: #22c55e50; color: #22c55e; }
+.btn-revise { background: #f59e0b15; border-color: #f59e0b40; color: #f59e0b; }
+.btn-kill { background: #ef444415; border-color: #ef444430; color: #ef4444; }
+
+/* Right column — sessions */
+.sessions-col { background: #0f172a; padding: 16px; overflow-y: auto; }
+.sessions-col h3 { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+.session-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; margin-bottom: 2px; transition: all 0.4s ease; }
+.session-row:hover { background: #1e293b; }
+.session-agent { font-size: 11px; font-weight: 600; width: 50px; }
+.session-agent.claude { color: #f97316; }
+.session-agent.codex { color: #22c55e; }
+.session-feat { font-size: 12px; color: #e2e8f0; flex: 1; }
+.session-duration { font-size: 11px; color: #64748b; width: 40px; text-align: right; }
+.session-stats { display: flex; gap: 8px; font-size: 10px; }
+.session-stats .r { color: #3b82f6; }
+.session-stats .w { color: #f59e0b; }
+.session-stats .e { color: #ef4444; }
+.session-summary { font-size: 11px; color: #475569; padding: 2px 10px 8px 70px; }
+
+.empty { color: #475569; font-size: 12px; font-style: italic; text-align: center; padding: 24px; }
+
+/* Animation styles */
+@keyframes slideIn {
+  from { transform: translateY(-30px); opacity: 0; max-height: 0; }
+  to { transform: translateY(0); opacity: 1; max-height: 80px; }
+}
+
+@keyframes flashGreen {
+  0% { box-shadow: 0 0 0 0 #22c55e80; }
+  50% { box-shadow: 0 0 20px 4px #22c55e60; }
+  100% { box-shadow: 0 0 0 0 #22c55e00; }
+}
+
+@keyframes flashRed {
+  0% { background: transparent; }
+  25% { background: #ef444430; }
+  50% { background: #ef444415; }
+  100% { background: transparent; }
+}
+
+@keyframes gateApprove {
+  0% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+  30% { box-shadow: 0 0 16px 4px #22c55e50; border-color: #22c55e; }
+  100% { opacity: 0; transform: scale(0.95); max-height: 0; padding: 0 12px; margin-bottom: 0; }
+}
+
+@keyframes stepComplete {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 12px 3px #22c55e50; }
+  100% { box-shadow: none; }
+}
+
+@keyframes bannerIn {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes confettiFall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(30px) rotate(360deg); opacity: 0; }
+}
+
+.banner-complete {
+  display: none;
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #22c55e15, #3b82f615);
+  border: 1px solid #22c55e40;
+  border-radius: 8px;
+  padding: 16px 24px;
+  margin: 8px 20px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #22c55e;
+  position: relative;
+  overflow: hidden;
+  animation: bannerIn 0.6s ease forwards;
+}
+
+.banner-complete.visible { display: block; }
+
+.sparkle-dot {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Replay button */
+.replay-btn {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 100;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+
+/* Preamble overlay */
+.preamble-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15, 23, 42, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.4s ease;
+}
+.preamble-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.preamble-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 40px 48px;
+  max-width: 480px;
+  text-align: center;
+}
+.preamble-card h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 16px;
+  letter-spacing: 0.02em;
+}
+.preamble-card h1 span {
+  color: #3b82f6;
+}
+.preamble-card p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #94a3b8;
+  margin-bottom: 28px;
+}
+.preamble-card button {
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  padding: 10px 28px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+.preamble-card button:hover {
+  background: #2563eb;
+}
+
+/* Annotation callouts */
+.annotation {
+  position: fixed;
+  z-index: 150;
+  background: #1e293b;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #e2e8f0;
+  max-width: 200px;
+  line-height: 1.4;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  white-space: normal;
+}
+.annotation.visible {
+  opacity: 1;
+}
+/* Arrow triangles — each annotation gets a direction class */
+.annotation::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 5px solid transparent;
+}
+.annotation.arrow-down::after {
+  top: 100%;
+  left: 20px;
+  border-top-color: #3b82f6;
+}
+.annotation.arrow-up::after {
+  bottom: 100%;
+  left: 20px;
+  border-bottom-color: #3b82f6;
+}
+.annotation.arrow-left::after {
+  top: 10px;
+  right: 100%;
+  border-right-color: #3b82f6;
+}
+.annotation.arrow-right::after {
+  top: 10px;
+  left: 100%;
+  border-left-color: #3b82f6;
+}
+
+/* Error count in header */
+.error-badge {
+  font-size: 10px;
+  background: #ef444430;
+  color: #ef4444;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 4px;
+  transition: all 0.3s;
+}
+</style>
+</head>
+<body>
+
+<!-- Preamble overlay -->
+<div class="preamble-overlay" id="preamble">
+  <div class="preamble-card">
+    <h1><span>V1</span> — Dashboard Grid</h1>
+    <p>Pipeline status across the top. Gates on the left for approval actions. Sessions on the right showing agent work history. Everything visible at once — no scrolling or tabs needed.</p>
+    <button onclick="dismissPreamble()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Annotation callouts -->
+<div class="annotation arrow-down" id="ann-step-complete">Step completes, turns green</div>
+<div class="annotation arrow-down" id="ann-gate-active">Gate blocks pipeline until approved</div>
+<div class="annotation arrow-left" id="ann-session-new">Agent session logged with file I/O stats</div>
+<div class="annotation arrow-left" id="ann-gate-approve">Human approves — pipeline resumes</div>
+<div class="annotation arrow-left" id="ann-error">Error detected during agent work</div>
+<div class="annotation arrow-up" id="ann-build-complete">All steps passed — build ships</div>
+
+<button class="replay-btn" onclick="replay()">Replay</button>
+
+<div class="header">
+  <span style="color: #3b82f6; font-weight: 700; letter-spacing: 0.05em;">OPS</span>
+  <span style="color: #475569; font-size: 11px;">Pipeline + Gates + Sessions in one view</span>
+  <span id="error-indicator" style="display: none;" class="error-badge">0 errors</span>
+</div>
+
+<div class="content">
+  <!-- Pipeline strip -->
+  <div class="pipeline-strip">
+    <h3 id="build-title">Active Build</h3>
+    <div class="pipeline-label">
+      <span class="feat">CORE-ASYNC-1</span>
+      <span class="agent">Claude</span>
+      <span id="step-label">step 4 of 8 &mdash; build</span>
+      <span class="time" id="elapsed-time">2m 32s</span>
+    </div>
+    <div class="steps" id="pipeline-steps">
+      <div class="step done" id="step-1">design</div>
+      <span class="arrow">&rarr;</span>
+      <div class="step done" id="step-2">prd</div>
+      <span class="arrow">&rarr;</span>
+      <div class="step done" id="step-3">arch</div>
+      <span class="arrow">&rarr;</span>
+      <div class="step active" id="step-4">build</div>
+      <span class="arrow">&rarr;</span>
+      <div class="step gate" id="step-5">gate</div>
+      <span class="arrow">&rarr;</span>
+      <div class="step pending" id="step-6">test</div>
+      <span class="arrow">&rarr;</span>
+      <div class="step pending" id="step-7">report</div>
+      <span class="arrow">&rarr;</span>
+      <div class="step pending" id="step-8">ship</div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress" style="width: 42%"></div></div>
+  </div>
+
+  <!-- Banner (hidden until build complete) -->
+  <div class="banner-complete" id="complete-banner">
+    Build complete &mdash; CORE-ASYNC-1 shipped successfully
+  </div>
+
+  <!-- Gates -->
+  <div class="gates-col">
+    <h3>Pending Gates <span class="badge" id="gate-count">2</span></h3>
+
+    <div class="gate-card" id="gate-1">
+      <div class="gate-header">
+        <span class="gate-feat">CORE-ASYNC-1</span>
+        <span class="gate-transition"><span class="from">build</span> &rarr; <span class="to">test</span></span>
+      </div>
+      <div class="gate-artifact">blueprint.md &mdash; <span class="pct">100%</span> complete &middot; 2,100 words</div>
+      <div class="gate-actions">
+        <button class="btn-approve" id="approve-1">Approve</button>
+        <button class="btn-revise">Revise</button>
+        <button class="btn-kill">Kill</button>
+      </div>
+    </div>
+
+    <div class="gate-card" id="gate-2">
+      <div class="gate-header">
+        <span class="gate-feat">GEN-REF-1</span>
+        <span class="gate-transition"><span class="from">plan</span> &rarr; <span class="to">implement</span></span>
+      </div>
+      <div class="gate-artifact">plan.md &mdash; <span class="pct">100%</span> complete &middot; 890 words</div>
+      <div class="gate-actions">
+        <button class="btn-approve" id="approve-2">Approve</button>
+        <button class="btn-revise">Revise</button>
+        <button class="btn-kill">Kill</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sessions -->
+  <div class="sessions-col">
+    <h3>Recent Sessions</h3>
+
+    <div id="sessions-list">
+      <div class="session-row">
+        <span class="session-agent claude">Claude</span>
+        <span class="session-feat">CORE-ASYNC-1</span>
+        <span class="session-duration">12m</span>
+        <div class="session-stats">
+          <span class="r">3r</span>
+          <span class="w">4w</span>
+          <span class="e">0e</span>
+        </div>
+      </div>
+      <div class="session-summary">Wrote design.md with problem statement, goals, and architecture options</div>
+
+      <div class="session-row">
+        <span class="session-agent codex">Codex</span>
+        <span class="session-feat">DIST-RELEASE-1</span>
+        <span class="session-duration">4m</span>
+        <div class="session-stats">
+          <span class="r">1r</span>
+          <span class="w">2w</span>
+          <span class="e">1e</span>
+        </div>
+      </div>
+      <div class="session-summary">Fixed pyproject.toml dependency references, 1 test failure</div>
+
+      <div class="session-row">
+        <span class="session-agent claude">Claude</span>
+        <span class="session-feat">GEN-REF-1</span>
+        <span class="session-duration">8m</span>
+        <div class="session-stats">
+          <span class="r">5r</span>
+          <span class="w">3w</span>
+          <span class="e">0e</span>
+        </div>
+      </div>
+      <div class="session-summary">Completed plan.md with 12 tasks, acceptance criteria for each</div>
+
+      <div class="session-row">
+        <span class="session-agent claude">Claude</span>
+        <span class="session-feat">PRE-ASYNC-REF-1</span>
+        <span class="session-duration">6m</span>
+        <div class="session-stats">
+          <span class="r">4r</span>
+          <span class="w">1w</span>
+          <span class="e">0e</span>
+        </div>
+      </div>
+      <div class="session-summary">Analyzed sync I/O boundaries, wrote refactor strategy doc</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let timers = [];
+let demoStarted = false;
+
+function clearTimers() {
+  timers.forEach(t => clearTimeout(t));
+  timers = [];
+}
+
+function schedule(fn, delay) {
+  timers.push(setTimeout(fn, delay));
+}
+
+function dismissPreamble() {
+  const overlay = document.getElementById('preamble');
+  overlay.classList.add('hidden');
+  setTimeout(() => { overlay.style.display = 'none'; }, 400);
+  if (!demoStarted) {
+    demoStarted = true;
+    setTimeout(runScenario, 300);
+  }
+}
+
+// --- Annotation helpers ---
+function showAnnotation(id, targetEl, arrowDir, offsetX, offsetY) {
+  const ann = document.getElementById(id);
+  if (!targetEl) return;
+  const rect = targetEl.getBoundingClientRect();
+
+  // Position relative to target based on arrow direction
+  if (arrowDir === 'down') {
+    // Annotation sits above the target
+    ann.style.left = (rect.left + offsetX) + 'px';
+    ann.style.top = (rect.top - ann.offsetHeight - 10 + offsetY) + 'px';
+  } else if (arrowDir === 'up') {
+    // Annotation sits below the target
+    ann.style.left = (rect.left + offsetX) + 'px';
+    ann.style.top = (rect.bottom + 10 + offsetY) + 'px';
+  } else if (arrowDir === 'left') {
+    // Annotation sits to the right of the target
+    ann.style.left = (rect.right + 10 + offsetX) + 'px';
+    ann.style.top = (rect.top + offsetY) + 'px';
+  } else if (arrowDir === 'right') {
+    // Annotation sits to the left of the target
+    ann.style.left = (rect.left - ann.offsetWidth - 10 + offsetX) + 'px';
+    ann.style.top = (rect.top + offsetY) + 'px';
+  }
+
+  ann.classList.add('visible');
+}
+
+function hideAnnotation(id) {
+  document.getElementById(id).classList.remove('visible');
+}
+
+function hideAllAnnotations() {
+  document.querySelectorAll('.annotation').forEach(a => a.classList.remove('visible'));
+}
+
+function setStepClass(id, cls) {
+  const el = document.getElementById(id);
+  el.className = 'step ' + cls;
+  if (cls === 'done') {
+    el.style.animation = 'stepComplete 0.6s ease';
+    setTimeout(() => el.style.animation = '', 700);
+  }
+}
+
+function setProgress(pct) {
+  document.getElementById('progress').style.width = pct + '%';
+}
+
+function setStepLabel(text) {
+  document.getElementById('step-label').innerHTML = text;
+}
+
+function addSession(agent, agentClass, feat, duration, r, w, e, summary) {
+  const list = document.getElementById('sessions-list');
+
+  const summaryEl = document.createElement('div');
+  summaryEl.className = 'session-summary';
+  summaryEl.textContent = summary;
+
+  const row = document.createElement('div');
+  row.className = 'session-row';
+  row.style.animation = 'slideIn 0.5s ease forwards';
+  row.innerHTML = `
+    <span class="session-agent ${agentClass}">${agent}</span>
+    <span class="session-feat">${feat}</span>
+    <span class="session-duration">${duration}</span>
+    <div class="session-stats">
+      <span class="r">${r}r</span>
+      <span class="w">${w}w</span>
+      <span class="e">${e}e</span>
+    </div>
+  `;
+
+  list.insertBefore(summaryEl, list.firstChild);
+  list.insertBefore(row, list.firstChild);
+}
+
+function approveGate(gateId, callback) {
+  const gate = document.getElementById(gateId);
+  // Simulate button press visual
+  const btn = gate.querySelector('.btn-approve');
+  btn.style.background = '#22c55e40';
+  btn.style.color = '#fff';
+
+  setTimeout(() => {
+    gate.style.animation = 'gateApprove 0.7s ease forwards';
+    setTimeout(() => {
+      gate.style.display = 'none';
+      if (callback) callback();
+    }, 700);
+  }, 300);
+}
+
+function updateGateCount(n) {
+  const badge = document.getElementById('gate-count');
+  badge.textContent = n;
+  if (n === 0) {
+    badge.style.background = '#22c55e30';
+    badge.style.color = '#22c55e';
+  }
+}
+
+function flashSessionError(row) {
+  row.style.animation = 'flashRed 0.8s ease';
+  setTimeout(() => row.style.animation = '', 900);
+}
+
+function showErrorCount(n) {
+  const indicator = document.getElementById('error-indicator');
+  indicator.style.display = 'inline';
+  indicator.textContent = n + ' error' + (n > 1 ? 's' : '');
+}
+
+function showCompleteBanner() {
+  const banner = document.getElementById('complete-banner');
+  banner.classList.add('visible');
+
+  // Sparkle/confetti effect
+  const colors = ['#22c55e', '#3b82f6', '#f59e0b', '#a78bfa', '#f472b6', '#34d399'];
+  for (let i = 0; i < 24; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'sparkle-dot';
+    dot.style.background = colors[i % colors.length];
+    dot.style.left = (Math.random() * 100) + '%';
+    dot.style.top = (Math.random() * 100) + '%';
+    dot.style.animation = `sparkle ${0.4 + Math.random() * 0.6}s ease ${Math.random() * 0.8}s`;
+    banner.appendChild(dot);
+  }
+  // Second wave with falling confetti
+  for (let i = 0; i < 16; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'sparkle-dot';
+    dot.style.background = colors[i % colors.length];
+    dot.style.left = (Math.random() * 100) + '%';
+    dot.style.top = '-4px';
+    dot.style.width = (3 + Math.random() * 4) + 'px';
+    dot.style.height = (3 + Math.random() * 4) + 'px';
+    dot.style.animation = `confettiFall ${0.8 + Math.random() * 1}s ease ${0.3 + Math.random() * 1}s forwards`;
+    banner.appendChild(dot);
+  }
+}
+
+function resetState() {
+  // Reset pipeline steps
+  setStepClass('step-1', 'done');
+  setStepClass('step-2', 'done');
+  setStepClass('step-3', 'done');
+  setStepClass('step-4', 'active');
+  setStepClass('step-5', 'gate');
+  setStepClass('step-6', 'pending');
+  setStepClass('step-7', 'pending');
+  setStepClass('step-8', 'pending');
+  setProgress(42);
+  setStepLabel('step 4 of 8 &mdash; build');
+  document.getElementById('build-title').textContent = 'Active Build';
+
+  // Reset gates
+  document.getElementById('gate-1').style = '';
+  document.getElementById('gate-1').querySelector('.btn-approve').style = '';
+  document.getElementById('gate-2').style = '';
+  document.getElementById('gate-2').querySelector('.btn-approve').style = '';
+  updateGateCount(2);
+  document.getElementById('gate-count').style.background = '#ef444430';
+  document.getElementById('gate-count').style.color = '#ef4444';
+
+  // Reset error indicator
+  document.getElementById('error-indicator').style.display = 'none';
+
+  // Reset sessions — remove any added ones (keep original 4 rows + 4 summaries = 8 children)
+  const list = document.getElementById('sessions-list');
+  while (list.children.length > 8) {
+    list.removeChild(list.firstChild);
+  }
+
+  // Reset banner
+  const banner = document.getElementById('complete-banner');
+  banner.classList.remove('visible');
+  banner.querySelectorAll('.sparkle-dot').forEach(d => d.remove());
+
+  // Reset annotations
+  hideAllAnnotations();
+}
+
+function runScenario() {
+  clearTimers();
+  resetState();
+
+  // (3s) Step 4 completes, step 5 (gate) becomes active amber
+  schedule(() => {
+    setStepClass('step-4', 'done');
+    setStepClass('step-5', 'gate'); // gate becomes active (amber glow)
+    document.getElementById('step-5').style.boxShadow = '0 0 10px #f59e0b40';
+    setProgress(54);
+    setStepLabel('step 5 of 8 &mdash; gate (awaiting approval)');
+
+    // Annotation: step completes
+    showAnnotation('ann-step-complete', document.getElementById('step-4'), 'down', -10, 0);
+  }, 3000);
+
+  // (5s) Hide step-complete annotation, show gate-active annotation
+  schedule(() => {
+    hideAnnotation('ann-step-complete');
+    showAnnotation('ann-gate-active', document.getElementById('step-5'), 'down', -20, 0);
+  }, 5000);
+
+  // (5.5s) New session slides in — "Codex · CORE-ASYNC-1 · blueprint completed"
+  schedule(() => {
+    addSession('Codex', 'codex', 'CORE-ASYNC-1', '3m', 2, 6, 0, 'Blueprint completed — 8 components scaffolded, all contracts validated');
+  }, 5500);
+
+  // (6s) Show session annotation
+  schedule(() => {
+    hideAnnotation('ann-gate-active');
+    const list = document.getElementById('sessions-list');
+    const topRow = list.querySelector('.session-row');
+    showAnnotation('ann-session-new', topRow, 'left', 0, -4);
+  }, 6000);
+
+  // (7.5s) Hide session annotation
+  schedule(() => {
+    hideAnnotation('ann-session-new');
+  }, 7500);
+
+  // (8s) User approves first gate — gate card fades out, count drops to 1
+  schedule(() => {
+    // Show gate-approve annotation before the gate disappears
+    showAnnotation('ann-gate-approve', document.getElementById('gate-1'), 'left', 0, 0);
+    approveGate('gate-1', () => {
+      updateGateCount(1);
+    });
+  }, 8500);
+
+  // (10.5s) Hide gate-approve annotation
+  schedule(() => {
+    hideAnnotation('ann-gate-approve');
+  }, 10500);
+
+  // (12s) Pipeline advances past gate — step 5 done, step 6 active blue
+  schedule(() => {
+    setStepClass('step-5', 'done');
+    document.getElementById('step-5').style.boxShadow = '';
+    setStepClass('step-6', 'active');
+    setProgress(68);
+    setStepLabel('step 6 of 8 &mdash; test');
+  }, 12000);
+
+  // (15s) New session — "Claude · CORE-ASYNC-1 · test step started"
+  schedule(() => {
+    addSession('Claude', 'claude', 'CORE-ASYNC-1', '1m', 8, 0, 0, 'Test step started — running integration suite against staging');
+  }, 15000);
+
+  // (18s) Error appears — session row flashes red, error count increments
+  schedule(() => {
+    const list = document.getElementById('sessions-list');
+    const topRow = list.querySelector('.session-row');
+    flashSessionError(topRow);
+    // Update the error count in that session row
+    const eSpan = topRow.querySelector('.e');
+    eSpan.textContent = '1e';
+    showErrorCount(1);
+
+    // Annotation: error detected
+    showAnnotation('ann-error', document.getElementById('error-indicator'), 'left', 0, -6);
+  }, 18000);
+
+  // (20.5s) Hide error annotation
+  schedule(() => {
+    hideAnnotation('ann-error');
+  }, 20500);
+
+  // (22s) Second gate approved
+  schedule(() => {
+    approveGate('gate-2', () => {
+      updateGateCount(0);
+    });
+  }, 22000);
+
+  // (24s) Pipeline continues — step 6 done, step 7 active
+  schedule(() => {
+    setStepClass('step-6', 'done');
+    setStepClass('step-7', 'active');
+    setProgress(82);
+    setStepLabel('step 7 of 8 &mdash; report');
+  }, 24000);
+
+  // (25.5s) Step 7 done, step 8 active
+  schedule(() => {
+    setStepClass('step-7', 'done');
+    setStepClass('step-8', 'active');
+    setProgress(92);
+    setStepLabel('step 8 of 8 &mdash; ship');
+  }, 25500);
+
+  // (27s) All steps complete — banner appears
+  schedule(() => {
+    setStepClass('step-8', 'done');
+    setProgress(100);
+    setStepLabel('complete &mdash; all 8 steps passed');
+    document.getElementById('build-title').textContent = 'Build Complete';
+    document.getElementById('progress').style.background = '#22c55e';
+    showCompleteBanner();
+
+    // Annotation: build complete
+    setTimeout(() => {
+      showAnnotation('ann-build-complete', document.getElementById('complete-banner'), 'up', 40, 0);
+    }, 700);
+  }, 27000);
+
+  // (30s) Hide final annotation
+  schedule(() => {
+    hideAnnotation('ann-build-complete');
+  }, 30000);
+}
+
+// Show preamble on load — don't auto-play
+window.addEventListener('DOMContentLoaded', () => {
+  // Wait for preamble dismissal
+});
+
+function replay() {
+  // Hide preamble if somehow visible
+  const overlay = document.getElementById('preamble');
+  overlay.classList.add('hidden');
+  overlay.style.display = 'none';
+  runScenario();
+}
+</script>
+
+</body>
+</html>

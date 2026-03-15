@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ops V7b — Context Panel</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Header ── */
+.header { background: #1e293b; border-bottom: 1px solid #334155; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-left h1 { font-size: 14px; font-weight: 700; color: #e2e8f0; letter-spacing: 0.05em; }
+.header-stats { display: flex; gap: 14px; }
+.header-stat { font-size: 11px; color: #94a3b8; }
+.header-stat .val { color: #e2e8f0; font-weight: 600; }
+.header-stat .val.amber { color: #f59e0b; }
+.header-stat .val.red { color: #ef4444; }
+
+.replay-btn { font-size: 11px; padding: 5px 14px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; cursor: pointer; transition: all 0.2s; display: none; }
+.replay-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+.replay-btn.visible { display: block; }
+
+/* ── Main layout ── */
+.main { flex: 1; display: flex; overflow: hidden; }
+
+/* ── Left: Feature list ── */
+.feature-list { width: 60%; border-right: 1px solid #334155; overflow-y: auto; padding: 8px 0; flex-shrink: 0; }
+
+.feature-row { height: 44px; display: flex; align-items: center; padding: 0 16px; cursor: pointer; transition: background 0.15s; border-left: 3px solid transparent; position: relative; }
+.feature-row:hover { background: #1e293b60; }
+.feature-row.selected { background: #1e293b; border-left-color: #3b82f6; }
+.feature-row.complete { opacity: 0.6; }
+.feature-row.complete .row-progress-fill { background: #22c55e; }
+.feature-row.slide-in { animation: rowSlideIn 0.5s ease both; }
+
+@keyframes rowSlideIn { from { opacity: 0; transform: translateY(-20px); height: 0; } to { opacity: 1; transform: translateY(0); height: 44px; } }
+
+.row-status { width: 8px; height: 8px; border-radius: 50%; margin-right: 12px; flex-shrink: 0; }
+.row-status.active { background: #3b82f6; box-shadow: 0 0 6px #3b82f640; }
+.row-status.complete { background: #22c55e; }
+.row-status.error { background: #ef4444; box-shadow: 0 0 6px #ef444440; }
+.row-status.pending { background: #475569; }
+
+.row-name { font-size: 13px; font-weight: 600; color: #e2e8f0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.row-progress { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.row-progress-bar { display: flex; gap: 2px; }
+.row-progress-block { width: 10px; height: 10px; border-radius: 2px; background: #334155; transition: background 0.4s; }
+.row-progress-block.filled { background: #3b82f6; }
+.row-progress-block.complete { background: #22c55e; }
+.row-progress-label { font-size: 11px; color: #64748b; min-width: 36px; text-align: right; }
+
+/* ── Right: Detail panel ── */
+.detail-panel { width: 40%; border-left: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+.detail-content { position: absolute; inset: 0; padding: 16px 20px; overflow-y: auto; transition: opacity 0.2s ease; }
+.detail-content.fade-out { opacity: 0; pointer-events: none; }
+.detail-content.fade-in { opacity: 1; }
+
+.detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.detail-title { font-size: 16px; font-weight: 700; color: #e2e8f0; }
+.detail-title.complete-title { color: #22c55e; }
+.close-btn { width: 24px; height: 24px; border-radius: 4px; border: 1px solid #334155; background: transparent; color: #64748b; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.close-btn:hover { border-color: #94a3b8; color: #94a3b8; }
+
+/* Pipeline visualization */
+.section-label { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; font-weight: 600; }
+
+.pipeline { display: flex; align-items: center; gap: 0; margin-bottom: 24px; padding: 12px 0; }
+.pipe-step { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; }
+.pipe-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #334155; background: #0f172a; transition: all 0.4s; display: flex; align-items: center; justify-content: center; }
+.pipe-dot.done { border-color: #22c55e; background: #22c55e30; }
+.pipe-dot.done::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+.pipe-dot.active { border-color: #3b82f6; background: #3b82f630; box-shadow: 0 0 8px #3b82f640; animation: pipePulse 2s ease-in-out infinite; }
+.pipe-dot.active::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; }
+.pipe-dot.gate { border-color: #f59e0b; background: #f59e0b20; box-shadow: 0 0 8px #f59e0b30; animation: gateGlow 2s ease-in-out infinite; }
+.pipe-dot.gate::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; }
+.pipe-dot.pending { border-color: #334155; background: #0f172a; }
+.pipe-dot.flash-green { animation: dotFlashGreen 0.8s ease; }
+
+@keyframes pipePulse { 0%, 100% { box-shadow: 0 0 6px #3b82f620; } 50% { box-shadow: 0 0 14px #3b82f650; } }
+@keyframes gateGlow { 0%, 100% { box-shadow: 0 0 6px #f59e0b20; } 50% { box-shadow: 0 0 14px #f59e0b50; } }
+@keyframes dotFlashGreen { 0% { border-color: #3b82f6; background: #3b82f630; box-shadow: 0 0 0 transparent; } 50% { border-color: #22c55e; background: #22c55e40; box-shadow: 0 0 16px #22c55e60; } 100% { border-color: #22c55e; background: #22c55e30; box-shadow: 0 0 0 transparent; } }
+
+.pipe-label { font-size: 8px; color: #64748b; white-space: nowrap; }
+.pipe-line { width: 20px; height: 2px; background: #334155; transition: background 0.4s; margin-bottom: 20px; }
+.pipe-line.done { background: #22c55e60; }
+
+/* Gate section */
+.gate-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 16px; transition: all 0.5s; }
+.gate-card.approved { border-color: #22c55e40; }
+.gate-card.fade-out { opacity: 0; height: 0; padding: 0; margin: 0; overflow: hidden; }
+.gate-name { font-size: 12px; font-weight: 600; color: #f59e0b; margin-bottom: 6px; }
+.gate-artifact { font-size: 11px; color: #94a3b8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.gate-artifact .pct { color: #22c55e; font-weight: 600; }
+.gate-actions { display: flex; gap: 8px; }
+.gate-btn { font-size: 11px; padding: 4px 12px; border-radius: 4px; border: 1px solid; cursor: pointer; transition: all 0.2s; font-weight: 500; }
+.gate-btn.approve { border-color: #22c55e60; background: #22c55e15; color: #22c55e; }
+.gate-btn.approve:hover { background: #22c55e30; }
+.gate-btn.revise { border-color: #f59e0b40; background: transparent; color: #f59e0b; }
+.gate-btn.revise:hover { background: #f59e0b15; }
+.gate-approved-text { font-size: 11px; color: #22c55e; font-weight: 600; display: none; }
+
+/* Sessions table */
+.sessions-table { width: 100%; margin-bottom: 16px; }
+.sessions-table th { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; padding: 4px 8px 6px; border-bottom: 1px solid #33415540; font-weight: 600; }
+.sessions-table td { font-size: 11px; color: #94a3b8; padding: 6px 8px; border-bottom: 1px solid #33415520; }
+.sessions-table .agent-name { color: #e2e8f0; font-weight: 500; }
+.sessions-table .stat-r { color: #3b82f6; }
+.sessions-table .stat-w { color: #22c55e; }
+.sessions-table .stat-e { color: #ef4444; }
+.session-row { transition: all 0.4s; }
+.session-row.slide-in { animation: sessionSlide 0.4s ease both; }
+@keyframes sessionSlide { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Errors list */
+.error-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; margin-bottom: 6px; transition: all 0.3s; }
+.error-item.flash-red { animation: errorFlash 0.8s ease; }
+@keyframes errorFlash { 0% { border-color: #334155; } 30% { border-color: #ef444480; box-shadow: 0 0 10px #ef444430; } 100% { border-color: #334155; } }
+.error-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; flex-shrink: 0; }
+.error-text { font-size: 11px; color: #f87171; }
+.error-file { font-size: 10px; color: #64748b; margin-left: auto; }
+
+/* ── Replay overlay ── */
+.replay-overlay { position: fixed; inset: 0; background: #0f172af0; display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+.replay-overlay.visible { opacity: 1; pointer-events: all; }
+.replay-overlay button { font-size: 16px; padding: 12px 32px; border-radius: 8px; border: 1px solid #3b82f6; background: #3b82f620; color: #3b82f6; cursor: pointer; transition: all 0.2s; }
+.replay-overlay button:hover { background: #3b82f640; }
+
+/* ── Preamble overlay ── */
+.preamble-overlay { position: fixed; inset: 0; background: #1e293b; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; transition: opacity 0.5s; }
+.preamble-overlay.hidden { opacity: 0; pointer-events: none; }
+.preamble-tag { font-size: 11px; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; margin-bottom: 12px; }
+.preamble-title { font-size: 28px; font-weight: 700; color: #e2e8f0; margin-bottom: 16px; }
+.preamble-desc { font-size: 14px; color: #94a3b8; max-width: 480px; text-align: center; line-height: 1.6; margin-bottom: 32px; }
+.preamble-start { font-size: 14px; padding: 10px 28px; border-radius: 8px; border: 1px solid #3b82f6; background: #3b82f620; color: #3b82f6; cursor: pointer; transition: all 0.2s; font-weight: 600; }
+.preamble-start:hover { background: #3b82f640; }
+
+/* ── Annotation callouts ── */
+.callout { position: fixed; background: #1e293b; border: 1px solid #3b82f6; border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #e2e8f0; max-width: 200px; line-height: 1.4; z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.3s; box-shadow: 0 4px 12px #0f172a80; }
+.callout.visible { opacity: 1; }
+.callout::before { content: ''; position: absolute; width: 6px; height: 6px; background: #3b82f6; border-radius: 50%; }
+.callout.left-panel::before { right: -10px; top: 50%; transform: translateY(-50%); }
+.callout.right-panel::before { left: -10px; top: 50%; transform: translateY(-50%); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>OPS</h1>
+    <div class="header-stats">
+      <span class="header-stat"><span class="val" id="stat-builds">4</span> builds</span>
+      <span class="header-stat"><span class="val amber" id="stat-gates">2</span> gates</span>
+      <span class="header-stat"><span class="val red" id="stat-errors">1</span> err</span>
+    </div>
+  </div>
+  <button class="replay-btn" id="replayBtn" onclick="replay()">Replay</button>
+</div>
+
+<div class="main">
+  <div class="feature-list" id="featureList"></div>
+  <div class="detail-panel" id="detailPanel"></div>
+</div>
+
+<div class="replay-overlay" id="replayOverlay">
+  <button onclick="replay()">Replay</button>
+</div>
+
+<div class="preamble-overlay" id="preambleOverlay">
+  <span class="preamble-tag">Mockup</span>
+  <h2 class="preamble-title">V7B &mdash; Context Panel</h2>
+  <p class="preamble-desc">Feature rows on the left, detail panel on the right &mdash; mirrors the existing cockpit pattern from other views. Click a feature to see its full pipeline, gates, sessions, and errors in the detail panel. Familiar split-pane layout.</p>
+  <button class="preamble-start" onclick="startDemo()">Start Demo &rarr;</button>
+</div>
+
+<div class="callout left-panel" id="callout" style="display:none;"></div>
+
+<script>
+// ── Feature data model ──
+const features = {
+  'CORE-ASYNC-1': {
+    status: 'active', steps: 8, completed: 5, gateAt: 5,
+    pipeline: ['scaffold','blueprint','codegen','build','gate:test','test','validate','deploy'],
+    pipeState: ['done','done','done','done','gate','pending','pending','pending'],
+    gate: { name: 'build \u2192 test', artifact: 'blueprint.md', pct: '100%' },
+    sessions: [
+      { agent: 'Claude', time: '12m', r: 3, w: 4, e: 0 },
+      { agent: 'Codex', time: '4m', r: 1, w: 2, e: 1 }
+    ],
+    errors: [{ text: 'TypeError in module.py', file: 'src/module.py:42' }]
+  },
+  'GEN-REF-1': {
+    status: 'active', steps: 10, completed: 8, gateAt: 8,
+    pipeline: ['scaffold','blueprint','codegen','build','test','validate','gate:review','review','integrate','deploy'],
+    pipeState: ['done','done','done','done','done','done','done','gate','pending','pending'],
+    gate: { name: 'validate \u2192 review', artifact: 'spec.md', pct: '95%' },
+    sessions: [
+      { agent: 'Claude', time: '22m', r: 8, w: 6, e: 0 },
+      { agent: 'Codex', time: '8m', r: 3, w: 4, e: 2 }
+    ],
+    errors: [
+      { text: 'ImportError: missing dep', file: 'lib/gen.py:17' },
+      { text: 'AssertionError in test_ref', file: 'tests/test_ref.py:89' }
+    ]
+  },
+  'DIST-RELEASE': {
+    status: 'complete', steps: 7, completed: 7, gateAt: -1,
+    pipeline: ['scaffold','blueprint','codegen','build','test','validate','deploy'],
+    pipeState: ['done','done','done','done','done','done','done'],
+    gate: null,
+    sessions: [
+      { agent: 'Claude', time: '34m', r: 12, w: 9, e: 0 }
+    ],
+    errors: []
+  },
+  'PRE-ASYNC-1': {
+    status: 'active', steps: 8, completed: 2, gateAt: -1,
+    pipeline: ['scaffold','blueprint','codegen','build','gate:test','test','validate','deploy'],
+    pipeState: ['done','done','pending','pending','pending','pending','pending','pending'],
+    gate: null,
+    sessions: [
+      { agent: 'Claude', time: '3m', r: 2, w: 1, e: 0 }
+    ],
+    errors: []
+  }
+};
+
+let selectedFeature = 'CORE-ASYNC-1';
+let currentDetailEl = null;
+
+function renderFeatureList() {
+  const list = document.getElementById('featureList');
+  list.innerHTML = '';
+  Object.entries(features).forEach(([id, f]) => {
+    const row = document.createElement('div');
+    row.className = 'feature-row' + (id === selectedFeature ? ' selected' : '') + (f.status === 'complete' ? ' complete' : '');
+    row.dataset.id = id;
+    row.onclick = () => selectFeature(id);
+
+    const statusCls = f.status === 'complete' ? 'complete' : (f.errors && f.errors.length > 0 ? 'error' : 'active');
+    let blocks = '';
+    for (let i = 0; i < f.steps; i++) {
+      const cls = i < f.completed ? (f.status === 'complete' ? 'complete' : 'filled') : '';
+      blocks += `<div class="row-progress-block ${cls}"></div>`;
+    }
+    const label = f.status === 'complete' ? 'done' : `${f.completed}/${f.steps}`;
+
+    row.innerHTML = `
+      <div class="row-status ${statusCls}"></div>
+      <span class="row-name">${id}</span>
+      <div class="row-progress">
+        <div class="row-progress-bar">${blocks}</div>
+        <span class="row-progress-label">${label}</span>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function buildDetailHTML(id) {
+  const f = features[id];
+  const isComplete = f.status === 'complete' && f.completed === f.steps;
+
+  let pipeHTML = '<div class="pipeline">';
+  f.pipeState.forEach((s, i) => {
+    const name = f.pipeline[i].replace('gate:', '');
+    let dotCls = s;
+    pipeHTML += `<div class="pipe-step"><div class="pipe-dot ${dotCls}" data-step="${i}"></div><span class="pipe-label">${name}</span></div>`;
+    if (i < f.pipeState.length - 1) {
+      const lineDone = s === 'done' ? 'done' : '';
+      pipeHTML += `<div class="pipe-line ${lineDone}"></div>`;
+    }
+  });
+  pipeHTML += '</div>';
+
+  let gateHTML = '';
+  if (f.gate) {
+    gateHTML = `
+      <div class="section-label">Pending Gate</div>
+      <div class="gate-card" data-feature="${id}">
+        <div class="gate-name">Gate: ${f.gate.name}</div>
+        <div class="gate-artifact">${f.gate.artifact} <span class="pct">${f.gate.pct}</span></div>
+        <div class="gate-actions">
+          <button class="gate-btn approve" onclick="approveGate('${id}')">Approve</button>
+          <button class="gate-btn revise">Revise</button>
+        </div>
+        <div class="gate-approved-text">Approved</div>
+      </div>
+    `;
+  }
+
+  let sessHTML = '<div class="section-label">Sessions</div><table class="sessions-table"><thead><tr><th>Agent</th><th>Time</th><th>Activity</th></tr></thead><tbody>';
+  f.sessions.forEach(s => {
+    let activity = `<span class="stat-r">${s.r}r</span> <span class="stat-w">${s.w}w</span>`;
+    if (s.e > 0) activity += ` <span class="stat-e">${s.e}e</span>`;
+    sessHTML += `<tr class="session-row"><td class="agent-name">${s.agent}</td><td>${s.time}</td><td>${activity}</td></tr>`;
+  });
+  sessHTML += '</tbody></table>';
+
+  let errHTML = '';
+  if (f.errors.length > 0) {
+    errHTML = '<div class="section-label">Errors</div>';
+    f.errors.forEach(e => {
+      errHTML += `<div class="error-item"><div class="error-dot"></div><span class="error-text">${e.text}</span><span class="error-file">${e.file}</span></div>`;
+    });
+  }
+
+  const titleCls = isComplete ? 'detail-title complete-title' : 'detail-title';
+  const titleText = isComplete ? `${id} \u2014 Build Complete \u2713` : id;
+
+  return `
+    <div class="detail-header">
+      <span class="${titleCls}">${titleText}</span>
+      <button class="close-btn">\u00d7</button>
+    </div>
+    <div class="section-label">Pipeline</div>
+    ${pipeHTML}
+    ${gateHTML}
+    ${sessHTML}
+    ${errHTML}
+  `;
+}
+
+function selectFeature(id, skipAnim) {
+  if (id === selectedFeature && !skipAnim) return;
+  selectedFeature = id;
+
+  document.querySelectorAll('.feature-row').forEach(r => {
+    r.classList.toggle('selected', r.dataset.id === id);
+  });
+
+  const panel = document.getElementById('detailPanel');
+  if (currentDetailEl) {
+    currentDetailEl.classList.add('fade-out');
+    currentDetailEl.classList.remove('fade-in');
+    const old = currentDetailEl;
+    setTimeout(() => old.remove(), 200);
+  }
+
+  const content = document.createElement('div');
+  content.className = 'detail-content fade-out';
+  content.innerHTML = buildDetailHTML(id);
+  panel.appendChild(content);
+
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      content.classList.remove('fade-out');
+      content.classList.add('fade-in');
+    }, 20);
+  });
+  currentDetailEl = content;
+}
+
+function approveGate(id) {
+  const card = document.querySelector(`.gate-card[data-feature="${id}"]`);
+  if (!card) return;
+  const btns = card.querySelector('.gate-actions');
+  const txt = card.querySelector('.gate-approved-text');
+  btns.style.display = 'none';
+  txt.style.display = 'block';
+  card.classList.add('approved');
+
+  const f = features[id];
+  if (f.gate) {
+    const gateIdx = f.pipeState.indexOf('gate');
+    if (gateIdx >= 0) {
+      f.pipeState[gateIdx] = 'done';
+      if (gateIdx + 1 < f.pipeState.length) f.pipeState[gateIdx + 1] = 'active';
+      f.completed = f.pipeState.filter(s => s === 'done').length;
+    }
+    f.gate = null;
+  }
+
+  setTimeout(() => {
+    card.style.transition = 'all 0.4s';
+    card.style.opacity = '0';
+    card.style.height = '0';
+    card.style.padding = '0';
+    card.style.margin = '0';
+    card.style.overflow = 'hidden';
+  }, 600);
+
+  // Update pipeline dots
+  setTimeout(() => {
+    selectFeature(id, true);
+    renderFeatureList();
+  }, 400);
+}
+
+function addSession(id, session) {
+  features[id].sessions.unshift(session);
+  if (selectedFeature === id) {
+    selectFeature(id, true);
+    setTimeout(() => {
+      const rows = document.querySelectorAll('.session-row');
+      if (rows.length > 0) rows[0].classList.add('slide-in');
+    }, 50);
+  }
+}
+
+function advanceStep(id) {
+  const f = features[id];
+  const nextPending = f.pipeState.findIndex(s => s === 'pending' || s === 'active');
+  if (nextPending >= 0) {
+    if (f.pipeState[nextPending] === 'active') {
+      f.pipeState[nextPending] = 'done';
+      if (nextPending + 1 < f.pipeState.length && f.pipeState[nextPending + 1] !== 'gate') {
+        f.pipeState[nextPending + 1] = 'active';
+      } else if (nextPending + 1 < f.pipeState.length && f.pipeState[nextPending + 1] === 'gate') {
+        // gate stays
+      }
+    } else {
+      f.pipeState[nextPending] = 'active';
+    }
+    f.completed = f.pipeState.filter(s => s === 'done').length;
+    renderFeatureList();
+    if (selectedFeature === id) selectFeature(id, true);
+  }
+}
+
+function completeStep(id, stepIdx) {
+  const f = features[id];
+  f.pipeState[stepIdx] = 'done';
+  if (stepIdx + 1 < f.pipeState.length && f.pipeState[stepIdx + 1] === 'pending') {
+    f.pipeState[stepIdx + 1] = 'active';
+  }
+  f.completed = f.pipeState.filter(s => s === 'done').length;
+
+  if (f.completed === f.steps) {
+    f.status = 'complete';
+  }
+
+  renderFeatureList();
+  if (selectedFeature === id) selectFeature(id, true);
+}
+
+function flashError(id) {
+  if (selectedFeature === id) {
+    setTimeout(() => {
+      const items = document.querySelectorAll('.error-item');
+      items.forEach(i => i.classList.add('flash-red'));
+    }, 100);
+  }
+}
+
+// ── Callout system ──
+const calloutEl = document.getElementById('callout');
+let calloutTimer = null;
+
+function showCallout(text, position, panelSide, duration) {
+  duration = duration || 2500;
+  clearTimeout(calloutTimer);
+  calloutEl.style.display = 'block';
+  calloutEl.textContent = text;
+  calloutEl.className = 'callout ' + panelSide;
+
+  calloutEl.style.top = position.top || 'auto';
+  calloutEl.style.bottom = position.bottom || 'auto';
+  calloutEl.style.left = position.left || 'auto';
+  calloutEl.style.right = position.right || 'auto';
+
+  requestAnimationFrame(() => calloutEl.classList.add('visible'));
+  calloutTimer = setTimeout(() => {
+    calloutEl.classList.remove('visible');
+  }, duration);
+}
+
+// ── Animation sequence ──
+let animTimeout = null;
+const animTimeouts = [];
+
+function clearAnims() {
+  animTimeouts.forEach(t => clearTimeout(t));
+  animTimeouts.length = 0;
+}
+
+function at(ms, fn) {
+  animTimeouts.push(setTimeout(fn, ms));
+}
+
+function runAnimation() {
+  clearAnims();
+  clearTimeout(calloutTimer);
+  calloutEl.classList.remove('visible');
+  document.getElementById('replayBtn').classList.remove('visible');
+  document.getElementById('replayOverlay').classList.remove('visible');
+  document.getElementById('preambleOverlay').classList.add('hidden');
+
+  // Reset state
+  features['CORE-ASYNC-1'].pipeState = ['done','done','done','done','gate','pending','pending','pending'];
+  features['CORE-ASYNC-1'].completed = 4;
+  features['CORE-ASYNC-1'].status = 'active';
+  features['CORE-ASYNC-1'].gate = { name: 'build \u2192 test', artifact: 'blueprint.md', pct: '100%' };
+  features['CORE-ASYNC-1'].sessions = [
+    { agent: 'Claude', time: '12m', r: 3, w: 4, e: 0 },
+    { agent: 'Codex', time: '4m', r: 1, w: 2, e: 1 }
+  ];
+  features['CORE-ASYNC-1'].errors = [{ text: 'TypeError in module.py', file: 'src/module.py:42' }];
+
+  features['GEN-REF-1'].pipeState = ['done','done','done','done','done','done','done','gate','pending','pending'];
+  features['GEN-REF-1'].completed = 7;
+  features['GEN-REF-1'].status = 'active';
+  features['GEN-REF-1'].gate = { name: 'validate \u2192 review', artifact: 'spec.md', pct: '95%' };
+  features['GEN-REF-1'].sessions = [
+    { agent: 'Claude', time: '22m', r: 8, w: 6, e: 0 },
+    { agent: 'Codex', time: '8m', r: 3, w: 4, e: 2 }
+  ];
+  features['GEN-REF-1'].errors = [
+    { text: 'ImportError: missing dep', file: 'lib/gen.py:17' },
+    { text: 'AssertionError in test_ref', file: 'tests/test_ref.py:89' }
+  ];
+
+  // Remove TEST-INFRA if present
+  delete features['TEST-INFRA-1'];
+
+  selectedFeature = 'CORE-ASYNC-1';
+  renderFeatureList();
+  selectFeature('CORE-ASYNC-1', true);
+
+  // (0s) Initial state — callout on left panel rows
+  at(300, () => {
+    showCallout('Feature list \u2014 click any row to see its detail', { top: '120px', left: '40px' }, 'left-panel', 2500);
+  });
+
+  // (2.5s) Callout on right panel
+  at(2800, () => {
+    showCallout('Detail panel shows pipeline, gates, sessions for selected feature', { top: '120px', right: '40px' }, 'right-panel', 2500);
+  });
+
+  // (3s) Pipeline step 4 completes, step 5 gate activates
+  at(3000, () => {
+    features['CORE-ASYNC-1'].pipeState[4] = 'done';
+    features['CORE-ASYNC-1'].pipeState[5] = 'gate';
+    features['CORE-ASYNC-1'].completed = 5;
+    features['CORE-ASYNC-1'].gate = { name: 'build \u2192 test', artifact: 'blueprint.md', pct: '100%' };
+    renderFeatureList();
+    selectFeature('CORE-ASYNC-1', true);
+    // Flash the dot
+    setTimeout(() => {
+      const dots = document.querySelectorAll('.pipe-dot');
+      if (dots[4]) dots[4].classList.add('flash-green');
+    }, 50);
+  });
+
+  // (5.5s) Callout on pipeline
+  at(5500, () => {
+    showCallout('Full pipeline visualization with step-by-step status', { top: '200px', right: '60px' }, 'right-panel', 2500);
+  });
+
+  // (6s) Gate approve
+  at(6000, () => {
+    approveGate('CORE-ASYNC-1');
+  });
+
+  // (6.2s) Callout on gate approval
+  at(6200, () => {
+    showCallout('Approve gates right in the detail panel', { top: '280px', right: '60px' }, 'right-panel', 2500);
+  });
+
+  // (9s) New session appears
+  at(9000, () => {
+    addSession('CORE-ASYNC-1', { agent: 'Claude', time: '2m', r: 1, w: 3, e: 0 });
+  });
+
+  // (12s) Click GEN-REF row
+  at(12000, () => {
+    selectFeature('GEN-REF-1');
+  });
+
+  // (12.3s) Callout on row selection change
+  at(12300, () => {
+    showCallout('Click a different feature \u2014 panel crossfades to its detail', { top: '160px', left: '40px' }, 'left-panel', 2500);
+  });
+
+  // (15s) GEN-REF error flash
+  at(15000, () => {
+    flashError('GEN-REF-1');
+  });
+
+  // (18s) Approve gate in GEN-REF
+  at(18000, () => {
+    approveGate('GEN-REF-1');
+  });
+
+  // (21s) Progress advance on GEN-REF + new session
+  at(21000, () => {
+    features['GEN-REF-1'].pipeState[8] = 'done';
+    features['GEN-REF-1'].pipeState[9] = 'active';
+    features['GEN-REF-1'].completed = 9;
+    renderFeatureList();
+    addSession('GEN-REF-1', { agent: 'Claude', time: '5m', r: 2, w: 3, e: 0 });
+  });
+
+  // (24s) Click back to CORE-ASYNC
+  at(24000, () => {
+    // Advance CORE-ASYNC while away
+    features['CORE-ASYNC-1'].pipeState = ['done','done','done','done','done','done','active','pending'];
+    features['CORE-ASYNC-1'].completed = 6;
+    renderFeatureList();
+    selectFeature('CORE-ASYNC-1');
+  });
+
+  // (27s) Rapid completion
+  at(27000, () => {
+    completeStep('CORE-ASYNC-1', 6);
+  });
+  at(28000, () => {
+    completeStep('CORE-ASYNC-1', 7);
+  });
+
+  // (30s) CORE-ASYNC row becomes complete
+  at(30000, () => {
+    features['CORE-ASYNC-1'].status = 'complete';
+    features['CORE-ASYNC-1'].completed = 8;
+    renderFeatureList();
+    selectFeature('CORE-ASYNC-1', true);
+  });
+
+  // (30.3s) Callout on build completion
+  at(30300, () => {
+    showCallout('Completed builds collapse on the left, detail updates', { top: '120px', left: '40px' }, 'left-panel', 2500);
+  });
+
+  // (33s) New row TEST-INFRA-1 slides in, auto-selects
+  at(33000, () => {
+    features['TEST-INFRA-1'] = {
+      status: 'active', steps: 6, completed: 1, gateAt: -1,
+      pipeline: ['scaffold','blueprint','codegen','build','test','deploy'],
+      pipeState: ['done','active','pending','pending','pending','pending'],
+      gate: null,
+      sessions: [
+        { agent: 'Claude', time: '1m', r: 1, w: 0, e: 0 }
+      ],
+      errors: []
+    };
+    document.getElementById('stat-builds').textContent = '5';
+    renderFeatureList();
+
+    // Animate slide-in on last row
+    const rows = document.querySelectorAll('.feature-row');
+    const lastRow = rows[rows.length - 1];
+    if (lastRow) lastRow.classList.add('slide-in');
+
+    setTimeout(() => selectFeature('TEST-INFRA-1'), 300);
+  });
+
+  // (33.5s) Callout on new row
+  at(33500, () => {
+    showCallout('New builds appear in the list automatically', { top: '260px', left: '40px' }, 'left-panel', 2000);
+  });
+
+  // (35s) Show replay
+  at(35500, () => {
+    document.getElementById('replayBtn').classList.add('visible');
+    document.getElementById('replayOverlay').classList.add('visible');
+  });
+}
+
+function replay() {
+  document.getElementById('preambleOverlay').classList.add('hidden');
+  runAnimation();
+}
+
+// ── Preamble / start ──
+function startDemo() {
+  document.getElementById('preambleOverlay').classList.add('hidden');
+  setTimeout(runAnimation, 500);
+}
+
+// ── Init ──
+renderFeatureList();
+selectFeature('CORE-ASYNC-1', true);
+</script>
+</body>
+</html>

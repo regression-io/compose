@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ops V8 — Hybrid</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Header */
+.header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; }
+.header-brand { color: #3b82f6; font-weight: 700; font-size: 13px; letter-spacing: 0.05em; }
+.header-stats { display: flex; gap: 10px; font-size: 11px; color: #94a3b8; margin-left: 12px; }
+.header-stats .stat { transition: all 0.3s ease; }
+.header-stats .stat.blue { color: #3b82f6; }
+.header-stats .stat.green { color: #22c55e; }
+.header-stats .stat.amber { color: #f59e0b; }
+.header-stats .stat.red { color: #ef4444; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+
+/* Feature list */
+.feature-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+
+/* Feature row */
+.feature-row { position: relative; min-height: 44px; padding: 10px 16px; padding-left: 20px; border-left: 4px solid transparent; border-bottom: 1px solid #1e293b; cursor: pointer; user-select: none; transition: all 0.3s ease; }
+.feature-row:hover { background: #1e293b40; }
+.feature-row.state-running { border-left-color: #3b82f6; }
+.feature-row.state-gate { border-left-color: #f59e0b; }
+.feature-row.state-error { border-left-color: #ef4444; }
+.feature-row.state-complete { border-left-color: #22c55e; }
+.feature-row.state-complete .row-header { opacity: 0.5; }
+.feature-row.state-complete:hover .row-header { opacity: 0.8; }
+
+/* Row header (always visible) */
+.row-header { display: flex; align-items: center; gap: 10px; min-height: 24px; transition: opacity 0.3s ease; }
+.row-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: background 0.3s ease; }
+.row-status-dot.running { background: #3b82f6; animation: pulse 1.5s ease-in-out infinite; }
+.row-status-dot.gate { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+.row-status-dot.error { background: #ef4444; }
+.row-status-dot.complete { background: #22c55e; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.row-name { font-size: 13px; font-weight: 600; color: #e2e8f0; white-space: nowrap; }
+
+/* Progress bar */
+.row-progress { display: flex; gap: 2px; width: 120px; flex-shrink: 0; }
+.row-progress .seg { height: 4px; flex: 1; border-radius: 2px; transition: background 0.5s ease; }
+.row-progress .seg.done { background: #22c55e; }
+.row-progress .seg.active { background: #3b82f6; animation: pulse 1.5s ease-in-out infinite; }
+.row-progress .seg.gate-active { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+.row-progress .seg.pending { background: #334155; }
+
+.row-step { font-size: 11px; color: #94a3b8; white-space: nowrap; min-width: 50px; }
+.row-agent { font-size: 10px; white-space: nowrap; }
+.row-agent.claude { color: #f97316; }
+.row-agent.codex { color: #22c55e; }
+.row-time { font-size: 11px; color: #475569; white-space: nowrap; min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Badges */
+.badge { display: inline-flex; align-items: center; font-size: 9px; padding: 1px 6px; border-radius: 8px; font-weight: 600; cursor: pointer; position: relative; transition: all 0.3s ease; z-index: 2; }
+.badge-gate { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b40; }
+.badge-gate:hover { background: #f59e0b30; }
+.badge-error { background: #ef444420; color: #ef4444; border: 1px solid #ef444440; }
+.badge-error:hover { background: #ef444430; }
+.badge.fade-out { opacity: 0; width: 0; padding: 0; margin: 0; overflow: hidden; }
+.badge-complete { background: #22c55e15; color: #22c55e; border: 1px solid #22c55e30; cursor: default; font-size: 10px; }
+
+.row-badges { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+
+/* Popover */
+.popover { position: absolute; z-index: 50; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 12px; width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity 0.2s ease, transform 0.2s ease; }
+.popover.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.popover-arrow { position: absolute; top: -6px; width: 12px; height: 6px; overflow: hidden; }
+.popover-arrow::before { content: ''; position: absolute; top: 3px; left: 2px; width: 8px; height: 8px; background: #1e293b; border: 1px solid #475569; border-right: 0; border-bottom: 0; transform: rotate(45deg); }
+.popover-title { font-size: 11px; color: #94a3b8; margin-bottom: 6px; }
+.popover-body { font-size: 12px; color: #e2e8f0; margin-bottom: 8px; line-height: 1.4; }
+.popover-meta { font-size: 10px; color: #64748b; margin-bottom: 8px; }
+.popover-actions { display: flex; gap: 6px; }
+.popover-actions button { font-size: 10px; padding: 4px 12px; border-radius: 4px; cursor: pointer; border: 1px solid; transition: all 0.2s ease; font-weight: 500; }
+.btn-approve { background: #22c55e15; border-color: #22c55e40; color: #22c55e; }
+.btn-approve:hover { background: #22c55e30; }
+.btn-revise { background: #f59e0b15; border-color: #f59e0b40; color: #f59e0b; }
+.btn-revise:hover { background: #f59e0b30; }
+.btn-kill { background: #ef444415; border-color: #ef444440; color: #ef4444; }
+.btn-kill:hover { background: #ef444430; }
+.popover-approved { font-size: 11px; color: #22c55e; font-weight: 600; animation: flashIn 0.3s ease; }
+
+@keyframes flashIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+
+/* Detail area (expanded) */
+.detail-area { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+.detail-inner { padding: 12px 16px 14px 20px; background: #0f172a; border-left: 4px solid transparent; }
+.feature-row.state-running .detail-inner { border-left-color: #3b82f6; }
+.feature-row.state-gate .detail-inner { border-left-color: #f59e0b; }
+.feature-row.state-error .detail-inner { border-left-color: #ef4444; }
+.feature-row.state-complete .detail-inner { border-left-color: #22c55e; }
+
+/* Pipeline dots in detail */
+.detail-pipeline { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-size: 11px; color: #94a3b8; }
+.detail-pipeline .dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid; display: flex; align-items: center; justify-content: center; font-size: 6px; transition: all 0.3s ease; }
+.detail-pipeline .dot.done { border-color: #22c55e60; background: #22c55e20; color: #22c55e; }
+.detail-pipeline .dot.active { border-color: #3b82f6; background: #3b82f620; color: #3b82f6; box-shadow: 0 0 6px #3b82f630; }
+.detail-pipeline .dot.gate-dot { border-color: #f59e0b80; background: #f59e0b15; color: #f59e0b; }
+.detail-pipeline .dot.pending { border-color: #334155; background: transparent; color: #475569; }
+.detail-pipeline .dot-line { width: 8px; height: 1px; background: #334155; }
+.detail-pipeline .step-label { font-size: 10px; color: #64748b; margin-left: 4px; }
+
+/* Detail gate */
+.detail-gate { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #f59e0b08; border: 1px solid #f59e0b30; border-radius: 6px; margin-bottom: 8px; }
+.detail-gate .gate-icon { color: #f59e0b; font-size: 12px; }
+.detail-gate .gate-text { font-size: 11px; color: #e2e8f0; flex: 1; }
+.detail-gate .gate-meta { font-size: 10px; color: #64748b; }
+.detail-gate .gate-actions { display: flex; gap: 4px; }
+.detail-gate .gate-actions button { font-size: 9px; padding: 3px 8px; border-radius: 4px; cursor: pointer; border: 1px solid; }
+
+/* Detail error */
+.detail-error { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; background: #ef444408; border: 1px solid #ef444430; border-radius: 6px; margin-bottom: 8px; }
+.detail-error .err-icon { color: #ef4444; font-size: 11px; flex-shrink: 0; margin-top: 1px; }
+.detail-error .err-text { font-size: 11px; color: #fca5a5; }
+.detail-error .err-time { font-size: 10px; color: #64748b; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+
+/* Detail events */
+.detail-events { display: flex; flex-direction: column; gap: 4px; }
+.detail-event { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 4px 0; }
+.detail-event .ev-icon { width: 12px; text-align: center; flex-shrink: 0; }
+.detail-event .ev-icon.green { color: #22c55e; }
+.detail-event .ev-icon.blue { color: #3b82f6; }
+.detail-event .ev-icon.purple { color: #8b5cf6; }
+.detail-event .ev-icon.red { color: #ef4444; }
+.detail-event .ev-icon.amber { color: #f59e0b; }
+.detail-event .ev-text { color: #94a3b8; flex: 1; }
+.detail-event .ev-stats { font-size: 10px; color: #64748b; font-family: 'SF Mono', monospace; }
+.detail-event .ev-time { font-size: 10px; color: #475569; white-space: nowrap; margin-left: auto; }
+
+/* Animations */
+@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes greenFlash { 0% { box-shadow: none; } 30% { box-shadow: inset 0 0 12px #22c55e20, 0 0 8px #22c55e10; } 100% { box-shadow: none; } }
+@keyframes redFlash { 0% { background: transparent; } 30% { background: #ef444412; } 100% { background: transparent; } }
+.slide-down { animation: slideDown 0.4s ease; }
+.green-flash { animation: greenFlash 0.6s ease; }
+.red-flash { animation: redFlash 0.6s ease; }
+
+/* Row enter */
+@keyframes rowEnter { from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; } to { opacity: 1; max-height: 60px; padding-top: 10px; padding-bottom: 10px; } }
+.row-enter { animation: rowEnter 0.5s ease; }
+
+/* Glow on approve button */
+@keyframes glowApprove { 0%,100% { box-shadow: 0 0 4px #22c55e20; } 50% { box-shadow: 0 0 12px #22c55e50; } }
+.glow { animation: glowApprove 1s ease-in-out infinite; }
+
+/* Preamble overlay */
+.preamble-overlay { position: fixed; inset: 0; z-index: 200; background: #0f172af0; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble-overlay.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 440px; padding: 40px 36px; text-align: center; }
+.preamble-card h1 { font-size: 20px; font-weight: 700; color: #e2e8f0; margin-bottom: 14px; letter-spacing: -0.01em; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 28px; }
+.preamble-start { font-size: 13px; font-weight: 600; padding: 10px 28px; border-radius: 8px; background: #1e293b; border: 1px solid #3b82f6; color: #3b82f6; cursor: pointer; transition: all 0.2s ease; }
+.preamble-start:hover { background: #1e293b; box-shadow: 0 0 16px #3b82f630; color: #60a5fa; }
+
+/* Annotation callout */
+.annotation { position: fixed; z-index: 150; background: #1e293b; border: 1px solid #3b82f6; border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #e2e8f0; max-width: 200px; line-height: 1.4; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity 0.3s ease, transform 0.3s ease; }
+.annotation.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- Preamble overlay -->
+<div class="preamble-overlay" id="preamble">
+  <div class="preamble-card">
+    <h1>V8 — Hybrid (Recommended)</h1>
+    <p>Feature rows with colored left borders showing state at a glance. Gate/error badges are clickable for quick popover actions — no need to expand. Click a row to expand for full investigation. Multiple rows can be expanded. Serves monitoring, action, and investigation modes in one view.</p>
+    <button class="preamble-start" onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Annotation callout (reused, repositioned per step) -->
+<div class="annotation" id="annotation"></div>
+
+<button class="replay-btn" onclick="replay()">Replay</button>
+
+<div class="header">
+  <span class="header-brand">OPS</span>
+  <div class="header-stats" id="headerStats">
+    <span class="stat blue" id="statActive">4 active</span>
+    <span class="stat" style="color:#475569">&middot;</span>
+    <span class="stat green" id="statComplete">1 complete</span>
+    <span class="stat" style="color:#475569">&middot;</span>
+    <span class="stat amber" id="statGates">2 gates</span>
+    <span class="stat" style="color:#475569">&middot;</span>
+    <span class="stat red" id="statErrors">1 error</span>
+  </div>
+</div>
+
+<div class="feature-list" id="featureList">
+
+  <!-- CORE-ASYNC-1 -->
+  <div class="feature-row state-gate" id="row-core" onclick="toggleExpand(event, 'core')">
+    <div class="row-header">
+      <div class="row-status-dot gate"></div>
+      <span class="row-name">CORE-ASYNC-1</span>
+      <div class="row-progress" id="progress-core">
+        <div class="seg done"></div>
+        <div class="seg done"></div>
+        <div class="seg done"></div>
+        <div class="seg done"></div>
+        <div class="seg gate-active"></div>
+        <div class="seg pending"></div>
+        <div class="seg pending"></div>
+        <div class="seg pending"></div>
+      </div>
+      <span class="row-step" id="step-core">5/8 gate</span>
+      <span class="row-agent claude" id="agent-core">Claude</span>
+      <span class="row-time">3m</span>
+      <div class="row-badges">
+        <span class="badge badge-gate" id="badge-gate-core" onclick="showPopover(event, 'popover-core-gate')">&#9888;</span>
+      </div>
+    </div>
+    <div class="detail-area" id="detail-core">
+      <div class="detail-inner">
+        <div class="detail-pipeline" id="pipeline-core">
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot gate-dot">&#9632;</div><div class="dot-line"></div>
+          <div class="dot pending"></div><div class="dot-line"></div>
+          <div class="dot pending"></div><div class="dot-line"></div>
+          <div class="dot pending"></div>
+          <span class="step-label">step 5/8 &middot; gate</span>
+        </div>
+        <div class="detail-gate" id="detail-gate-core">
+          <span class="gate-icon">&#9888;</span>
+          <div>
+            <div class="gate-text">Gate: blueprint &rarr; implement</div>
+            <div class="gate-meta">blueprint.md &middot; 100% &middot; 640 words</div>
+          </div>
+          <div class="gate-actions">
+            <button class="btn-approve" id="detail-approve-core">Approve</button>
+            <button class="btn-revise">Revise</button>
+          </div>
+        </div>
+        <div class="detail-events">
+          <div class="detail-event"><span class="ev-icon purple">&#9670;</span><span class="ev-text">Session completed</span><span class="ev-stats">3r 2w 0e &middot; 5m</span><span class="ev-time">2m ago</span></div>
+          <div class="detail-event"><span class="ev-icon green">&#10003;</span><span class="ev-text">Blueprint completed</span><span class="ev-time">3m ago</span></div>
+        </div>
+      </div>
+    </div>
+    <!-- Gate popover -->
+    <div class="popover" id="popover-core-gate" style="top: 44px; right: 16px;">
+      <div class="popover-arrow" style="right: 20px;"></div>
+      <div class="popover-title">Gate: blueprint &rarr; implement</div>
+      <div class="popover-body">blueprint.md &middot; 100% &middot; 640 words</div>
+      <div class="popover-actions" id="popover-actions-core">
+        <button class="btn-approve" id="popover-approve-core" onclick="approveGate(event, 'core')">Approve</button>
+        <button class="btn-revise" onclick="closeAllPopovers()">Revise</button>
+        <button class="btn-kill" onclick="closeAllPopovers()">Kill</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GEN-REF-1 (expanded by default) -->
+  <div class="feature-row state-gate" id="row-gen" onclick="toggleExpand(event, 'gen')">
+    <div class="row-header">
+      <div class="row-status-dot gate" id="dot-gen"></div>
+      <span class="row-name">GEN-REF-1</span>
+      <div class="row-progress" id="progress-gen">
+        <div class="seg done"></div>
+        <div class="seg done"></div>
+        <div class="seg done"></div>
+        <div class="seg done"></div>
+        <div class="seg done"></div>
+        <div class="seg done"></div>
+        <div class="seg done"></div>
+        <div class="seg gate-active"></div>
+        <div class="seg pending"></div>
+        <div class="seg pending"></div>
+      </div>
+      <span class="row-step" id="step-gen">8/10 impl</span>
+      <span class="row-agent codex" id="agent-gen">Codex</span>
+      <span class="row-time" id="time-gen">12m</span>
+      <div class="row-badges" id="badges-gen">
+        <span class="badge badge-gate" id="badge-gate-gen" onclick="showPopover(event, 'popover-gen-gate')">&#9888;</span>
+        <span class="badge badge-error" id="badge-error-gen" onclick="showPopover(event, 'popover-gen-error')">&#10005;1</span>
+      </div>
+    </div>
+    <div class="detail-area" id="detail-gen" style="max-height: 300px;">
+      <div class="detail-inner">
+        <div class="detail-pipeline" id="pipeline-gen">
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot gate-dot">&#9632;</div><div class="dot-line"></div>
+          <div class="dot pending"></div><div class="dot-line"></div>
+          <div class="dot pending"></div>
+          <span class="step-label">step 8/10 &middot; implement</span>
+        </div>
+        <div class="detail-gate" id="detail-gate-gen">
+          <span class="gate-icon">&#9888;</span>
+          <div>
+            <div class="gate-text">Gate: plan &rarr; implement</div>
+            <div class="gate-meta">plan.md &middot; 100% &middot; 890 words</div>
+          </div>
+          <div class="gate-actions">
+            <button class="btn-approve glow" id="detail-approve-gen">Approve</button>
+            <button class="btn-revise">Revise</button>
+          </div>
+        </div>
+        <div class="detail-error" id="detail-error-gen">
+          <span class="err-icon">&#10005;</span>
+          <span class="err-text">TypeError: undefined is not a function</span>
+          <span class="err-time">2m ago</span>
+        </div>
+        <div class="detail-events" id="events-gen">
+          <div class="detail-event"><span class="ev-icon purple">&#9670;</span><span class="ev-text">Session completed</span><span class="ev-stats">5r 3w 1e &middot; 8m</span><span class="ev-time">4m ago</span></div>
+          <div class="detail-event"><span class="ev-icon green">&#10003;</span><span class="ev-text">Blueprint completed</span><span class="ev-time">12m ago</span></div>
+        </div>
+      </div>
+    </div>
+    <!-- Gate popover for GEN-REF -->
+    <div class="popover" id="popover-gen-gate" style="top: 44px; right: 60px;">
+      <div class="popover-arrow" style="right: 20px;"></div>
+      <div class="popover-title">Gate: plan &rarr; implement</div>
+      <div class="popover-body">plan.md &middot; 100% &middot; 890 words</div>
+      <div class="popover-actions">
+        <button class="btn-approve" onclick="approveGate(event, 'gen')">Approve</button>
+        <button class="btn-revise" onclick="closeAllPopovers()">Revise</button>
+        <button class="btn-kill" onclick="closeAllPopovers()">Kill</button>
+      </div>
+    </div>
+    <!-- Error popover for GEN-REF -->
+    <div class="popover" id="popover-gen-error" style="top: 44px; right: 16px;">
+      <div class="popover-arrow" style="right: 12px;"></div>
+      <div class="popover-title">Error in session</div>
+      <div class="popover-body">TypeError: undefined is not a function<br><span style="color:#64748b;font-size:10px;">Codex &middot; implement step &middot; 2m ago</span></div>
+      <div class="popover-actions">
+        <button class="btn-revise" onclick="closeAllPopovers()">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DIST-RELEASE-1 (complete) -->
+  <div class="feature-row state-complete" id="row-dist" onclick="toggleExpand(event, 'dist')">
+    <div class="row-header">
+      <div class="row-status-dot complete"></div>
+      <span class="row-name">DIST-RELEASE-1</span>
+      <div class="row-progress">
+        <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+        <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+        <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+        <div class="seg done"></div>
+      </div>
+      <span class="row-step" style="color:#22c55e80;">complete</span>
+      <span class="row-agent" style="color:#475569;font-size:10px;"></span>
+      <span class="row-time">28m</span>
+      <div class="row-badges">
+        <span class="badge badge-complete">&#10003;</span>
+      </div>
+    </div>
+    <div class="detail-area" id="detail-dist">
+      <div class="detail-inner">
+        <div class="detail-events">
+          <div class="detail-event"><span class="ev-icon green">&#10003;</span><span class="ev-text">Build complete &middot; all steps passed</span><span class="ev-time">28m ago</span></div>
+          <div class="detail-event"><span class="ev-icon purple">&#9670;</span><span class="ev-text">Final session completed</span><span class="ev-stats">2r 4w 0e &middot; 6m</span><span class="ev-time">30m ago</span></div>
+          <div class="detail-event"><span class="ev-icon green">&#10003;</span><span class="ev-text">All gates approved</span><span class="ev-time">34m ago</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRE-ASYNC-1 -->
+  <div class="feature-row state-running" id="row-pre" onclick="toggleExpand(event, 'pre')">
+    <div class="row-header">
+      <div class="row-status-dot running" id="dot-pre"></div>
+      <span class="row-name">PRE-ASYNC-1</span>
+      <div class="row-progress" id="progress-pre">
+        <div class="seg done"></div>
+        <div class="seg active"></div>
+        <div class="seg pending"></div>
+        <div class="seg pending"></div>
+        <div class="seg pending"></div>
+        <div class="seg pending"></div>
+        <div class="seg pending"></div>
+        <div class="seg pending"></div>
+      </div>
+      <span class="row-step" id="step-pre">2/8 prd</span>
+      <span class="row-agent claude" id="agent-pre">Claude</span>
+      <span class="row-time">1m</span>
+      <div class="row-badges" id="badges-pre"></div>
+    </div>
+    <div class="detail-area" id="detail-pre">
+      <div class="detail-inner">
+        <div class="detail-pipeline">
+          <div class="dot done">&#10003;</div><div class="dot-line"></div>
+          <div class="dot active">&#9679;</div><div class="dot-line"></div>
+          <div class="dot pending"></div><div class="dot-line"></div>
+          <div class="dot pending"></div><div class="dot-line"></div>
+          <div class="dot pending"></div><div class="dot-line"></div>
+          <div class="dot pending"></div><div class="dot-line"></div>
+          <div class="dot pending"></div><div class="dot-line"></div>
+          <div class="dot pending"></div>
+          <span class="step-label">step 2/8 &middot; prd</span>
+        </div>
+        <div class="detail-events" id="events-pre">
+          <div class="detail-event"><span class="ev-icon blue">&#9679;</span><span class="ev-text">PRD step in progress</span><span class="ev-time">1m ago</span></div>
+          <div class="detail-event"><span class="ev-icon green">&#10003;</span><span class="ev-text">Design completed</span><span class="ev-time">2m ago</span></div>
+        </div>
+      </div>
+    </div>
+    <!-- Error popover for PRE-ASYNC -->
+    <div class="popover" id="popover-pre-error" style="top: 44px; right: 16px;">
+      <div class="popover-arrow" style="right: 12px;"></div>
+      <div class="popover-title">Error in session</div>
+      <div class="popover-body">Missing template file: templates/async-refactor.md<br><span style="color:#64748b;font-size:10px;">Claude &middot; prd step &middot; just now</span></div>
+      <div class="popover-actions">
+        <button class="btn-revise" onclick="closeAllPopovers()">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let timers = [];
+function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
+function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
+
+// Annotation helpers
+function showAnnotation(text, x, y) {
+  const el = document.getElementById('annotation');
+  el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  // Reset position props
+  el.style.right = '';
+  el.style.bottom = '';
+  el.classList.add('visible');
+}
+function showAnnotationAt(text, pos) {
+  const el = document.getElementById('annotation');
+  el.textContent = text;
+  el.style.left = pos.left || '';
+  el.style.right = pos.right || '';
+  el.style.top = pos.top || '';
+  el.style.bottom = pos.bottom || '';
+  el.classList.add('visible');
+}
+function hideAnnotation() {
+  document.getElementById('annotation').classList.remove('visible');
+}
+
+// Preamble
+function startDemo() {
+  document.getElementById('preamble').classList.add('hidden');
+  setTimeout(runScenario, 400);
+}
+
+// Expand/collapse
+function toggleExpand(e, id) {
+  // Don't expand if clicking a badge or popover
+  if (e.target.closest('.badge') || e.target.closest('.popover') || e.target.closest('button')) return;
+  const detail = document.getElementById('detail-' + id);
+  if (detail.style.maxHeight && detail.style.maxHeight !== '0px') {
+    detail.style.maxHeight = '0px';
+  } else {
+    detail.style.maxHeight = detail.scrollHeight + 'px';
+  }
+}
+
+function expandRow(id) {
+  const detail = document.getElementById('detail-' + id);
+  detail.style.maxHeight = detail.scrollHeight + 'px';
+}
+
+function collapseRow(id) {
+  const detail = document.getElementById('detail-' + id);
+  detail.style.maxHeight = '0px';
+}
+
+// Popovers
+function showPopover(e, id) {
+  e.stopPropagation();
+  closeAllPopovers();
+  const pop = document.getElementById(id);
+  pop.classList.add('visible');
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', closeAllPopoversHandler, { once: true });
+  }, 10);
+}
+
+function closeAllPopovers() {
+  document.querySelectorAll('.popover.visible').forEach(p => p.classList.remove('visible'));
+}
+
+function closeAllPopoversHandler(e) {
+  if (!e.target.closest('.popover')) closeAllPopovers();
+}
+
+// Gate approval
+function approveGate(e, id) {
+  e.stopPropagation();
+  const pop = document.querySelector('.popover.visible');
+  if (pop) {
+    const actions = pop.querySelector('.popover-actions');
+    actions.innerHTML = '<span class="popover-approved">Approved &#10003;</span>';
+    setTimeout(() => { pop.classList.remove('visible'); }, 600);
+  }
+  // Remove gate badge
+  const badge = document.getElementById('badge-gate-' + id);
+  if (badge) {
+    badge.classList.add('fade-out');
+    setTimeout(() => { badge.style.display = 'none'; }, 300);
+  }
+  // Update detail gate if visible
+  const detailGate = document.getElementById('detail-gate-' + id);
+  if (detailGate) {
+    detailGate.style.borderColor = '#22c55e40';
+    detailGate.style.background = '#22c55e08';
+    detailGate.querySelector('.gate-icon').innerHTML = '&#10003;';
+    detailGate.querySelector('.gate-icon').style.color = '#22c55e';
+    const ga = detailGate.querySelector('.gate-actions');
+    ga.innerHTML = '<span style="font-size:10px;color:#22c55e;font-weight:600;">Approved &#10003;</span>';
+  }
+}
+
+function updateStats(active, complete, gates, errors) {
+  document.getElementById('statActive').textContent = active + ' active';
+  document.getElementById('statComplete').textContent = complete + ' complete';
+  document.getElementById('statGates').textContent = gates + ' gate' + (gates !== 1 ? 's' : '');
+  document.getElementById('statErrors').textContent = errors + ' error' + (errors !== 1 ? 's' : '');
+  if (gates === 0) document.getElementById('statGates').className = 'stat';
+  if (errors === 0) document.getElementById('statErrors').className = 'stat';
+}
+
+function setRowState(id, state) {
+  const row = document.getElementById('row-' + id);
+  row.className = 'feature-row state-' + state;
+}
+
+function setProgress(id, segs) {
+  const container = document.getElementById('progress-' + id);
+  container.innerHTML = segs.map(s => '<div class="seg ' + s + '"></div>').join('');
+}
+
+// ── Reset ──
+const initialHTML = {};
+
+function captureInitial() {
+  document.querySelectorAll('.feature-row').forEach(row => {
+    initialHTML[row.id] = row.outerHTML;
+  });
+}
+
+function resetState() {
+  clearTimers();
+  closeAllPopovers();
+  const list = document.getElementById('featureList');
+  // Rebuild from captured initial state
+  list.innerHTML = '';
+  ['row-core', 'row-gen', 'row-dist', 'row-pre'].forEach(id => {
+    const temp = document.createElement('div');
+    temp.innerHTML = initialHTML[id];
+    list.appendChild(temp.firstElementChild);
+  });
+  updateStats(4, 1, 2, 1);
+}
+
+// ── Animation sequence ──
+function runScenario() {
+
+  // (0s) GEN-REF expanded, others collapsed. Already set in HTML.
+
+  // Annotation: expanded detail (0s-3s)
+  at(0, () => showAnnotationAt('Click a row to see full detail \u2014 pipeline, gates, events', {left:'280px', top:'260px'}));
+  at(2700, hideAnnotation);
+
+  // (3s) GEN-REF gate: approve button glows then simulated click
+  at(3000, () => {
+    const btn = document.getElementById('detail-approve-gen');
+    if (btn) {
+      btn.classList.add('glow');
+      // Simulated click
+      setTimeout(() => {
+        btn.classList.remove('glow');
+        // Flash green
+        const detailGate = document.getElementById('detail-gate-gen');
+        detailGate.style.borderColor = '#22c55e40';
+        detailGate.style.background = '#22c55e08';
+        detailGate.querySelector('.gate-icon').innerHTML = '&#10003;';
+        detailGate.querySelector('.gate-icon').style.color = '#22c55e';
+        const ga = detailGate.querySelector('.gate-actions');
+        ga.innerHTML = '<span style="font-size:10px;color:#22c55e;font-weight:600;">Approved &#10003;</span>';
+        // Remove gate badge from header
+        const badge = document.getElementById('badge-gate-gen');
+        if (badge) { badge.classList.add('fade-out'); setTimeout(() => { badge.style.display = 'none'; }, 300); }
+        // Update row state (still has error, so stays gate->error priority... actually error takes priority visually but gate badge gone)
+        // Row still has error badge so state-error
+        document.getElementById('row-gen').className = 'feature-row state-error';
+        document.getElementById('dot-gen').className = 'row-status-dot error';
+        updateStats(4, 1, 1, 1);
+      }, 500);
+    }
+  });
+
+  // Annotation: gate approved in detail (3.5s-5.7s)
+  at(3500, () => showAnnotationAt('Approve gates right in the expanded detail', {left:'280px', top:'280px'}));
+  at(5700, hideAnnotation);
+
+  // (6s) GEN-REF detail: new event slides in
+  at(6000, () => {
+    const events = document.getElementById('events-gen');
+    if (events) {
+      const ev = document.createElement('div');
+      ev.className = 'detail-event slide-down';
+      ev.innerHTML = '<span class="ev-icon blue">&#9679;</span><span class="ev-text">implement step progressing</span><span class="ev-stats">5r 3w</span><span class="ev-time">just now</span>';
+      events.insertBefore(ev, events.firstChild);
+      // Refresh expanded height
+      const detail = document.getElementById('detail-gen');
+      detail.style.maxHeight = detail.scrollHeight + 'px';
+    }
+  });
+
+  // Annotation: row collapses, badge monitoring (9s-11.7s)
+  at(9000, () => showAnnotationAt('Back to monitoring \u2014 badges show what needs attention', {right:'60px', top:'180px'}));
+  at(11700, hideAnnotation);
+
+  // (9s) GEN-REF collapses, CORE-ASYNC gate badge pulses
+  at(9000, () => {
+    collapseRow('gen');
+    const coreBadge = document.getElementById('badge-gate-core');
+    if (coreBadge) coreBadge.style.animation = 'pulse 1s ease-in-out infinite';
+  });
+
+  // Annotation: gate popover (12s-14.7s)
+  at(12000, () => showAnnotationAt('Quick action: click badge for instant approval popover', {right:'60px', top:'120px'}));
+  at(14700, hideAnnotation);
+
+  // (12s) Click on CORE-ASYNC gate badge — popover appears
+  at(12000, () => {
+    const pop = document.getElementById('popover-core-gate');
+    if (pop) pop.classList.add('visible');
+  });
+
+  // (15s) Approve clicked in popover
+  at(15000, () => {
+    const pop = document.getElementById('popover-core-gate');
+    if (pop) {
+      const actions = document.getElementById('popover-actions-core');
+      if (actions) actions.innerHTML = '<span class="popover-approved">Approved &#10003;</span>';
+      // Green flash on row
+      document.getElementById('row-core').classList.add('green-flash');
+      setTimeout(() => {
+        pop.classList.remove('visible');
+        // Remove badge
+        const badge = document.getElementById('badge-gate-core');
+        if (badge) { badge.classList.add('fade-out'); setTimeout(() => { badge.style.display = 'none'; }, 300); }
+        // Update row state to running (no more gate)
+        setRowState('core', 'running');
+        document.querySelector('#row-core .row-status-dot').className = 'row-status-dot running';
+        // Update detail gate too
+        const detailGate = document.getElementById('detail-gate-core');
+        if (detailGate) {
+          detailGate.style.borderColor = '#22c55e40';
+          detailGate.style.background = '#22c55e08';
+          detailGate.querySelector('.gate-icon').innerHTML = '&#10003;';
+          detailGate.querySelector('.gate-icon').style.color = '#22c55e';
+          const ga = detailGate.querySelector('.gate-actions');
+          ga.innerHTML = '<span style="font-size:10px;color:#22c55e;font-weight:600;">Approved &#10003;</span>';
+        }
+        updateStats(4, 1, 0, 1);
+      }, 600);
+    }
+  });
+
+  // Annotation: popover approve (15s-17.7s)
+  at(15000, () => showAnnotationAt('Approved without expanding! Fast action mode', {right:'60px', top:'120px'}));
+  at(17700, hideAnnotation);
+
+  // Annotation: left border colors (18s-20.7s)
+  at(18000, () => showAnnotationAt('Border color = state: blue=running, amber=gate, red=error, green=done', {left:'24px', top:'200px'}));
+  at(20700, hideAnnotation);
+
+  // (18s) CORE-ASYNC progress advances (step 6->7), agent changes to Codex
+  at(18000, () => {
+    setProgress('core', ['done','done','done','done','done','active','pending','pending']);
+    document.getElementById('step-core').textContent = '6/8 impl';
+    const agent = document.getElementById('agent-core');
+    agent.textContent = 'Codex';
+    agent.className = 'row-agent codex';
+  });
+
+  // (21s) PRE-ASYNC: error badge appears with red flash
+  at(21000, () => {
+    const row = document.getElementById('row-pre');
+    row.classList.add('red-flash');
+    setRowState('pre', 'error');
+    document.getElementById('dot-pre').className = 'row-status-dot error';
+    const badges = document.getElementById('badges-pre');
+    badges.innerHTML = '<span class="badge badge-error" id="badge-error-pre" onclick="showPopover(event, \'popover-pre-error\')">&#10005;1</span>';
+    updateStats(4, 1, 0, 2);
+  });
+
+  // Annotation: error popover (21.5s-24.5s)
+  at(21500, () => showAnnotationAt('Click error badge for details without expanding', {right:'60px', top:'230px'}));
+  at(24500, hideAnnotation);
+
+  // (21.5s) Click error badge — popover
+  at(21500, () => {
+    const pop = document.getElementById('popover-pre-error');
+    if (pop) pop.classList.add('visible');
+  });
+
+  // (23s) Error popover closes
+  at(23000, () => {
+    closeAllPopovers();
+  });
+
+  // (25s) Click PRE-ASYNC row — expand showing detail with error
+  at(25000, () => {
+    // Add error to detail
+    const events = document.getElementById('events-pre');
+    const errDiv = document.createElement('div');
+    errDiv.className = 'detail-error slide-down';
+    errDiv.innerHTML = '<span class="err-icon">&#10005;</span><span class="err-text">Missing template file: templates/async-refactor.md</span><span class="err-time">just now</span>';
+    events.parentNode.insertBefore(errDiv, events);
+    expandRow('pre');
+  });
+
+  // (28s) GEN-REF reaches end — transitions to complete
+  at(28000, () => {
+    setProgress('gen', ['done','done','done','done','done','done','done','done','done','done']);
+    document.getElementById('step-gen').textContent = 'complete';
+    document.getElementById('step-gen').style.color = '#22c55e80';
+    document.getElementById('agent-gen').textContent = '';
+    document.getElementById('time-gen').textContent = '20m';
+    setRowState('gen', 'complete');
+    document.getElementById('dot-gen').className = 'row-status-dot complete';
+    // Remove error badge
+    const errBadge = document.getElementById('badge-error-gen');
+    if (errBadge) { errBadge.classList.add('fade-out'); setTimeout(() => errBadge.style.display = 'none', 300); }
+    // Add complete badge
+    const badges = document.getElementById('badges-gen');
+    const cb = document.createElement('span');
+    cb.className = 'badge badge-complete';
+    cb.innerHTML = '&#10003;';
+    badges.appendChild(cb);
+    document.getElementById('row-gen').classList.add('green-flash');
+    updateStats(3, 2, 0, 2);
+  });
+
+  // Annotation: row completes (28s-30.7s)
+  at(28000, () => showAnnotationAt('Build done \u2014 green border, collapsed, minimal space', {left:'24px', top:'140px'}));
+  at(30700, hideAnnotation);
+
+  // (31s) CORE-ASYNC rapid complete
+  at(31000, () => {
+    setProgress('core', ['done','done','done','done','done','done','done','active']);
+    document.getElementById('step-core').textContent = '8/8 ship';
+  });
+  at(31500, () => {
+    setProgress('core', ['done','done','done','done','done','done','done','done']);
+    document.getElementById('step-core').textContent = 'complete';
+    document.getElementById('step-core').style.color = '#22c55e80';
+    document.getElementById('agent-core').textContent = '';
+    setRowState('core', 'complete');
+    document.querySelector('#row-core .row-status-dot').className = 'row-status-dot complete';
+    const badges = document.querySelector('#row-core .row-badges');
+    badges.innerHTML = '<span class="badge badge-complete">&#10003;</span>';
+    document.getElementById('row-core').classList.add('green-flash');
+    updateStats(2, 3, 0, 2);
+  });
+
+  // (34s) New row slides in: TEST-INFRA-1
+  at(34000, () => {
+    const list = document.getElementById('featureList');
+    const newRow = document.createElement('div');
+    newRow.className = 'feature-row state-running row-enter';
+    newRow.id = 'row-test';
+    newRow.setAttribute('onclick', "toggleExpand(event, 'test')");
+    newRow.innerHTML = `
+      <div class="row-header">
+        <div class="row-status-dot running"></div>
+        <span class="row-name">TEST-INFRA-1</span>
+        <div class="row-progress">
+          <div class="seg active"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+          <div class="seg pending"></div>
+        </div>
+        <span class="row-step">1/6 design</span>
+        <span class="row-agent claude">Claude</span>
+        <span class="row-time">0m</span>
+        <div class="row-badges"></div>
+      </div>
+      <div class="detail-area" id="detail-test" style="max-height:0;">
+        <div class="detail-inner">
+          <div class="detail-pipeline">
+            <div class="dot active">&#9679;</div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div><div class="dot-line"></div>
+            <div class="dot pending"></div>
+            <span class="step-label">step 1/6 &middot; design</span>
+          </div>
+          <div class="detail-events">
+            <div class="detail-event"><span class="ev-icon blue">&#9679;</span><span class="ev-text">Build started</span><span class="ev-time">just now</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+    list.appendChild(newRow);
+    updateStats(3, 3, 0, 1);
+  });
+
+  // Annotation: new row (34s-36.7s)
+  at(34000, () => showAnnotationAt('New builds appear as agents start work', {left:'24px', bottom:'60px'}));
+  at(36700, hideAnnotation);
+
+  // (36s) PRE-ASYNC collapses. Clean view.
+  at(36000, () => {
+    collapseRow('pre');
+    // Fix error count — PRE-ASYNC still has error
+    updateStats(2, 3, 0, 1);
+  });
+
+  // (38s) Final state — just sits. Replay available.
+}
+
+function replay() {
+  resetState();
+  hideAnnotation();
+  document.getElementById('preamble').classList.remove('hidden');
+}
+
+// Init
+window.addEventListener('DOMContentLoaded', () => {
+  captureInitial();
+});
+
+// Close popovers on escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeAllPopovers();
+});
+</script>
+
+</body>
+</html>

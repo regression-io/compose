@@ -6,6 +6,9 @@
  *   1. COMPOSE_TARGET env var (explicit override)
  *   2. Walk up from cwd looking for .compose/, .stratum.yaml, or .git
  *   3. Fall back to cwd
+ *
+ * All project paths are accessed via getTargetRoot() / getDataDir() so they
+ * update when switchProject() is called at runtime.
  */
 
 import path from 'node:path';
@@ -20,8 +23,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** Where Compose's own code lives. Never changes. */
 export const COMPOSE_HOME = path.resolve(__dirname, '..');
 
-/** The target project being developed. */
-export const TARGET_ROOT = (() => {
+// ---------------------------------------------------------------------------
+// Mutable project binding
+// ---------------------------------------------------------------------------
+
+let _targetRoot = (() => {
   if (process.env.COMPOSE_TARGET) {
     const resolved = path.resolve(process.env.COMPOSE_TARGET);
     if (!fs.existsSync(resolved)) {
@@ -33,12 +39,53 @@ export const TARGET_ROOT = (() => {
   return findProjectRoot(process.cwd()) || process.cwd();
 })();
 
-/** Data directory for Compose state (vision, sessions, settings). Lives in the target project. */
-export const DATA_DIR = path.join(TARGET_ROOT, '.compose', 'data');
+let _dataDir = path.join(_targetRoot, '.compose', 'data');
+let _configCache = null;
+
+/** The target project being developed. */
+export function getTargetRoot() { return _targetRoot; }
+
+/** Data directory for Compose state. Lives in the target project. */
+export function getDataDir() { return _dataDir; }
+
+// ---------------------------------------------------------------------------
+// Switch project at runtime
+// ---------------------------------------------------------------------------
+
+const _switchListeners = [];
+
+/**
+ * Register a callback for project switches.
+ * @param {(targetRoot: string, dataDir: string) => void} fn
+ */
+export function onProjectSwitch(fn) {
+  _switchListeners.push(fn);
+}
+
+/**
+ * Switch to a different project directory.
+ * @param {string} newRoot — absolute path to the new project
+ * @returns {{ targetRoot: string, dataDir: string }}
+ */
+export function switchProject(newRoot) {
+  const resolved = path.resolve(newRoot);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`Project path does not exist: ${resolved}`);
+  }
+  _targetRoot = resolved;
+  _dataDir = path.join(resolved, '.compose', 'data');
+  _configCache = null;
+  fs.mkdirSync(_dataDir, { recursive: true });
+  console.log(`[project-root] Switched to: ${resolved}`);
+  for (const fn of _switchListeners) {
+    try { fn(_targetRoot, _dataDir); } catch (e) { console.error('[project-root] Switch listener error:', e.message); }
+  }
+  return { targetRoot: _targetRoot, dataDir: _dataDir };
+}
 
 /** Ensure the data directory exists. */
 export function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(getDataDir(), { recursive: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -55,16 +102,9 @@ function cloneConfig(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-let _configCache = null;
-
-/**
- * Load and return the project config from .compose/compose.json.
- * Returns a fresh clone on every call — safe to mutate locally.
- * Falls back to defaults on missing or corrupt file.
- */
 export function loadProjectConfig() {
   if (_configCache) return cloneConfig(_configCache);
-  const configPath = path.join(TARGET_ROOT, '.compose', 'compose.json');
+  const configPath = path.join(getTargetRoot(), '.compose', 'compose.json');
   try {
     _configCache = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     return cloneConfig(_configCache);
@@ -74,15 +114,9 @@ export function loadProjectConfig() {
   }
 }
 
-/**
- * Resolve a project path key to an absolute path.
- * Reads from config, falls back to DEFAULT_CONFIG.
- * @param {string} key — one of 'docs', 'features', 'journal'
- * @returns {string} — absolute path
- */
 export function resolveProjectPath(key) {
   const config = loadProjectConfig();
   const rel = config.paths?.[key];
-  if (!rel) return path.join(TARGET_ROOT, DEFAULT_CONFIG.paths[key] || key);
-  return path.join(TARGET_ROOT, rel);
+  if (!rel) return path.join(getTargetRoot(), DEFAULT_CONFIG.paths[key] || key);
+  return path.join(getTargetRoot(), rel);
 }

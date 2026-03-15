@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Combined Items + Ops View</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 600px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.7; margin-bottom: 24px; text-align: left; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Header bar */
+.header-bar { display: flex; align-items: center; padding: 0 16px; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; }
+.tab-btn { font-size: 12px; font-weight: 600; padding: 0 16px; height: 100%; display: flex; align-items: center; background: none; border: none; color: #64748b; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid transparent; }
+.tab-btn:hover { color: #94a3b8; }
+.tab-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+.header-pills { display: flex; gap: 10px; margin-left: auto; align-items: center; }
+.header-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; display: flex; align-items: center; gap: 4px; transition: all 0.3s ease; }
+.header-pill.building { color: #3b82f6; background: #3b82f615; }
+.header-pill.gate { color: #f59e0b; background: #f59e0b15; }
+.header-pill.error { color: #ef4444; background: #ef444415; }
+.header-pill.complete { color: #22c55e; background: #22c55e15; }
+
+/* Main split */
+.main-split { display: flex; flex: 1; overflow: hidden; }
+
+/* Left panel: items tree */
+.left-panel { width: 50%; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid #334155; }
+
+/* Search bar */
+.search-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #334155; flex-shrink: 0; }
+.search-input { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 7px 12px; font-size: 12px; color: #e2e8f0; outline: none; transition: border-color 0.2s; font-family: inherit; }
+.search-input:focus { border-color: #3b82f6; }
+.search-input::placeholder { color: #475569; }
+.filter-btn { font-size: 10px; font-weight: 600; padding: 4px 10px; border-radius: 4px; background: none; border: 1px solid #334155; color: #64748b; cursor: pointer; transition: all 0.2s; }
+.filter-btn:hover { border-color: #475569; color: #94a3b8; }
+.filter-btn.active { background: #3b82f620; border-color: #3b82f6; color: #3b82f6; }
+
+/* Tree container */
+.tree-container { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+/* Track headers */
+.track-header { display: flex; align-items: center; gap: 8px; padding: 8px 16px; height: 40px; background: #1e293b; cursor: pointer; user-select: none; position: sticky; top: 0; z-index: 5; border-bottom: 1px solid #334155; }
+.track-header:hover { background: #253247; }
+.track-chevron { font-size: 9px; color: #64748b; transition: transform 0.2s; display: inline-block; width: 12px; }
+.track-chevron.open { transform: rotate(90deg); }
+.track-name { font-size: 12px; font-weight: 700; color: #e2e8f0; }
+.track-count { font-size: 10px; color: #64748b; margin-left: 4px; }
+.track-rollup { display: flex; gap: 6px; margin-left: auto; }
+.rollup-badge { font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 8px; transition: all 0.3s ease; }
+.rollup-badge.building { color: #3b82f6; background: #3b82f615; }
+.rollup-badge.gate { color: #f59e0b; background: #f59e0b15; }
+.rollup-badge.error { color: #ef4444; background: #ef444415; }
+.rollup-badge.complete { color: #22c55e; background: #22c55e15; }
+
+/* Tree items */
+.track-items { overflow: hidden; transition: max-height 0.3s ease; }
+.track-items.collapsed { max-height: 0 !important; }
+
+/* Item row */
+.item-row { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px 0 20px; cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; position: relative; }
+.item-row:hover { background: #1e293b; }
+.item-row.selected { background: #1e293b40; border-left-color: #3b82f6; }
+.item-row.recent-green { border-left-color: #22c55e; }
+.item-row.recent-amber { border-left-color: #f59e0b; }
+.item-row.dimmed { opacity: 0.35; }
+
+.item-icon { width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+.item-icon.building { color: #3b82f6; animation: pulse 2s ease-in-out infinite; }
+.item-icon.gate { color: #f59e0b; }
+.item-icon.error { color: #ef4444; }
+.item-icon.complete { color: #22c55e; }
+.item-icon.planned { color: #475569; }
+.item-icon.blocked { color: #334155; }
+
+.item-code { font-size: 11px; font-weight: 700; color: #e2e8f0; min-width: 110px; white-space: nowrap; }
+.item-row.dimmed .item-code { color: #64748b; }
+
+/* Inline progress bar */
+.inline-progress { width: 60px; height: 4px; background: #334155; border-radius: 2px; overflow: hidden; flex-shrink: 0; display: flex; }
+.inline-progress-fill { height: 100%; background: #3b82f6; border-radius: 2px; transition: width 0.5s ease; }
+
+.item-fraction { font-size: 10px; color: #94a3b8; min-width: 24px; }
+.item-detail { font-size: 10px; color: #64748b; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-detail.gate-label { color: #f59e0b; font-weight: 600; }
+.item-detail.error-label { color: #ef4444; font-weight: 600; }
+.item-detail.complete-label { color: #475569; }
+.item-detail.blocked-label { color: #334155; font-style: italic; }
+.item-detail.planned-label { color: #475569; }
+
+.item-agent { font-size: 10px; font-weight: 600; flex-shrink: 0; }
+.item-agent.claude { color: #f97316; }
+.item-agent.codex { color: #22c55e; }
+.item-time { font-size: 10px; color: #475569; flex-shrink: 0; min-width: 24px; text-align: right; }
+
+@keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes greenFlash { 0% { background: #22c55e25; } 100% { background: transparent; } }
+@keyframes gateFlash { 0% { background: #22c55e30; } 100% { background: transparent; } }
+
+/* Right panel: context */
+.right-panel { width: 50%; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; background: #0f172a; }
+.right-panel-inner { flex: 1; overflow-y: auto; padding: 0; transition: opacity 0.2s ease; }
+.right-panel-inner.fading { opacity: 0; }
+
+/* Context panel empty */
+.cp-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #475569; font-size: 13px; }
+
+/* Context header */
+.cp-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid #334155; }
+.cp-header-text h2 { font-size: 16px; font-weight: 700; color: #e2e8f0; margin-bottom: 2px; }
+.cp-header-text p { font-size: 13px; color: #64748b; }
+.cp-close { width: 28px; height: 28px; border-radius: 6px; background: none; border: 1px solid #334155; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all 0.2s; flex-shrink: 0; margin-top: 2px; }
+.cp-close:hover { background: #1e293b; color: #e2e8f0; border-color: #475569; }
+
+/* Context sections */
+.cp-sections { padding: 16px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
+.cp-card { border: 1px solid #334155; border-radius: 8px; padding: 16px; transition: all 0.3s ease; }
+.cp-card-title { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+
+/* Pipeline dots */
+.pipeline-row { display: flex; align-items: center; justify-content: center; padding: 8px 0 4px; }
+.pip-dot { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0; transition: all 0.4s ease; }
+.pip-dot.done { background: #22c55e; color: #0f172a; }
+.pip-dot.active { background: #3b82f6; color: #fff; box-shadow: 0 0 8px #3b82f640; animation: dotPulse 2s ease-in-out infinite; }
+.pip-dot.gate-dot { background: #f59e0b; color: #0f172a; }
+.pip-dot.error-dot { background: #ef4444; color: #fff; }
+.pip-dot.pending { background: #334155; color: #64748b; }
+.pip-dot.active-ring { background: #3b82f6; color: #fff; box-shadow: 0 0 0 3px #3b82f630, 0 0 12px #3b82f640; animation: dotPulse 2s ease-in-out infinite; }
+.pip-line { width: 16px; height: 2px; flex-shrink: 0; transition: background 0.4s ease; }
+.pip-line.done { background: #22c55e50; }
+.pip-line.pending { background: #334155; }
+.pip-labels { display: flex; align-items: center; justify-content: center; margin-top: 4px; }
+.pip-label { width: 18px; text-align: center; font-size: 8px; color: #64748b; flex-shrink: 0; }
+.pip-label-spacer { width: 16px; flex-shrink: 0; }
+.pip-step-text { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px; }
+
+@keyframes dotPulse { 0%,100% { box-shadow: 0 0 4px #3b82f620; } 50% { box-shadow: 0 0 12px #3b82f650; } }
+
+/* Gate card */
+.gate-card { transition: all 0.4s ease; }
+.gate-card.flash-green { background: #22c55e20; border-color: #22c55e60; }
+.gate-transition { font-size: 12px; color: #f59e0b; font-weight: 600; margin-bottom: 6px; }
+.gate-artifact { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+.gate-missing { font-size: 11px; color: #64748b; margin-bottom: 12px; }
+.gate-buttons { display: flex; gap: 8px; }
+.gate-btn { height: 32px; padding: 0 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid #475569; background: #334155; color: #e2e8f0; }
+.gate-btn:hover { background: #475569; }
+.gate-btn.approve { background: #22c55e; border-color: #22c55e; color: #0f172a; }
+.gate-btn.approve:hover { background: #16a34a; }
+.gate-btn.kill { border-color: #ef444460; color: #ef4444; background: transparent; }
+.gate-btn.kill:hover { background: #ef444415; }
+
+/* Sessions */
+.session-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1e293b; }
+.session-row:last-child { border-bottom: none; }
+.session-agent { font-size: 11px; font-weight: 600; min-width: 50px; }
+.session-agent.claude { color: #f97316; }
+.session-agent.codex { color: #22c55e; }
+.session-dur { font-size: 11px; color: #64748b; min-width: 30px; }
+.session-stats { font-size: 10px; color: #475569; display: flex; gap: 6px; }
+.session-stats span { padding: 1px 4px; border-radius: 3px; background: #1e293b; }
+.session-stats .reads { color: #3b82f6; }
+.session-stats .writes { color: #22c55e; }
+.session-stats .errors { color: #ef4444; }
+.session-summary { font-size: 11px; color: #64748b; margin-top: 3px; line-height: 1.4; }
+
+/* Errors */
+.error-card { background: #ef444408; border-left: 3px solid #ef4444; padding: 10px 12px; border-radius: 0 6px 6px 0; margin-bottom: 6px; }
+.error-card:last-child { margin-bottom: 0; }
+.error-msg { font-size: 11px; color: #fca5a5; margin-bottom: 4px; }
+.error-meta { font-size: 10px; color: #64748b; }
+.empty-state { font-size: 11px; color: #475569; padding: 4px 0; }
+
+/* Files */
+.file-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 11px; color: #94a3b8; cursor: pointer; transition: color 0.2s; }
+.file-row:hover { color: #3b82f6; }
+.file-icon { color: #3b82f6; font-size: 10px; }
+
+/* Footer link */
+.cp-footer { padding: 12px 24px 20px; }
+.cp-footer-link { font-size: 12px; color: #3b82f6; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; border: 1px solid transparent; }
+.cp-footer-link:hover { background: #3b82f610; border-color: #3b82f630; }
+
+/* Docs view overlay */
+.docs-overlay { position: fixed; inset: 0; z-index: 50; background: #0f172a; display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+.docs-overlay.visible { opacity: 1; pointer-events: auto; }
+.docs-header { display: flex; align-items: center; gap: 12px; padding: 0 16px; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; }
+.docs-back { font-size: 12px; color: #3b82f6; cursor: pointer; padding: 4px 10px; border-radius: 4px; border: 1px solid #3b82f640; background: none; font-weight: 600; transition: all 0.2s; }
+.docs-back:hover { background: #3b82f610; }
+.docs-filename { font-size: 12px; color: #e2e8f0; font-weight: 600; }
+.docs-content { flex: 1; padding: 32px 48px; overflow-y: auto; }
+.docs-content h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; color: #e2e8f0; }
+.docs-content p { font-size: 13px; color: #94a3b8; line-height: 1.7; margin-bottom: 12px; }
+.docs-content .placeholder-block { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin: 16px 0; }
+.docs-content .placeholder-line { height: 10px; background: #334155; border-radius: 4px; margin-bottom: 8px; }
+.docs-content .placeholder-line:last-child { margin-bottom: 0; width: 60%; }
+
+/* Annotation */
+.annotation { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 18px; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; white-space: nowrap; max-width: 90vw; }
+.annotation.visible { opacity: 1; }
+
+/* Tree empty */
+.tree-empty { padding: 40px 16px; text-align: center; font-size: 12px; color: #475569; }
+</style>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1>Combined <span>Items + Ops</span> View</h1>
+    <p>Items and Ops merged into one view. Left side: hierarchical tree organized by tracks with rollup status badges -- see building, gates, errors at a glance. Right side: large context panel (50% width) that shows everything for the selected feature -- pipeline, gates with approve buttons, sessions, errors, files. The context panel is the workhorse -- spacious enough for real work, not just a peek.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="replay()">Replay</button>
+
+<!-- Header bar -->
+<div class="header-bar">
+  <button class="tab-btn">Graph</button>
+  <button class="tab-btn active" id="tabItems">Items</button>
+  <button class="tab-btn" id="tabDocs">Docs</button>
+  <div class="header-pills" id="headerPills">
+    <div class="header-pill building" id="pillBuilding">&#x25cf; 2 building</div>
+    <div class="header-pill gate" id="pillGate">&#x26a0; 1 gate</div>
+    <div class="header-pill error" id="pillError">&#x2715; 1 error</div>
+    <div class="header-pill complete" id="pillComplete">&#x2713; 2 complete</div>
+  </div>
+</div>
+
+<!-- Main split -->
+<div class="main-split">
+  <!-- Left: Items tree -->
+  <div class="left-panel">
+    <div class="search-bar">
+      <input class="search-input" id="searchInput" type="text" placeholder="Search features...">
+      <button class="filter-btn active" data-f="all" id="fAll">All</button>
+      <button class="filter-btn" data-f="active" id="fActive">Active</button>
+      <button class="filter-btn" data-f="done" id="fDone">Done</button>
+      <button class="filter-btn" data-f="blocked" id="fBlocked">Blocked</button>
+    </div>
+    <div class="tree-container" id="treeContainer"></div>
+  </div>
+
+  <!-- Right: Context panel -->
+  <div class="right-panel">
+    <div class="right-panel-inner" id="rightPanel">
+      <div class="cp-empty">Select an item to see details</div>
+    </div>
+  </div>
+</div>
+
+<!-- Docs overlay -->
+<div class="docs-overlay" id="docsOverlay">
+  <div class="docs-header">
+    <button class="docs-back" onclick="closeDocs()">&larr; Back to Items</button>
+    <span class="docs-filename" id="docsFilename">design.md</span>
+  </div>
+  <div class="docs-content">
+    <h2>CORE-LEARN-1: Design Document</h2>
+    <p>Self-correction and negative feedback loops for the core learning module. This document outlines the architecture for implementing adaptive learning with error-driven model updates.</p>
+    <div class="placeholder-block">
+      <div class="placeholder-line" style="width:100%"></div>
+      <div class="placeholder-line" style="width:90%"></div>
+      <div class="placeholder-line" style="width:95%"></div>
+      <div class="placeholder-line" style="width:60%"></div>
+    </div>
+    <p>The system integrates three feedback pathways: explicit correction signals from human reviewers, implicit signals from downstream task performance, and self-assessment through confidence calibration.</p>
+    <div class="placeholder-block">
+      <div class="placeholder-line" style="width:85%"></div>
+      <div class="placeholder-line" style="width:100%"></div>
+      <div class="placeholder-line" style="width:75%"></div>
+      <div class="placeholder-line" style="width:90%"></div>
+      <div class="placeholder-line" style="width:50%"></div>
+    </div>
+    <p>Error budget allocation follows a tiered model: critical errors trigger immediate rollback, moderate errors accumulate toward a threshold gate, and minor errors are logged for batch review.</p>
+  </div>
+</div>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<script>
+// -- Data -----------------------------------------------------------------
+const PIPELINE_STEPS = ['design', 'prd', 'arch', 'build', 'gate', 'test', 'report', 'ship'];
+
+const ITEMS = {
+  'CORE-LEARN-1': {
+    name: 'Self-Correction + Negative Feedback Loops',
+    track: 'knowledge', status: 'building', agent: 'Claude', step: 4, totalSteps: 8, elapsed: '3m',
+    sessions: [
+      { agent: 'Claude', dur: '12m', reads: 3, writes: 4, errors: 0, summary: 'Wrote design.md with feedback architecture' },
+      { agent: 'Claude', dur: '3m', reads: 2, writes: 1, errors: 0, summary: 'Architecture options doc' }
+    ],
+    files: ['design.md', 'plan.md'],
+    errorList: []
+  },
+  'ONTO-PUB-2': {
+    name: 'Ontology Publishing Pipeline',
+    track: 'knowledge', status: 'planned',
+    sessions: [], files: [], errorList: []
+  },
+  'ONTO-PUB-4': {
+    name: 'Ontology Versioning',
+    track: 'knowledge', status: 'planned',
+    sessions: [], files: [], errorList: []
+  },
+  'ONTO-PROV-1': {
+    name: 'Ontology Provenance Tracking',
+    track: 'knowledge', status: 'planned',
+    sessions: [], files: [], errorList: []
+  },
+  'CORE-CONF-1': {
+    name: 'Confidence Calibration',
+    track: 'knowledge', status: 'planned',
+    sessions: [], files: [], errorList: []
+  },
+  'DIST-ADOPT-1': {
+    name: 'Adoption Funnel Analytics',
+    track: 'distribution', status: 'gate',
+    gateFrom: 'build', gateTo: 'test', artifact: 'blueprint.md', artPct: 100, artWords: 2100,
+    step: 4, totalSteps: 8,
+    sessions: [
+      { agent: 'Claude', dur: '8m', reads: 5, writes: 3, errors: 0, summary: 'Built analytics pipeline' },
+      { agent: 'Codex', dur: '4m', reads: 2, writes: 2, errors: 0, summary: 'Unit tests for funnel' }
+    ],
+    files: ['blueprint.md', 'analytics.py', 'funnel.ts'],
+    errorList: []
+  },
+  'DIST-RELEASE-1': {
+    name: 'Release Automation',
+    track: 'distribution', status: 'complete', completedTime: '28m',
+    step: 8, totalSteps: 8,
+    sessions: [
+      { agent: 'Claude', dur: '20m', reads: 8, writes: 6, errors: 0, summary: 'Full release pipeline' }
+    ],
+    files: ['release.yaml', 'changelog.md'],
+    errorList: []
+  },
+  'DIST-PUB-1': {
+    name: 'Distribution Publishing',
+    track: 'distribution', status: 'blocked', blockedBy: 'DIST-ADOPT-1',
+    sessions: [], files: [], errorList: []
+  },
+  'DIST-BENCH-1': {
+    name: 'Benchmark Suite',
+    track: 'distribution', status: 'planned',
+    sessions: [], files: [], errorList: []
+  },
+  'SEC-DOMAIN-1': {
+    name: 'Security Domain Isolation',
+    track: 'governance', status: 'building', agent: 'Codex', step: 6, totalSteps: 10, elapsed: '12m',
+    sessions: [
+      { agent: 'Codex', dur: '12m', reads: 6, writes: 4, errors: 0, summary: 'Domain boundary enforcement' },
+      { agent: 'Claude', dur: '5m', reads: 3, writes: 2, errors: 0, summary: 'Security model design' }
+    ],
+    files: ['security-model.md', 'domain-guard.py'],
+    errorList: []
+  },
+  'PRE-ASYNC-1': {
+    name: 'Pre-Async Hook System',
+    track: 'governance', status: 'error', step: 2, totalSteps: 8,
+    sessions: [
+      { agent: 'Codex', dur: '6m', reads: 4, writes: 2, errors: 1, summary: 'Hook registration failed on import' }
+    ],
+    files: ['hooks.py', 'async-spec.md'],
+    errorList: [
+      { msg: 'ImportError: circular dependency in hook_registry.py', step: 'build', agent: 'Codex', time: '4m ago' }
+    ]
+  },
+  'HITL-1': {
+    name: 'Human-in-the-Loop Gates',
+    track: 'governance', status: 'blocked', blockedBy: 'PRE-ASYNC-1',
+    sessions: [], files: [], errorList: []
+  },
+  'GOV-ROLES-1': {
+    name: 'Governance Role System',
+    track: 'governance', status: 'blocked', blockedBy: 'HITL-1',
+    sessions: [], files: [], errorList: []
+  }
+};
+
+const TRACKS = [
+  { id: 'knowledge', name: 'Knowledge', items: ['CORE-LEARN-1','ONTO-PUB-2','ONTO-PUB-4','ONTO-PROV-1','CORE-CONF-1'] },
+  { id: 'distribution', name: 'Distribution', items: ['DIST-ADOPT-1','DIST-RELEASE-1','DIST-PUB-1','DIST-BENCH-1'] },
+  { id: 'governance', name: 'Governance', items: ['SEC-DOMAIN-1','PRE-ASYNC-1','HITL-1','GOV-ROLES-1'] }
+];
+
+// -- State ----------------------------------------------------------------
+let selectedId = null;
+let searchText = '';
+let statusFilter = 'all';
+let expanded = { knowledge: true, distribution: true, governance: true };
+let demoTimeouts = [];
+
+// -- Helpers --------------------------------------------------------------
+function statusChar(s) {
+  return { building: '\u25cf', gate: '\u26a0', error: '\u2715', complete: '\u2713', planned: '\u25cb', blocked: '\u25cb' }[s] || '\u25cb';
+}
+
+function matchesFilter(id, it) {
+  const q = searchText.toLowerCase();
+  if (q && !id.toLowerCase().includes(q) && !it.name.toLowerCase().includes(q) && !it.status.includes(q)) return false;
+  if (statusFilter === 'active' && it.status !== 'building' && it.status !== 'gate') return false;
+  if (statusFilter === 'done' && it.status !== 'complete') return false;
+  if (statusFilter === 'blocked' && it.status !== 'blocked' && it.status !== 'error') return false;
+  return true;
+}
+
+function trackRollup(track) {
+  const counts = { building: 0, gate: 0, error: 0, complete: 0 };
+  for (const id of track.items) {
+    const s = ITEMS[id].status;
+    if (counts[s] !== undefined) counts[s]++;
+  }
+  let html = '';
+  if (counts.building) html += `<span class="rollup-badge building">${counts.building}\u25cf</span>`;
+  if (counts.gate) html += `<span class="rollup-badge gate">${counts.gate}\u26a0</span>`;
+  if (counts.error) html += `<span class="rollup-badge error">${counts.error}\u2715</span>`;
+  if (counts.complete) html += `<span class="rollup-badge complete">${counts.complete}\u2713</span>`;
+  return html;
+}
+
+function headerPillCounts() {
+  const c = { building: 0, gate: 0, error: 0, complete: 0 };
+  for (const it of Object.values(ITEMS)) {
+    if (c[it.status] !== undefined) c[it.status]++;
+  }
+  document.getElementById('pillBuilding').textContent = `\u25cf ${c.building} building`;
+  document.getElementById('pillGate').textContent = `\u26a0 ${c.gate} gate`;
+  document.getElementById('pillError').textContent = `\u2715 ${c.error} error`;
+  document.getElementById('pillComplete').textContent = `\u2713 ${c.complete} complete`;
+  document.getElementById('pillBuilding').style.display = c.building ? '' : 'none';
+  document.getElementById('pillGate').style.display = c.gate ? '' : 'none';
+  document.getElementById('pillError').style.display = c.error ? '' : 'none';
+  document.getElementById('pillComplete').style.display = c.complete ? '' : 'none';
+}
+
+// -- Render tree ----------------------------------------------------------
+function renderTree() {
+  const container = document.getElementById('treeContainer');
+  let html = '';
+
+  for (const track of TRACKS) {
+    const filtered = track.items.filter(id => matchesFilter(id, ITEMS[id]));
+    if (searchText && filtered.length === 0) continue;
+
+    const isOpen = expanded[track.id];
+    html += `<div class="track-header" onclick="toggleTrack('${track.id}')">`;
+    html += `<span class="track-chevron ${isOpen ? 'open' : ''}">\u25b6</span>`;
+    html += `<span class="track-name">${track.name}</span>`;
+    html += `<span class="track-count">(${filtered.length})</span>`;
+    html += `<div class="track-rollup">${trackRollup(track)}</div>`;
+    html += `</div>`;
+
+    html += `<div class="track-items${isOpen ? '' : ' collapsed'}" style="max-height:${isOpen ? filtered.length * 40 + 'px' : '0'}">`;
+    for (const id of filtered) {
+      const it = ITEMS[id];
+      const sel = id === selectedId ? ' selected' : '';
+      const rg = it._recentGreen ? ' recent-green' : '';
+      const ra = it._recentAmber ? ' recent-amber' : '';
+      const dim = it.status === 'blocked' ? ' dimmed' : '';
+
+      html += `<div class="item-row${sel}${rg}${ra}${dim}" data-id="${id}" onclick="selectItem('${id}')">`;
+      html += `<div class="item-icon ${it.status}">${statusChar(it.status)}</div>`;
+      html += `<div class="item-code">${id}</div>`;
+
+      if (it.status === 'building') {
+        const pct = Math.round((it.step / it.totalSteps) * 100);
+        html += `<div class="inline-progress"><div class="inline-progress-fill" style="width:${pct}%"></div></div>`;
+        html += `<div class="item-fraction">${it.step}/${it.totalSteps}</div>`;
+        html += `<div class="item-detail">building</div>`;
+        html += `<div class="item-agent ${it.agent.toLowerCase()}">${it.agent}</div>`;
+        html += `<div class="item-time">${it.elapsed}</div>`;
+      } else if (it.status === 'gate') {
+        html += `<div class="inline-progress"><div class="inline-progress-fill" style="width:${Math.round(((it.step||0) / (it.totalSteps||8)) * 100)}%;background:#f59e0b"></div></div>`;
+        html += `<div class="item-detail gate-label">gate</div>`;
+      } else if (it.status === 'error') {
+        html += `<div class="item-detail error-label">error</div>`;
+      } else if (it.status === 'complete') {
+        html += `<div class="item-detail complete-label">complete ${it.completedTime || ''}</div>`;
+      } else if (it.status === 'blocked') {
+        html += `<div class="item-detail blocked-label">blocked</div>`;
+      } else {
+        html += `<div class="item-detail planned-label">planned</div>`;
+      }
+
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (!html) html = '<div class="tree-empty">No items match your search</div>';
+  container.innerHTML = html;
+  headerPillCounts();
+}
+
+function toggleTrack(id) {
+  expanded[id] = !expanded[id];
+  renderTree();
+}
+
+// -- Selection & context panel --------------------------------------------
+function selectItem(id) {
+  selectedId = id;
+  renderTree();
+  const panel = document.getElementById('rightPanel');
+  panel.classList.add('fading');
+  setTimeout(() => {
+    renderContextPanel(id);
+    panel.classList.remove('fading');
+  }, 100);
+}
+
+function deselectItem() {
+  selectedId = null;
+  renderTree();
+  const panel = document.getElementById('rightPanel');
+  panel.innerHTML = '<div class="cp-empty">Select an item to see details</div>';
+}
+
+function renderContextPanel(id) {
+  const panel = document.getElementById('rightPanel');
+  const it = ITEMS[id];
+  if (!it) { panel.innerHTML = '<div class="cp-empty">Select an item to see details</div>'; return; }
+
+  let html = '';
+
+  // Header
+  html += `<div class="cp-header"><div class="cp-header-text"><h2>${id}</h2><p>${it.name}</p></div>`;
+  html += `<button class="cp-close" onclick="deselectItem()">\u2715</button></div>`;
+
+  html += `<div class="cp-sections">`;
+
+  // Pipeline
+  html += `<div class="cp-card"><div class="cp-card-title">Pipeline</div>`;
+  html += `<div class="pipeline-row">`;
+  const curStep = it.step || 0;
+  const total = it.totalSteps || 8;
+  PIPELINE_STEPS.forEach((s, i) => {
+    if (i > 0) html += `<div class="pip-line ${i < curStep ? 'done' : 'pending'}"></div>`;
+    let cls = 'pending';
+    if (it.status === 'complete') cls = 'done';
+    else if (it.status === 'error' && it.errorList && it.errorList.length && i === curStep) cls = 'error-dot';
+    else if (it.status === 'gate' && i === curStep) cls = 'gate-dot';
+    else if (i < curStep) cls = 'done';
+    else if (i === curStep && it.status === 'building') cls = 'active-ring';
+    html += `<div class="pip-dot ${cls}">${i + 1}</div>`;
+  });
+  html += `</div>`;
+  html += `<div class="pip-labels">`;
+  PIPELINE_STEPS.forEach((s, i) => {
+    if (i > 0) html += `<div class="pip-label-spacer"></div>`;
+    html += `<div class="pip-label">${s}</div>`;
+  });
+  html += `</div>`;
+  if (it.status === 'building') html += `<div class="pip-step-text">step ${curStep + 1}/${total}</div>`;
+  else if (it.status === 'gate') html += `<div class="pip-step-text">step ${curStep + 1}/${total} &mdash; gate pending</div>`;
+  else if (it.status === 'complete') html += `<div class="pip-step-text">complete</div>`;
+  html += `</div>`;
+
+  // Gate (if pending)
+  if (it.status === 'gate') {
+    html += `<div class="cp-card gate-card" id="gateCard">`;
+    html += `<div class="cp-card-title">Gate: ${it.gateFrom} &rarr; ${it.gateTo}</div>`;
+    html += `<div class="gate-artifact">${it.artifact} &middot; ${it.artPct}% &middot; ${it.artWords.toLocaleString()} words</div>`;
+    html += `<div class="gate-buttons">`;
+    html += `<button class="gate-btn approve" onclick="handleApprove('${id}')">Approve</button>`;
+    html += `<button class="gate-btn" onclick="void(0)">Revise</button>`;
+    html += `<button class="gate-btn kill" onclick="void(0)">Kill</button>`;
+    html += `</div></div>`;
+  }
+
+  // Sessions
+  html += `<div class="cp-card"><div class="cp-card-title">Sessions</div>`;
+  if (it.sessions && it.sessions.length) {
+    for (const s of it.sessions) {
+      html += `<div class="session-row"><div style="flex:1">`;
+      html += `<div style="display:flex;align-items:center;gap:8px;">`;
+      html += `<span class="session-agent ${s.agent.toLowerCase()}">${s.agent}</span>`;
+      html += `<span class="session-dur">${s.dur}</span>`;
+      html += `<span class="session-stats"><span class="reads">${s.reads}r</span> <span class="writes">${s.writes}w</span> <span class="errors">${s.errors}e</span></span>`;
+      html += `</div>`;
+      html += `<div class="session-summary">${s.summary}</div>`;
+      html += `</div></div>`;
+    }
+  } else {
+    html += `<div class="empty-state">No sessions yet</div>`;
+  }
+  html += `</div>`;
+
+  // Errors
+  html += `<div class="cp-card"><div class="cp-card-title">Errors</div>`;
+  if (it.errorList && it.errorList.length) {
+    for (const e of it.errorList) {
+      html += `<div class="error-card"><div class="error-msg">${e.msg}</div>`;
+      html += `<div class="error-meta">${e.agent} &middot; step: ${e.step} &middot; ${e.time}</div></div>`;
+    }
+  } else {
+    html += `<div class="empty-state">No errors</div>`;
+  }
+  html += `</div>`;
+
+  // Files
+  html += `<div class="cp-card"><div class="cp-card-title">Files</div>`;
+  if (it.files && it.files.length) {
+    for (const f of it.files) {
+      html += `<div class="file-row" onclick="openDocs('${f}')"><span class="file-icon">\u25a0</span> ${f}</div>`;
+    }
+  } else {
+    html += `<div class="empty-state">No files yet</div>`;
+  }
+  html += `</div>`;
+
+  html += `</div>`; // end sections
+
+  // Footer
+  html += `<div class="cp-footer"><span class="cp-footer-link">View in Graph &rarr;</span></div>`;
+
+  panel.innerHTML = html;
+}
+
+// -- Gate approve ---------------------------------------------------------
+function handleApprove(id) {
+  const card = document.getElementById('gateCard');
+  if (card) {
+    card.classList.add('flash-green');
+    setTimeout(() => {
+      const it = ITEMS[id];
+      it.status = 'building';
+      it.agent = 'Claude';
+      it.step = (it.step || 4) + 1;
+      it.elapsed = '0m';
+      delete it.gateFrom; delete it.gateTo; delete it.artifact; delete it.artPct; delete it.artWords;
+      // Unblock downstream
+      for (const [nid, n] of Object.entries(ITEMS)) {
+        if (n.blockedBy === id) { n.status = 'planned'; delete n.blockedBy; }
+      }
+      renderTree();
+      if (selectedId === id) renderContextPanel(id);
+    }, 400);
+  }
+}
+
+// -- Docs overlay ---------------------------------------------------------
+function openDocs(filename) {
+  document.getElementById('docsFilename').textContent = filename;
+  document.getElementById('docsOverlay').classList.add('visible');
+  // Switch tab
+  document.getElementById('tabItems').classList.remove('active');
+  document.getElementById('tabDocs').classList.add('active');
+}
+
+function closeDocs() {
+  document.getElementById('docsOverlay').classList.remove('visible');
+  document.getElementById('tabDocs').classList.remove('active');
+  document.getElementById('tabItems').classList.add('active');
+}
+
+// -- Search ---------------------------------------------------------------
+document.getElementById('searchInput').addEventListener('input', function() {
+  searchText = this.value;
+  renderTree();
+});
+
+// -- Filter buttons -------------------------------------------------------
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    statusFilter = this.dataset.f;
+    renderTree();
+  });
+});
+
+// -- Annotation -----------------------------------------------------------
+const annoEl = document.getElementById('annotation');
+let annoTimer = null;
+function showAnno(text, dur) {
+  annoEl.textContent = text;
+  annoEl.classList.add('visible');
+  clearTimeout(annoTimer);
+  annoTimer = setTimeout(() => annoEl.classList.remove('visible'), dur || 3000);
+}
+
+// -- Demo -----------------------------------------------------------------
+function clearTimeouts() { demoTimeouts.forEach(t => clearTimeout(t)); demoTimeouts.length = 0; }
+function at(ms, fn) { demoTimeouts.push(setTimeout(fn, ms)); }
+
+function resetData() {
+  // CORE-LEARN-1
+  Object.assign(ITEMS['CORE-LEARN-1'], { status: 'building', agent: 'Claude', step: 4, totalSteps: 8, elapsed: '3m',
+    sessions: [
+      { agent: 'Claude', dur: '12m', reads: 3, writes: 4, errors: 0, summary: 'Wrote design.md with feedback architecture' },
+      { agent: 'Claude', dur: '3m', reads: 2, writes: 1, errors: 0, summary: 'Architecture options doc' }
+    ],
+    files: ['design.md', 'plan.md'], errorList: [] });
+  delete ITEMS['CORE-LEARN-1']._recentGreen;
+  delete ITEMS['CORE-LEARN-1'].completedTime;
+
+  // DIST-ADOPT-1
+  Object.assign(ITEMS['DIST-ADOPT-1'], { status: 'gate', gateFrom: 'build', gateTo: 'test', artifact: 'blueprint.md', artPct: 100, artWords: 2100, step: 4, totalSteps: 8,
+    sessions: [
+      { agent: 'Claude', dur: '8m', reads: 5, writes: 3, errors: 0, summary: 'Built analytics pipeline' },
+      { agent: 'Codex', dur: '4m', reads: 2, writes: 2, errors: 0, summary: 'Unit tests for funnel' }
+    ],
+    files: ['blueprint.md', 'analytics.py', 'funnel.ts'], errorList: [] });
+
+  // DIST-RELEASE-1
+  Object.assign(ITEMS['DIST-RELEASE-1'], { status: 'complete', completedTime: '28m', step: 8, totalSteps: 8 });
+
+  // DIST-PUB-1
+  Object.assign(ITEMS['DIST-PUB-1'], { status: 'blocked', blockedBy: 'DIST-ADOPT-1' });
+
+  // PRE-ASYNC-1
+  Object.assign(ITEMS['PRE-ASYNC-1'], { status: 'error', step: 2, totalSteps: 8,
+    sessions: [{ agent: 'Codex', dur: '6m', reads: 4, writes: 2, errors: 1, summary: 'Hook registration failed on import' }],
+    files: ['hooks.py', 'async-spec.md'],
+    errorList: [{ msg: 'ImportError: circular dependency in hook_registry.py', step: 'build', agent: 'Codex', time: '4m ago' }] });
+
+  // SEC-DOMAIN-1
+  Object.assign(ITEMS['SEC-DOMAIN-1'], { status: 'building', agent: 'Codex', step: 6, totalSteps: 10, elapsed: '12m',
+    sessions: [
+      { agent: 'Codex', dur: '12m', reads: 6, writes: 4, errors: 0, summary: 'Domain boundary enforcement' },
+      { agent: 'Claude', dur: '5m', reads: 3, writes: 2, errors: 0, summary: 'Security model design' }
+    ],
+    files: ['security-model.md', 'domain-guard.py'], errorList: [] });
+  delete ITEMS['SEC-DOMAIN-1']._recentGreen;
+  delete ITEMS['SEC-DOMAIN-1'].completedTime;
+
+  // HITL-1
+  Object.assign(ITEMS['HITL-1'], { status: 'blocked', blockedBy: 'PRE-ASYNC-1' });
+
+  // GOV-ROLES-1
+  Object.assign(ITEMS['GOV-ROLES-1'], { status: 'blocked', blockedBy: 'HITL-1' });
+
+  // Planned items
+  for (const id of ['ONTO-PUB-2','ONTO-PUB-4','ONTO-PROV-1','CORE-CONF-1','DIST-BENCH-1']) {
+    ITEMS[id].status = 'planned';
+  }
+
+  // Clear flags
+  for (const it of Object.values(ITEMS)) { delete it._recentGreen; delete it._recentAmber; }
+
+  selectedId = null;
+  searchText = '';
+  statusFilter = 'all';
+  expanded = { knowledge: true, distribution: true, governance: true };
+  document.getElementById('searchInput').value = '';
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('fAll').classList.add('active');
+  closeDocs();
+}
+
+function startDemo() {
+  document.getElementById('preamble').classList.add('hidden');
+  document.getElementById('replayBtn').classList.remove('visible');
+  renderTree();
+  selectItem('CORE-LEARN-1');
+  runSequence();
+}
+
+function replay() {
+  clearTimeouts();
+  annoEl.classList.remove('visible');
+  document.getElementById('replayBtn').classList.remove('visible');
+  resetData();
+  renderTree();
+  selectItem('CORE-LEARN-1');
+  runSequence();
+}
+
+function runSequence() {
+  // (0s) Initial state
+  showAnno('Track sections with rollup badges \u2014 see what needs attention at a glance', 3500);
+
+  // (4s) Gate appears on CORE-LEARN-1
+  at(4000, () => {
+    const it = ITEMS['CORE-LEARN-1'];
+    it.step = 4;
+    it.status = 'gate';
+    it.gateFrom = 'build';
+    it.gateTo = 'test';
+    it.artifact = 'build-report.md';
+    it.artPct = 100;
+    it.artWords = 1800;
+    it._recentAmber = true;
+    renderTree();
+    renderContextPanel('CORE-LEARN-1');
+    showAnno('Gate appears \u2014 approve right in the context panel', 3500);
+    setTimeout(() => { delete it._recentAmber; }, 2000);
+  });
+
+  // (8s) Approve CORE-LEARN-1 gate
+  at(8000, () => {
+    handleApprove('CORE-LEARN-1');
+    showAnno('Approved! Pipeline resumes \u2014 tree and panel sync instantly', 3500);
+  });
+
+  // (12s) New session appears
+  at(12000, () => {
+    ITEMS['CORE-LEARN-1'].sessions.unshift({
+      agent: 'Claude', dur: '2m', reads: 4, writes: 2, errors: 0, summary: 'Writing test suite'
+    });
+    if (selectedId === 'CORE-LEARN-1') renderContextPanel('CORE-LEARN-1');
+    showAnno('Sessions appear in real-time as agents complete work', 3000);
+  });
+
+  // (15s) Click DIST-ADOPT-1
+  at(15000, () => {
+    selectItem('DIST-ADOPT-1');
+    showAnno('Click any item \u2014 context panel shows full detail', 2500);
+  });
+
+  // (18s) Approve DIST-ADOPT-1 gate
+  at(18000, () => {
+    handleApprove('DIST-ADOPT-1');
+    showAnno('Approving gates unblocks downstream features', 3000);
+  });
+
+  // (22s) Click PRE-ASYNC-1 (error)
+  at(22000, () => {
+    selectItem('PRE-ASYNC-1');
+    showAnno('Error detail \u2014 see exactly what went wrong, which step, which agent', 3500);
+  });
+
+  // (26s) Click file to open docs
+  at(26000, () => {
+    openDocs('hooks.py');
+    showAnno('Click a file \u2014 jumps to Docs view. Back button remembers.', 2500);
+  });
+
+  // (29s) Back from docs
+  at(29000, () => {
+    closeDocs();
+  });
+
+  // (32s) CORE-LEARN-1 completes
+  at(32000, () => {
+    const it = ITEMS['CORE-LEARN-1'];
+    it.status = 'complete';
+    it.completedTime = '28m';
+    it.step = 8;
+    it._recentGreen = true;
+    renderTree();
+    const row = document.querySelector('[data-id="CORE-LEARN-1"]');
+    if (row) { row.style.animation = 'greenFlash 1.5s ease-out'; setTimeout(() => { row.style.animation = ''; }, 1500); }
+    showAnno('Builds complete in the background \u2014 tree updates automatically', 3000);
+  });
+
+  // (35s) Search "error"
+  at(35000, () => {
+    searchText = 'error';
+    document.getElementById('searchInput').value = 'error';
+    renderTree();
+    showAnno('Search filters everything \u2014 find what you need fast', 2500);
+  });
+
+  // (38s) Clear search, select SEC-DOMAIN-1
+  at(38000, () => {
+    searchText = '';
+    document.getElementById('searchInput').value = '';
+    renderTree();
+    selectItem('SEC-DOMAIN-1');
+    showAnno('50% width context panel \u2014 spacious enough for pipeline + sessions + gates', 3000);
+  });
+
+  // (42s) SEC-DOMAIN-1 completes
+  at(42000, () => {
+    const it = ITEMS['SEC-DOMAIN-1'];
+    it.status = 'complete';
+    it.completedTime = '25m';
+    it.step = 10;
+    it._recentGreen = true;
+    renderTree();
+    if (selectedId === 'SEC-DOMAIN-1') renderContextPanel('SEC-DOMAIN-1');
+    const row = document.querySelector('[data-id="SEC-DOMAIN-1"]');
+    if (row) { row.style.animation = 'greenFlash 1.5s ease-out'; setTimeout(() => { row.style.animation = ''; }, 1500); }
+    showAnno('Build complete \u2014 pipeline all green', 2500);
+  });
+
+  // (45s) Final
+  at(45000, () => {
+    showAnno('Demo complete', 2000);
+    document.getElementById('replayBtn').classList.add('visible');
+  });
+}
+</script>
+</body>
+</html>

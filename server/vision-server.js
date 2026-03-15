@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { requireSensitiveToken } from './security.js';
 import { spawnJournalAgent, extractSlugFromPath } from './vision-utils.js';
 import { attachFeatureScanRoutes } from './feature-scan.js';
+import { attachGraphExportRoutes } from './graph-export.js';
 import { StratumSync, attachStratumRoutes } from './stratum-sync.js';
 import { createStratumRouter } from './stratum-api.js';
 import { attachAgentSpawnRoutes } from './agent-spawn.js';
@@ -39,9 +40,7 @@ const SETTINGS_DEFAULTS = {
   policyModes: ['gate', 'flag', 'skip'],
 };
 
-import { TARGET_ROOT, DATA_DIR } from './project-root.js';
-
-const PROJECT_ROOT = TARGET_ROOT;
+import { getTargetRoot, getDataDir } from './project-root.js';
 
 export class VisionServer {
   constructor(store, sessionManager = null, { config } = {}) {
@@ -70,7 +69,7 @@ export class VisionServer {
       store: this.store,
       scheduleBroadcast: () => this.scheduleBroadcast(),
       broadcastMessage: (msg) => this.broadcastMessage(msg),
-      projectRoot: PROJECT_ROOT,
+      projectRoot: getTargetRoot(),
       settingsStore: this.settingsStore,
     });
 
@@ -89,13 +88,13 @@ export class VisionServer {
       scheduleBroadcast: () => this.scheduleBroadcast(),
       broadcastMessage: (msg) => this.broadcastMessage(msg),
       spawnJournalAgent,
-      projectRoot: PROJECT_ROOT,
+      projectRoot: getTargetRoot(),
       store: this.store,
     });
 
     // ── Build state hydration ─────────────────────────────────────────────
     app.get('/api/build/state', (_req, res) => {
-      const buildPath = path.join(DATA_DIR, 'active-build.json');
+      const buildPath = path.join(getDataDir(), 'active-build.json');
       try {
         if (fs.existsSync(buildPath)) {
           const state = JSON.parse(fs.readFileSync(buildPath, 'utf-8'));
@@ -139,7 +138,7 @@ export class VisionServer {
 
     // ── Agent spawn routes ──────────────────────────────────────────────────
     attachAgentSpawnRoutes(app, {
-      projectRoot: PROJECT_ROOT,
+      projectRoot: getTargetRoot(),
       broadcastMessage: (msg) => this.broadcastMessage(msg),
       requireSensitiveToken,
     });
@@ -149,6 +148,9 @@ export class VisionServer {
       store: this.store,
       scheduleBroadcast: () => this.scheduleBroadcast(),
     });
+
+    // ── Graph export routes ──────────────────────────────────────────────
+    attachGraphExportRoutes(app, { store: this.store });
 
     // ── Stratum (conditional) ────────────────────────────────────────────
     if (this._config.capabilities?.stratum) {
@@ -258,8 +260,8 @@ export class VisionServer {
 
   /** Resolve a file path to matching tracker items */
   resolveItems(filePath) {
-    const rel = filePath.startsWith(PROJECT_ROOT)
-      ? filePath.slice(PROJECT_ROOT.length + 1)
+    const rel = filePath.startsWith(getTargetRoot())
+      ? filePath.slice(getTargetRoot().length + 1)
       : filePath.replace(/^\.\//, '');
     const matches = [];
     const matchType = new Map();

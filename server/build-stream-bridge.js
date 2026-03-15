@@ -267,7 +267,7 @@ export class BuildStreamBridge {
     const type = event.type;
 
     // Track lifecycle state for crash timer
-    if (type === 'build_start') {
+    if (type === 'build_start' || type === 'build_resume') {
       this.#buildActive = true;
       this.#inStep = false;
       this._clearCrashTimer();
@@ -288,8 +288,9 @@ export class BuildStreamBridge {
 
     switch (type) {
       case 'build_start':
+      case 'build_resume':
         return {
-          type: 'system', subtype: 'build_start',
+          type: 'system', subtype: type,
           featureCode: event.featureCode, flowId: event.flowId,
           _source: 'build',
         };
@@ -302,6 +303,7 @@ export class BuildStreamBridge {
           intent: event.intent,
           flowId: event.flowId,
           ...(event.parentFlowId ? { parentFlowId: event.parentFlowId } : {}),
+          ...(event.parallel ? { parallel: true } : {}),
           _source: 'build',
         };
 
@@ -326,6 +328,7 @@ export class BuildStreamBridge {
           retries: event.retries, violations: event.violations,
           flowId: event.flowId,
           ...(event.parentFlowId ? { parentFlowId: event.parentFlowId } : {}),
+          ...(event.parallel ? { parallel: true } : {}),
           _source: 'build',
         };
 

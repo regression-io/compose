@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Docs: SmartMemory File Browser</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 580px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.7; margin-bottom: 24px; text-align: left; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Tab bar */
+.tab-bar { display: flex; align-items: center; padding: 0 16px; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; gap: 2px; }
+.tab { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 16px; border-radius: 6px 6px 0 0; cursor: pointer; transition: all 0.25s ease; user-select: none; font-weight: 600; color: #64748b; background: transparent; border: 1px solid transparent; border-bottom: none; position: relative; }
+.tab:hover { color: #94a3b8; background: #334155; }
+.tab.active { color: #3b82f6; background: #0f172a; border-color: #334155; }
+.tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px; background: #0f172a; }
+
+/* Main layout */
+.main { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+/* File tree (left) */
+.file-tree { width: 250px; min-width: 180px; max-width: 400px; background: #1e293b; border-right: 1px solid #334155; display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+.tree-header { padding: 10px 14px; border-bottom: 1px solid #334155; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; justify-content: space-between; }
+.tree-search { margin: 8px 10px; padding: 5px 10px; border-radius: 4px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 11px; outline: none; transition: border-color 0.2s; }
+.tree-search:focus { border-color: #3b82f6; }
+.tree-search::placeholder { color: #475569; }
+.tree-items { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+.tree-node { display: flex; align-items: center; padding: 4px 14px; cursor: pointer; font-size: 12px; color: #94a3b8; transition: all 0.15s; user-select: none; white-space: nowrap; position: relative; }
+.tree-node:hover { background: #334155; color: #e2e8f0; }
+.tree-node.selected { background: #3b82f620; color: #e2e8f0; }
+.tree-node .indent { display: inline-block; width: 16px; flex-shrink: 0; }
+.tree-node .arrow { display: inline-flex; width: 14px; font-size: 9px; color: #475569; flex-shrink: 0; transition: transform 0.15s; }
+.tree-node .arrow.expanded { transform: rotate(90deg); }
+.tree-node .icon { margin-right: 6px; font-size: 11px; flex-shrink: 0; }
+.tree-node .icon.folder { color: #f59e0b; }
+.tree-node .icon.file { color: #64748b; }
+.tree-node .tracked-dot { width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; margin-left: auto; flex-shrink: 0; }
+.tree-node .tracked-dot.pulse { animation: pulseBlue 1.5s ease-in-out 3; }
+
+/* Resize handle */
+.resize-handle { width: 4px; cursor: col-resize; background: transparent; flex-shrink: 0; position: relative; z-index: 10; transition: background 0.2s; }
+.resize-handle:hover, .resize-handle.active { background: #3b82f6; }
+
+/* Preview pane (right) */
+.preview-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.preview-header { display: flex; align-items: center; padding: 8px 16px; border-bottom: 1px solid #334155; gap: 10px; flex-shrink: 0; min-height: 40px; }
+.back-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #3b82f6; background: none; border: 1px solid #3b82f640; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-weight: 600; transition: all 0.2s; flex-shrink: 0; }
+.back-btn:hover { background: #3b82f620; border-color: #3b82f6; }
+.back-btn.glow { box-shadow: 0 0 12px #3b82f640; border-color: #3b82f6; }
+.file-path { font-size: 12px; color: #64748b; flex: 1; }
+.file-path .current { color: #e2e8f0; font-weight: 600; }
+.modified-indicator { font-size: 10px; color: #f59e0b; font-weight: 600; opacity: 0; transition: opacity 0.3s; }
+.modified-indicator.visible { opacity: 1; }
+.preview-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
+.action-btn { padding: 4px 12px; border-radius: 4px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px; }
+.action-btn:hover { background: #334155; color: #e2e8f0; }
+.action-btn.active { border-color: #3b82f6; color: #3b82f6; }
+.action-btn.save-flash { border-color: #22c55e; color: #22c55e; box-shadow: 0 0 12px #22c55e40; }
+
+.preview-body { flex: 1; overflow-y: auto; padding: 24px 32px; position: relative; }
+
+/* Markdown rendered content */
+.md-content { max-width: 720px; line-height: 1.7; }
+.md-content h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 16px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+.md-content h2 { font-size: 16px; font-weight: 700; color: #e2e8f0; margin-top: 28px; margin-bottom: 12px; }
+.md-content h3 { font-size: 14px; font-weight: 700; color: #cbd5e1; margin-top: 20px; margin-bottom: 8px; }
+.md-content p { font-size: 13px; color: #cbd5e1; margin-bottom: 12px; }
+.md-content .meta { display: flex; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
+.md-content .meta-item { font-size: 12px; }
+.md-content .meta-label { color: #64748b; font-weight: 600; }
+.md-content .meta-value { color: #e2e8f0; }
+.md-content .meta-value.link { color: #3b82f6; text-decoration: underline; cursor: pointer; }
+.md-content hr { border: none; border-top: 1px solid #334155; margin: 16px 0; }
+.md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 12px; }
+.md-content li { font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
+.md-content code { background: #334155; padding: 1px 5px; border-radius: 3px; font-size: 12px; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; }
+.md-content pre { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 14px; margin-bottom: 16px; overflow-x: auto; }
+.md-content pre code { background: none; padding: 0; font-size: 12px; color: #cbd5e1; }
+
+/* Edit textarea */
+.edit-area { display: none; width: 100%; height: 100%; resize: none; background: #0f172a; border: none; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; padding: 24px 32px; outline: none; }
+
+/* Tree placeholder (for back-nav animation) */
+.tree-placeholder { position: absolute; inset: 0; background: #0f172a; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+.tree-placeholder.visible { opacity: 1; }
+.tree-placeholder-content { text-align: center; }
+.tree-placeholder-content .tp-title { font-size: 16px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.tree-placeholder-content .tp-sub { font-size: 12px; color: #64748b; }
+.tree-placeholder-content .tp-items { display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+.tree-placeholder-content .tp-item { padding: 6px 14px; border-radius: 6px; border: 2px solid #334155; font-size: 10px; color: #64748b; font-weight: 600; }
+.tree-placeholder-content .tp-item.highlighted { border-color: #3b82f6; color: #3b82f6; box-shadow: 0 0 8px #3b82f640; }
+
+/* Annotation */
+.annotation { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 18px; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; white-space: nowrap; max-width: 90vw; }
+.annotation.visible { opacity: 1; }
+
+/* Animations */
+@keyframes pulseBlue { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } 50% { box-shadow: 0 0 12px 3px rgba(59,130,246,0.35); } }
+@keyframes greenFlash { 0% { box-shadow: 0 0 16px 4px rgba(34,197,94,0.6); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+</style>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1><span>Docs:</span> SmartMemory File Browser</h1>
+    <p>Browse and edit SmartMemory's documentation. File tree on the left shows all docs organized by feature. Blue dots indicate tracked files (referenced by board items). Click to preview rendered markdown. Toggle to edit mode for inline editing. When navigated from Graph or Tree, a Back button returns you to where you were.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="replay()">Replay</button>
+
+<!-- Tab bar -->
+<div class="tab-bar" id="tabBar">
+  <div class="tab" id="tabGraph">Graph</div>
+  <div class="tab" id="tabTree">Tree</div>
+  <div class="tab active" id="tabDocs">Docs</div>
+</div>
+
+<!-- Main -->
+<div class="main" id="mainArea">
+
+  <!-- File tree -->
+  <div class="file-tree" id="fileTree">
+    <div class="tree-header">Files</div>
+    <input class="tree-search" type="text" placeholder="Search files..." id="treeSearch" />
+    <div class="tree-items" id="treeItems">
+      <!-- docs/ -->
+      <div class="tree-node" data-depth="0" data-folder="docs">
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        docs/
+      </div>
+
+      <!-- docs/features/ -->
+      <div class="tree-node" data-depth="1" data-folder="features" data-parent="docs">
+        <span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        features/
+      </div>
+
+      <!-- CORE-ASYNC-1/ -->
+      <div class="tree-node" data-depth="2" data-folder="core-async" data-parent="features">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        CORE-ASYNC-1/
+      </div>
+      <div class="tree-node selected" data-depth="3" data-file="core-async-design" data-parent="core-async" id="treeCoreAsyncDesign">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        design.md
+        <span class="tracked-dot" id="dotCoreAsyncDesign"></span>
+      </div>
+      <div class="tree-node" data-depth="3" data-file="core-async-plan" data-parent="core-async">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        plan.md
+        <span class="tracked-dot"></span>
+      </div>
+
+      <!-- CORE-OBS-2/ -->
+      <div class="tree-node" data-depth="2" data-folder="core-obs" data-parent="features">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        CORE-OBS-2/
+      </div>
+      <div class="tree-node" data-depth="3" data-file="core-obs-plan" data-parent="core-obs">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        plan.md
+        <span class="tracked-dot"></span>
+      </div>
+
+      <!-- DIST-RELEASE-1/ -->
+      <div class="tree-node" data-depth="2" data-folder="dist-release" data-parent="features">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        DIST-RELEASE-1/
+      </div>
+      <div class="tree-node" data-depth="3" data-file="dist-blueprint" data-parent="dist-release">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        blueprint.md
+        <span class="tracked-dot"></span>
+      </div>
+      <div class="tree-node" data-depth="3" data-file="dist-design" data-parent="dist-release" id="treeDistDesign">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        design.md
+        <span class="tracked-dot"></span>
+      </div>
+      <div class="tree-node" data-depth="3" data-file="dist-plan" data-parent="dist-release">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        plan.md
+        <span class="tracked-dot"></span>
+      </div>
+
+      <!-- GEN-REF-1/ -->
+      <div class="tree-node" data-depth="2" data-folder="gen-ref" data-parent="features">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        GEN-REF-1/
+      </div>
+      <div class="tree-node" data-depth="3" data-file="gen-ref-design" data-parent="gen-ref">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        design.md
+        <span class="tracked-dot"></span>
+      </div>
+      <div class="tree-node" data-depth="3" data-file="gen-ref-plan" data-parent="gen-ref">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        plan.md
+        <span class="tracked-dot"></span>
+      </div>
+
+      <!-- PRE-ASYNC-REF-1/ -->
+      <div class="tree-node" data-depth="2" data-folder="pre-async" data-parent="features">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        PRE-ASYNC-REF-1/
+      </div>
+      <div class="tree-node" data-depth="3" data-file="pre-async-design" data-parent="pre-async">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        design.md
+        <span class="tracked-dot"></span>
+      </div>
+      <div class="tree-node" data-depth="3" data-file="pre-async-plan" data-parent="pre-async">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        plan.md
+        <span class="tracked-dot"></span>
+      </div>
+
+      <!-- TEST-INFRA-1/ (empty) -->
+      <div class="tree-node" data-depth="2" data-folder="test-infra" data-parent="features">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        TEST-INFRA-1/
+      </div>
+
+      <!-- test-audit-fixes/ -->
+      <div class="tree-node" data-depth="2" data-folder="test-audit" data-parent="features">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        test-audit-fixes/
+      </div>
+      <div class="tree-node" data-depth="3" data-file="audit-plan" data-parent="test-audit">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        plan.md
+        <span class="tracked-dot"></span>
+      </div>
+      <div class="tree-node" data-depth="3" data-file="audit-report" data-parent="test-audit">
+        <span class="indent"></span><span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        report.md
+        <span class="tracked-dot"></span>
+      </div>
+
+      <!-- docs/plans/ -->
+      <div class="tree-node" data-depth="1" data-folder="plans" data-parent="docs">
+        <span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        plans/
+      </div>
+      <div class="tree-node" data-depth="2" data-file="plan-lifecycle" data-parent="plans">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        2026-02-15-lifecycle-engine-roadmap.md
+      </div>
+      <div class="tree-node" data-depth="2" data-file="plan-arch" data-parent="plans">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        2026-02-26-architecture-foundation-plan.md
+      </div>
+      <div class="tree-node" data-depth="2" data-file="plan-test" data-parent="plans">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        2026-03-05-manual-test-guide.md
+      </div>
+
+      <!-- docs/research/ -->
+      <div class="tree-node" data-depth="1" data-folder="research" data-parent="docs">
+        <span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        research/
+      </div>
+      <div class="tree-node" data-depth="2" data-file="research-neuro" data-parent="research">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        neuroscience-inspired-memory-systems.md
+      </div>
+
+      <!-- docs/reviews/ -->
+      <div class="tree-node" data-depth="1" data-folder="reviews" data-parent="docs">
+        <span class="indent"></span>
+        <span class="arrow expanded">&#9654;</span>
+        <span class="icon folder">&#128193;</span>
+        reviews/
+      </div>
+      <div class="tree-node" data-depth="2" data-file="review-tokens" data-parent="reviews">
+        <span class="indent"></span><span class="indent"></span>
+        <span class="arrow" style="visibility:hidden">&#9654;</span>
+        <span class="icon file">&#128196;</span>
+        forge-token-savings-opportunities.md
+      </div>
+    </div>
+  </div>
+
+  <!-- Resize handle -->
+  <div class="resize-handle" id="resizeHandle"></div>
+
+  <!-- Preview pane -->
+  <div class="preview-pane" id="previewPane">
+    <div class="preview-header" id="previewHeader">
+      <button class="back-btn" id="backBtn">&larr; Back to Tree</button>
+      <span class="file-path" id="filePath">docs/features/CORE-ASYNC-1/<span class="current" id="currentFile">design.md</span></span>
+      <span class="modified-indicator" id="modifiedIndicator">modified</span>
+      <div class="preview-actions">
+        <button class="action-btn" id="editBtn" title="Edit">&#9998; Edit</button>
+        <button class="action-btn" id="eyeBtn" title="Preview" style="display:none">&#128065; Preview</button>
+        <button class="action-btn" id="saveBtn">Save</button>
+      </div>
+    </div>
+    <div class="preview-body" id="previewBody">
+      <!-- Rendered markdown -->
+      <div class="md-content" id="mdContent">
+        <h1>CORE-ASYNC-1 Design</h1>
+        <div class="meta">
+          <div class="meta-item"><span class="meta-label">Date:</span> <span class="meta-value">2026-02-18</span></div>
+          <div class="meta-item"><span class="meta-label">Feature ID:</span> <span class="meta-value">CORE-ASYNC-1</span></div>
+          <div class="meta-item"><span class="meta-label">Canonical Plan:</span> <span class="meta-value link">docs/features/CORE-ASYNC-1/plan.md</span></div>
+        </div>
+        <hr>
+
+        <h2>Problem</h2>
+        <p>Current Python core/service runtime is largely synchronous, limiting concurrency and introducing event-loop blocking risk in async service contexts.</p>
+
+        <h2>Goals</h2>
+        <ol>
+          <li>Migrate core library from sync to async-native</li>
+          <li>AsyncFalkorDBBackend validated for graph operations</li>
+          <li>Maintain backward compatibility via sync wrappers</li>
+          <li>Enable high-throughput pipeline processing</li>
+        </ol>
+
+        <h2>Non-Goals</h2>
+        <ul>
+          <li>Changing the public API surface</li>
+          <li>Breaking existing sync consumers</li>
+        </ul>
+
+        <h2 id="archOptions">Architecture Options</h2>
+
+        <h3>Option A: Full async rewrite</h3>
+        <ul>
+          <li>Replace all I/O with async equivalents</li>
+          <li>Estimated 12-20 weeks</li>
+        </ul>
+
+        <h3>Option B: Incremental migration</h3>
+        <ul>
+          <li>Add async interfaces alongside sync</li>
+          <li>Deprecate sync over 2 releases</li>
+        </ul>
+      </div>
+
+      <!-- Edit textarea (hidden by default) -->
+      <textarea class="edit-area" id="editArea"># CORE-ASYNC-1 Design
+
+**Date:** 2026-02-18
+**Feature ID:** CORE-ASYNC-1
+**Canonical Plan:** docs/features/CORE-ASYNC-1/plan.md
+
+---
+
+## Problem
+
+Current Python core/service runtime is largely synchronous, limiting concurrency and introducing event-loop blocking risk in async service contexts.
+
+## Goals
+
+1. Migrate core library from sync to async-native
+2. AsyncFalkorDBBackend validated for graph operations
+3. Maintain backward compatibility via sync wrappers
+4. Enable high-throughput pipeline processing
+
+## Non-Goals
+
+- Changing the public API surface
+- Breaking existing sync consumers
+
+## Architecture Options
+
+### Option A: Full async rewrite
+- Replace all I/O with async equivalents
+- Estimated 12-20 weeks
+
+### Option B: Incremental migration
+- Add async interfaces alongside sync
+- Deprecate sync over 2 releases</textarea>
+    </div>
+
+    <!-- Tree placeholder for back-nav animation -->
+    <div class="tree-placeholder" id="treePlaceholder">
+      <div class="tree-placeholder-content">
+        <div class="tp-title">Tree View</div>
+        <div class="tp-sub">Mid-level feature tree with your selection preserved</div>
+        <div class="tp-items">
+          <div class="tp-item">CORE-ASYNC-1</div>
+          <div class="tp-item highlighted">CORE-OBS-2</div>
+          <div class="tp-item">DIST-RELEASE-1</div>
+          <div class="tp-item">GEN-REF-1</div>
+          <div class="tp-item">PRE-ASYNC-REF-1</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DIST-RELEASE-1/design.md content -->
+<template id="distDesignContent">
+  <h1>DIST-RELEASE-1 Design</h1>
+  <div class="meta">
+    <div class="meta-item"><span class="meta-label">Date:</span> <span class="meta-value">2026-03-01</span></div>
+    <div class="meta-item"><span class="meta-label">Feature ID:</span> <span class="meta-value">DIST-RELEASE-1</span></div>
+    <div class="meta-item"><span class="meta-label">Canonical Plan:</span> <span class="meta-value link">docs/features/DIST-RELEASE-1/plan.md</span></div>
+  </div>
+  <hr>
+
+  <h2>Problem</h2>
+  <p>Release packaging and distribution currently relies on manual steps: building wheels, uploading to PyPI, tagging Git, and updating changelogs. This is error-prone and blocks rapid iteration.</p>
+
+  <h2>Goals</h2>
+  <ol>
+    <li>Fully automated release pipeline triggered by version bump</li>
+    <li>PyPI Trusted Publisher integration for keyless publishing</li>
+    <li>Changelog generation from conventional commits</li>
+    <li>GitHub Release creation with attached artifacts</li>
+  </ol>
+
+  <h2>Architecture</h2>
+  <p>Three-stage pipeline triggered by push to <code>main</code> with version tag:</p>
+  <pre><code>tag push --> CI build --> test gate --> publish
+                                          |
+                                    PyPI + GitHub Release</code></pre>
+
+  <h2>Security Model</h2>
+  <ul>
+    <li>No API tokens stored in secrets &mdash; uses OIDC Trusted Publisher</li>
+    <li>Provenance attestation via Sigstore</li>
+    <li>SBOM generated alongside each release</li>
+  </ul>
+</template>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<script>
+// --- Resize handle ---
+const resizeHandle = document.getElementById('resizeHandle');
+const fileTree = document.getElementById('fileTree');
+let isResizing = false;
+resizeHandle.addEventListener('mousedown', (e) => {
+  isResizing = true;
+  resizeHandle.classList.add('active');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+document.addEventListener('mousemove', (e) => {
+  if (!isResizing) return;
+  const w = Math.max(180, Math.min(400, e.clientX));
+  fileTree.style.width = w + 'px';
+});
+document.addEventListener('mouseup', () => {
+  isResizing = false;
+  resizeHandle.classList.remove('active');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// --- State ---
+let isEditing = false;
+let demoTimers = [];
+const ann = document.getElementById('annotation');
+const editBtn = document.getElementById('editBtn');
+const eyeBtn = document.getElementById('eyeBtn');
+const saveBtn = document.getElementById('saveBtn');
+const mdContent = document.getElementById('mdContent');
+const editArea = document.getElementById('editArea');
+const modInd = document.getElementById('modifiedIndicator');
+const backBtn = document.getElementById('backBtn');
+const previewBody = document.getElementById('previewBody');
+const filePath = document.getElementById('filePath');
+const currentFile = document.getElementById('currentFile');
+
+// --- Annotation helper ---
+function showAnnotation(text) {
+  ann.textContent = text;
+  ann.classList.add('visible');
+}
+function hideAnnotation() {
+  ann.classList.remove('visible');
+}
+
+// --- Edit mode helpers ---
+function enterEditMode() {
+  isEditing = true;
+  mdContent.style.display = 'none';
+  editArea.style.display = 'block';
+  editBtn.style.display = 'none';
+  eyeBtn.style.display = 'inline-flex';
+  editArea.focus();
+}
+
+function exitEditMode() {
+  isEditing = false;
+  editArea.style.display = 'none';
+  mdContent.style.display = 'block';
+  editBtn.style.display = 'inline-flex';
+  eyeBtn.style.display = 'none';
+}
+
+// --- Interactive controls ---
+editBtn.addEventListener('click', () => { enterEditMode(); });
+eyeBtn.addEventListener('click', () => { exitEditMode(); });
+saveBtn.addEventListener('click', () => {
+  modInd.classList.remove('visible');
+  saveBtn.classList.add('save-flash');
+  setTimeout(() => saveBtn.classList.remove('save-flash'), 800);
+});
+
+// --- File content map ---
+const fileContents = {
+  'core-async-design': { path: 'docs/features/CORE-ASYNC-1/', name: 'design.md' },
+  'core-async-plan': { path: 'docs/features/CORE-ASYNC-1/', name: 'plan.md' },
+  'core-obs-plan': { path: 'docs/features/CORE-OBS-2/', name: 'plan.md' },
+  'dist-blueprint': { path: 'docs/features/DIST-RELEASE-1/', name: 'blueprint.md' },
+  'dist-design': { path: 'docs/features/DIST-RELEASE-1/', name: 'design.md' },
+  'dist-plan': { path: 'docs/features/DIST-RELEASE-1/', name: 'plan.md' },
+  'gen-ref-design': { path: 'docs/features/GEN-REF-1/', name: 'design.md' },
+  'gen-ref-plan': { path: 'docs/features/GEN-REF-1/', name: 'plan.md' },
+  'pre-async-design': { path: 'docs/features/PRE-ASYNC-REF-1/', name: 'design.md' },
+  'pre-async-plan': { path: 'docs/features/PRE-ASYNC-REF-1/', name: 'plan.md' },
+  'audit-plan': { path: 'docs/features/test-audit-fixes/', name: 'plan.md' },
+  'audit-report': { path: 'docs/features/test-audit-fixes/', name: 'report.md' },
+  'plan-lifecycle': { path: 'docs/plans/', name: '2026-02-15-lifecycle-engine-roadmap.md' },
+  'plan-arch': { path: 'docs/plans/', name: '2026-02-26-architecture-foundation-plan.md' },
+  'plan-test': { path: 'docs/plans/', name: '2026-03-05-manual-test-guide.md' },
+  'research-neuro': { path: 'docs/research/', name: 'neuroscience-inspired-memory-systems.md' },
+  'review-tokens': { path: 'docs/reviews/', name: 'forge-token-savings-opportunities.md' },
+};
+
+// --- Tree click ---
+document.querySelectorAll('.tree-node[data-file]').forEach(node => {
+  node.addEventListener('click', () => {
+    document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+    node.classList.add('selected');
+    const fileId = node.dataset.file;
+    const info = fileContents[fileId];
+    if (info) {
+      filePath.innerHTML = info.path + '<span class="current" id="currentFile">' + info.name + '</span>';
+    }
+    if (fileId === 'dist-design') {
+      mdContent.innerHTML = document.getElementById('distDesignContent').innerHTML;
+    }
+    if (isEditing) exitEditMode();
+    modInd.classList.remove('visible');
+    previewBody.scrollTop = 0;
+  });
+});
+
+// --- Demo sequence ---
+function startDemo() {
+  document.getElementById('preamble').classList.add('hidden');
+  document.getElementById('replayBtn').classList.add('visible');
+  runSequence();
+}
+
+function clearTimers() {
+  demoTimers.forEach(t => clearTimeout(t));
+  demoTimers = [];
+}
+
+function replay() {
+  clearTimers();
+  hideAnnotation();
+  if (isEditing) exitEditMode();
+  modInd.classList.remove('visible');
+  previewBody.scrollTop = 0;
+  backBtn.classList.remove('glow');
+  saveBtn.classList.remove('save-flash');
+
+  // Reset to CORE-ASYNC-1/design.md
+  document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+  document.getElementById('treeCoreAsyncDesign').classList.add('selected');
+  filePath.innerHTML = 'docs/features/CORE-ASYNC-1/<span class="current" id="currentFile">design.md</span>';
+
+  // Reset tabs
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tabDocs').classList.add('active');
+
+  // Reset tree placeholder
+  document.getElementById('treePlaceholder').classList.remove('visible');
+
+  // Reset file tree visibility
+  fileTree.style.display = '';
+  resizeHandle.style.display = '';
+
+  // Restore original design.md content
+  mdContent.innerHTML = originalDesignContent;
+  mdContent.style.display = 'block';
+  editArea.style.display = 'none';
+  editArea.value = originalEditContent;
+  editBtn.style.display = 'inline-flex';
+  eyeBtn.style.display = 'none';
+
+  // Reset back button
+  backBtn.innerHTML = '&larr; Back to Tree';
+  backBtn.style.display = '';
+  document.getElementById('previewHeader').style.display = '';
+
+  // Reset tracked dot pulses
+  document.querySelectorAll('.tracked-dot').forEach(d => d.classList.remove('pulse'));
+
+  runSequence();
+}
+
+// Save original content
+const originalDesignContent = mdContent.innerHTML;
+const originalEditContent = editArea.value;
+
+function sched(delay, fn) {
+  demoTimers.push(setTimeout(fn, delay));
+}
+
+function runSequence() {
+  // Step 1 (0s): Initial state - file tree with CORE-ASYNC-1/design.md selected
+  sched(0, () => {
+    showAnnotation('Arrived from Tree view \u2014 Back button remembers where you were');
+  });
+
+  // Step 2 (4s): Highlight tracked file indicators (blue dots)
+  sched(4000, () => {
+    showAnnotation('Blue dots = file referenced by a board item');
+    document.querySelectorAll('.tracked-dot').forEach(d => d.classList.add('pulse'));
+  });
+
+  // Step 3 (7s): Scroll preview to Architecture Options section
+  sched(7000, () => {
+    document.querySelectorAll('.tracked-dot').forEach(d => d.classList.remove('pulse'));
+    hideAnnotation();
+    const target = document.getElementById('archOptions');
+    if (target) {
+      previewBody.scrollTo({ top: target.offsetTop - 40, behavior: 'smooth' });
+    } else {
+      previewBody.scrollTo({ top: 280, behavior: 'smooth' });
+    }
+  });
+
+  // Step 4 (10s): Click Edit (pencil) -> textarea with raw markdown
+  sched(10000, () => {
+    previewBody.scrollTop = 0;
+    showAnnotation('Edit mode \u2014 full markdown editing inline');
+    enterEditMode();
+  });
+
+  // Step 5 (13s): Type a few characters, "modified" indicator appears
+  sched(13000, () => {
+    showAnnotation('Type to edit \u2014 modified indicator appears');
+    const orig = editArea.value;
+    const insertPos = orig.indexOf('## Non-Goals');
+    editArea.value = orig.slice(0, insertPos) + '5. Zero-downtime migration with feature flags\n\n' + orig.slice(insertPos);
+    editArea.scrollTop = 0;
+    modInd.classList.add('visible');
+  });
+
+  // Step 6 (16s): Cmd+S -> save flash
+  sched(16000, () => {
+    showAnnotation('Saved to disk \u2014 Cmd+S shortcut');
+    modInd.classList.remove('visible');
+    saveBtn.classList.add('save-flash');
+    setTimeout(() => saveBtn.classList.remove('save-flash'), 800);
+  });
+
+  // Step 7 (19s): Click Eye -> back to preview
+  sched(19000, () => {
+    hideAnnotation();
+    exitEditMode();
+  });
+
+  // Step 8 (22s): Click DIST-RELEASE-1/design.md in tree
+  sched(22000, () => {
+    showAnnotation('Browse between files \u2014 preview updates instantly');
+    document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('selected'));
+    document.getElementById('treeDistDesign').classList.add('selected');
+    filePath.innerHTML = 'docs/features/DIST-RELEASE-1/<span class="current" id="currentFile">design.md</span>';
+    mdContent.innerHTML = document.getElementById('distDesignContent').innerHTML;
+    previewBody.scrollTop = 0;
+  });
+
+  // Step 9 (25s): Click "Back to Tree" -> simulate tab switch
+  sched(25000, () => {
+    showAnnotation('Back to mid-level tree \u2014 selection preserved');
+    // Animate tab switch
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tabTree').classList.add('active');
+    // Hide file tree and preview
+    fileTree.style.display = 'none';
+    resizeHandle.style.display = 'none';
+    // Show tree placeholder
+    document.getElementById('treePlaceholder').classList.add('visible');
+    // Hide preview header and content
+    document.getElementById('previewHeader').style.display = 'none';
+    mdContent.style.display = 'none';
+  });
+
+  // Step 10 (28s): Replay
+  sched(28000, () => {
+    hideAnnotation();
+  });
+
+  sched(31000, () => {
+    replay();
+  });
+}
+</script>
+</body>
+</html>

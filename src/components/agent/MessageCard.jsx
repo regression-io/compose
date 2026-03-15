@@ -206,11 +206,12 @@ export default function MessageCard({ msg }) {
   }
 
   // Build lifecycle events
-  if (msg.type === 'system' && msg.subtype === 'build_start') {
+  if (msg.type === 'system' && (msg.subtype === 'build_start' || msg.subtype === 'build_resume')) {
+    const label = msg.subtype === 'build_resume' ? 'build resumed' : 'build started';
     return (
       <div className="text-[10px] uppercase tracking-wider py-1"
         style={{ color: 'hsl(var(--accent))', opacity: 0.8 }}>
-        build started -- {msg.featureCode}
+        {label} -- {msg.featureCode}
       </div>
     );
   }

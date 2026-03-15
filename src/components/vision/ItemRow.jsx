@@ -226,6 +226,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
     <div
       className={animClass || undefined}
       style={{
+        position: 'relative',
         border: '1px solid var(--border-standard)',
         borderRadius: 'var(--row-radius)',
         marginBottom: 'var(--row-gap)',
@@ -233,6 +234,12 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
         overflow: 'hidden',
       }}
     >
+      {depth > 0 && (
+        <div
+          className="absolute top-0 bottom-0 w-px bg-border/30"
+          style={{ left: `${((depth - 1) * 16) + 12}px` }}
+        />
+      )}
       {/* Collapsed header — always visible */}
       <div
         onClick={toggleExpanded}
@@ -320,6 +327,13 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
             background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
           }}>
             {questionItems.filter(q => q.item.status !== 'complete' && q.item.status !== 'killed').length} open ?
+          </span>
+        )}
+        {!expanded && children.length > 0 && (
+          <span style={{
+            fontSize: 'var(--row-label)', color: 'var(--color-text-tertiary)', flexShrink: 0,
+          }}>
+            ({children.length})
           </span>
         )}
 

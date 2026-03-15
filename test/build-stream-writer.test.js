@@ -52,7 +52,7 @@ describe('BuildStreamWriter', () => {
     }
   });
 
-  it('truncates existing file on re-construction (fresh start per build)', () => {
+  it('truncates existing file when truncate: true (fresh start)', () => {
     const composeDir = join(tmpDir, '.compose');
 
     // First build
@@ -64,13 +64,33 @@ describe('BuildStreamWriter', () => {
     const lines1 = readFileSync(writer1.filePath, 'utf-8').trim().split('\n');
     assert.equal(lines1.length, 3); // start + step + end
 
-    // Second build — should truncate
-    const writer2 = new BuildStreamWriter(composeDir, 'TEST-2');
+    // Second build — should truncate with explicit flag
+    const writer2 = new BuildStreamWriter(composeDir, 'TEST-2', { truncate: true });
     writer2.write({ type: 'build_start' });
 
     const lines2 = readFileSync(writer2.filePath, 'utf-8').trim().split('\n');
     assert.equal(lines2.length, 1); // only the new start
     assert.equal(JSON.parse(lines2[0])._seq, 0); // seq reset
+  });
+
+  it('appends to existing file by default (resume)', () => {
+    const composeDir = join(tmpDir, '.compose');
+
+    // First build writes some events
+    const writer1 = new BuildStreamWriter(composeDir, 'TEST-1');
+    writer1.write({ type: 'build_start' });
+    writer1.write({ type: 'build_step_start', stepId: 's1' });
+    writer1.write({ type: 'build_step_done', stepId: 's1' });
+
+    const lines1 = readFileSync(writer1.filePath, 'utf-8').trim().split('\n');
+    assert.equal(lines1.length, 3);
+
+    // Resume — default (no truncate) should append
+    const writer2 = new BuildStreamWriter(composeDir, 'TEST-1');
+    writer2.write({ type: 'build_resume' });
+
+    const lines2 = readFileSync(writer2.filePath, 'utf-8').trim().split('\n');
+    assert.equal(lines2.length, 4); // original 3 + resume event
   });
 
   it('close() writes a build_end event with correct status and featureCode', () => {

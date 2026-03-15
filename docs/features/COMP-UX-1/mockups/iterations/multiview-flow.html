@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multi-View: Cross-View Navigation Flow</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 560px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.7; margin-bottom: 24px; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Tab bar */
+.tab-bar { display: flex; align-items: center; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; padding: 0 16px; gap: 0; }
+.tab-item { position: relative; padding: 0 18px; height: 40px; display: flex; align-items: center; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; transition: color 0.2s; user-select: none; }
+.tab-item.active { color: #e2e8f0; }
+.tab-item::after { content: ''; position: absolute; bottom: 0; left: 8px; right: 8px; height: 2px; background: transparent; border-radius: 1px; transition: background 0.2s; }
+.tab-item.active::after { background: #3b82f6; }
+.tab-spacer { flex: 1; }
+.tab-project { font-size: 11px; color: #64748b; font-weight: 500; }
+
+/* Main layout */
+.app-body { display: flex; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+.sidebar { width: 200px; background: #0f172a; border-right: 1px solid #1e293b; flex-shrink: 0; padding: 14px 12px; overflow-y: auto; }
+.sb-heading { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 8px; margin-top: 14px; }
+.sb-heading:first-child { margin-top: 0; }
+.sb-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; padding: 4px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
+.sb-item:hover { background: #1e293b; color: #e2e8f0; }
+.sb-item.active { background: #1e293b; color: #e2e8f0; }
+.sb-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* Content area */
+.content-area { flex: 1; position: relative; overflow: hidden; }
+.tab-content { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.15s ease; overflow: hidden; }
+.tab-content.active { opacity: 1; pointer-events: auto; }
+
+/* Context panel (shared) */
+.context-panel { position: absolute; right: 0; top: 0; height: 100%; width: 300px; background: #1e293b; border-left: 1px solid #334155; z-index: 20; transform: translateX(100%); transition: transform 0.25s ease; overflow-y: auto; flex-shrink: 0; }
+.context-panel.open { transform: translateX(0); }
+.cp-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #334155; }
+.cp-header h3 { font-size: 13px; font-weight: 700; }
+.cp-close { width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: #64748b; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+.cp-close:hover { background: #334155; color: #e2e8f0; }
+.cp-section { padding: 10px 14px; border-bottom: 1px solid #334155; }
+.cp-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 6px; }
+.cp-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; }
+.cp-status.building { background: #3b82f620; color: #3b82f6; }
+.cp-status.gate { background: #f59e0b20; color: #f59e0b; }
+.cp-status.complete { background: #22c55e20; color: #22c55e; }
+.cp-status.planned { background: #64748b20; color: #94a3b8; }
+.cp-detail { font-size: 11px; color: #94a3b8; line-height: 1.6; }
+.cp-progress { width: 100%; height: 4px; background: #334155; border-radius: 2px; margin: 6px 0; overflow: hidden; }
+.cp-progress-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease, background 0.4s ease; }
+.cp-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #3b82f6; cursor: pointer; padding: 4px 0; transition: color 0.2s; }
+.cp-link:hover { color: #60a5fa; }
+.cp-link.glow { animation: linkGlow 1s ease-in-out infinite; }
+@keyframes linkGlow { 0%,100% { color: #3b82f6; } 50% { color: #93c5fd; text-shadow: 0 0 8px #3b82f640; } }
+.cp-file-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; padding: 3px 0; cursor: pointer; transition: color 0.15s; }
+.cp-file-item:hover { color: #e2e8f0; }
+.cp-file-item .icon { font-size: 10px; opacity: 0.6; }
+.cp-session { padding: 6px 0; }
+.cp-session-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; }
+.cp-session-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+/* ===== GRAPH VIEW ===== */
+.graph-canvas { position: relative; width: 100%; height: 100%; }
+.graph-node { position: absolute; padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; border: 1px solid; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 120px; text-align: center; user-select: none; }
+.graph-node .node-label { font-size: 11px; font-weight: 700; }
+.graph-node .node-sub { font-size: 9px; font-weight: 400; opacity: 0.7; }
+.graph-node.building { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
+.graph-node.building.pulse { animation: nodePulse 2s ease-in-out infinite; }
+@keyframes nodePulse { 0%,100% { box-shadow: 0 0 0 0 #3b82f640; } 50% { box-shadow: 0 0 12px 4px #3b82f640; } }
+.graph-node.gate { background: #3d2e0a; border-color: #f59e0b; color: #fcd34d; }
+.graph-node.gate .node-badge { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: #f59e0b; color: #000; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.graph-node.complete { background: #0a2e1a; border-color: #22c55e; color: #86efac; }
+.graph-node.planned { background: #1e293b; border-color: #475569; color: #94a3b8; }
+.graph-node.planned.dimmed { opacity: 0.4; }
+.graph-node.selected { box-shadow: 0 0 0 2px #3b82f6, 0 0 16px #3b82f630; }
+
+/* Graph edges (SVG) */
+.graph-edges { position: absolute; inset: 0; pointer-events: none; }
+.graph-edges line { stroke: #334155; stroke-width: 1.5; transition: stroke 0.3s, opacity 0.3s; }
+.graph-edges line.dimmed { opacity: 0.2; }
+.graph-edges line.active { stroke: #3b82f6; stroke-width: 2; }
+
+/* Gate popover */
+.gate-popover { position: absolute; z-index: 30; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 14px; width: 240px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transform: translateY(4px); transition: opacity 0.2s ease, transform 0.2s ease; }
+.gate-popover.visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.gate-popover .gp-title { font-size: 12px; font-weight: 700; color: #fcd34d; margin-bottom: 4px; }
+.gate-popover .gp-body { font-size: 11px; color: #94a3b8; line-height: 1.5; margin-bottom: 10px; }
+.gate-popover .gp-actions { display: flex; gap: 6px; }
+.gate-popover .gp-actions button { padding: 4px 14px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.gate-popover .gp-actions button.approve { background: #22c55e; border-color: #22c55e; color: #000; }
+.gate-popover .gp-actions button.approve:hover { background: #16a34a; }
+
+/* ===== OPS VIEW ===== */
+.ops-view { padding: 16px; padding-right: 316px; overflow-y: auto; height: 100%; }
+.ops-header { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+.ops-row { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+.ops-row:hover { border-color: #475569; }
+.ops-row.selected { border-color: #3b82f6; background: #1e293bdd; }
+.ops-row.expanded { border-color: #3b82f6; }
+.ops-row-header { display: flex; align-items: center; gap: 10px; }
+.ops-row-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ops-row-code { font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.ops-row-name { font-size: 11px; color: #94a3b8; flex: 1; }
+.ops-row-badge { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+.ops-row-progress { width: 80px; height: 4px; background: #334155; border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+.ops-row-progress-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease, background 0.4s ease; }
+.ops-row-expand { padding: 10px 14px 4px 28px; border-top: 1px solid #33415540; margin-top: 8px; display: none; }
+.ops-row.expanded .ops-row-expand { display: block; }
+.ops-expand-section { margin-bottom: 8px; }
+.ops-expand-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 4px; }
+.ops-expand-item { font-size: 11px; color: #94a3b8; padding: 2px 0; display: flex; align-items: center; gap: 6px; }
+.ops-expand-item .dot { width: 5px; height: 5px; border-radius: 50%; }
+.ops-complete-flash { animation: completeFlash 0.6s ease; }
+@keyframes completeFlash { 0% { background: #22c55e20; } 100% { background: #1e293b; } }
+
+/* ===== ITEMS VIEW ===== */
+.items-view { padding: 16px; padding-right: 316px; overflow-y: auto; height: 100%; }
+.items-header { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+.items-group { margin-bottom: 12px; }
+.items-group-header { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #cbd5e1; padding: 6px 8px; cursor: pointer; border-radius: 4px; transition: background 0.15s; }
+.items-group-header:hover { background: #1e293b; }
+.items-group-arrow { font-size: 10px; color: #64748b; transition: transform 0.2s; }
+.items-group.expanded .items-group-arrow { transform: rotate(90deg); }
+.items-group-children { display: none; padding-left: 20px; }
+.items-group.expanded .items-group-children { display: block; }
+.items-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #94a3b8; padding: 4px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+.items-item:hover { background: #1e293b; color: #e2e8f0; }
+.items-item .item-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.items-item .item-code { font-weight: 600; color: #cbd5e1; }
+
+/* ===== DOCS VIEW ===== */
+.docs-view { display: flex; height: 100%; }
+.docs-tree { width: 220px; background: #0f172a; border-right: 1px solid #1e293b; padding: 12px; overflow-y: auto; flex-shrink: 0; }
+.docs-tree-heading { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 6px; margin-top: 10px; }
+.docs-tree-heading:first-child { margin-top: 0; }
+.docs-tree-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; margin-bottom: 1px; }
+.docs-tree-item:hover { background: #1e293b; color: #94a3b8; }
+.docs-tree-item.active { background: #1e293b; color: #e2e8f0; }
+.docs-tree-item .icon { font-size: 10px; }
+.docs-preview { flex: 1; padding: 20px 28px; overflow-y: auto; }
+.docs-preview .doc-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.docs-preview .doc-meta { font-size: 11px; color: #64748b; margin-bottom: 16px; }
+.docs-preview .doc-body { font-size: 13px; color: #cbd5e1; line-height: 1.8; }
+.docs-preview .doc-body h2 { font-size: 15px; font-weight: 700; color: #e2e8f0; margin: 16px 0 8px; }
+.docs-preview .doc-body p { margin-bottom: 10px; }
+.docs-preview .doc-body code { background: #334155; padding: 1px 5px; border-radius: 3px; font-size: 12px; color: #93c5fd; }
+.docs-back-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #3b82f6; cursor: pointer; padding: 4px 10px; border-radius: 4px; border: 1px solid #3b82f640; background: transparent; transition: all 0.2s; margin-bottom: 12px; }
+.docs-back-btn:hover { background: #3b82f620; }
+.docs-edit-area { display: none; width: 100%; min-height: 120px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; padding: 12px; resize: none; margin-bottom: 10px; outline: none; }
+.docs-edit-area:focus { border-color: #3b82f6; }
+.docs-edit-area.visible { display: block; }
+.docs-edit-actions { display: none; gap: 6px; margin-bottom: 12px; }
+.docs-edit-actions.visible { display: flex; }
+.docs-edit-btn { padding: 4px 14px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.docs-edit-btn:hover { background: #475569; }
+.docs-edit-btn.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+.docs-save-btn { padding: 4px 14px; border-radius: 4px; border: 1px solid #22c55e; background: #22c55e; color: #000; font-size: 11px; font-weight: 600; cursor: pointer; }
+.docs-saved-flash { display: none; font-size: 11px; color: #22c55e; font-weight: 600; align-items: center; gap: 4px; }
+.docs-saved-flash.visible { display: inline-flex; }
+
+/* Annotation */
+.annotation { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 20px; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; white-space: nowrap; max-width: 90vw; }
+.annotation.visible { opacity: 1; }
+
+/* Progress bar at bottom */
+.demo-progress { position: fixed; bottom: 0; left: 0; right: 0; height: 3px; background: #1e293b; z-index: 50; }
+.demo-progress-fill { height: 100%; background: #3b82f6; width: 0%; transition: width 0.3s linear; }
+</style>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1>Multi-View: <span>Cross-View Navigation Flow</span></h1>
+    <p>Watch a complete user workflow spanning all four views. The user starts in Graph, approves a gate, investigates a build in Ops, reads a doc, and returns to Graph &mdash; all while selection state and context persist across every view switch. This is how the views work together as one integrated system.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="startDemo()">Replay</button>
+
+<!-- Tab bar -->
+<div class="tab-bar">
+  <div class="tab-item active" data-tab="graph" id="tabGraph">Graph</div>
+  <div class="tab-item" data-tab="items" id="tabItems">Items</div>
+  <div class="tab-item" data-tab="ops" id="tabOps">Ops</div>
+  <div class="tab-item" data-tab="docs" id="tabDocs">Docs</div>
+  <div class="tab-spacer"></div>
+  <div class="tab-project">compose &middot; 6 features</div>
+</div>
+
+<!-- App body -->
+<div class="app-body">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-heading">Tracks</div>
+    <div class="sb-item active"><div class="sb-dot" style="background:#3b82f6"></div> All Tracks</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#8b5cf6"></div> Core</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#f59e0b"></div> Distribution</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#06b6d4"></div> Platform</div>
+    <div class="sb-heading">Phase</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#22c55e"></div> Design</div>
+    <div class="sb-item active"><div class="sb-dot" style="background:#3b82f6"></div> Build</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#94a3b8"></div> Ship</div>
+    <div class="sb-heading">Status</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#3b82f6"></div> Building (3)</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#f59e0b"></div> Gate (1)</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#22c55e"></div> Complete (2)</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#64748b"></div> Planned (2)</div>
+  </div>
+
+  <!-- Content area -->
+  <div class="content-area" id="contentArea">
+
+    <!-- ===== GRAPH TAB ===== -->
+    <div class="tab-content active" id="graphContent">
+      <div class="graph-canvas" id="graphCanvas">
+        <svg class="graph-edges" id="graphEdges">
+          <!-- edges drawn by JS -->
+        </svg>
+        <!-- Nodes -->
+        <div class="graph-node building pulse" id="nodeCorLearn" style="left:80px;top:60px" data-id="CORE-LEARN-1">
+          <div class="node-label">CORE-LEARN-1</div>
+          <div class="node-sub">Learning Engine</div>
+        </div>
+        <div class="graph-node complete" id="nodeCorBase" style="left:80px;top:180px" data-id="CORE-BASE-1">
+          <div class="node-label">CORE-BASE-1</div>
+          <div class="node-sub">Base Runtime</div>
+        </div>
+        <div class="graph-node gate" id="nodeDistAdopt" style="left:320px;top:60px" data-id="DIST-ADOPT-1">
+          <div class="node-badge">!</div>
+          <div class="node-label">DIST-ADOPT-1</div>
+          <div class="node-sub">Adoption Pipeline</div>
+        </div>
+        <div class="graph-node building" id="nodeDistPkg" style="left:320px;top:180px" data-id="DIST-PKG-1">
+          <div class="node-label">DIST-PKG-1</div>
+          <div class="node-sub">Packaging</div>
+        </div>
+        <div class="graph-node planned dimmed" id="nodePlatApi" style="left:540px;top:60px" data-id="PLAT-API-1">
+          <div class="node-label">PLAT-API-1</div>
+          <div class="node-sub">API Gateway</div>
+        </div>
+        <div class="graph-node planned dimmed" id="nodePlatDash" style="left:540px;top:180px" data-id="PLAT-DASH-1">
+          <div class="node-label">PLAT-DASH-1</div>
+          <div class="node-sub">Dashboard</div>
+        </div>
+        <div class="graph-node complete" id="nodeCorAuth" style="left:80px;top:300px" data-id="CORE-AUTH-1">
+          <div class="node-label">CORE-AUTH-1</div>
+          <div class="node-sub">Auth System</div>
+        </div>
+        <div class="graph-node building" id="nodeDistCli" style="left:320px;top:300px" data-id="DIST-CLI-1">
+          <div class="node-label">DIST-CLI-1</div>
+          <div class="node-sub">CLI Tools</div>
+        </div>
+      </div>
+
+      <!-- Gate popover -->
+      <div class="gate-popover" id="gatePopover">
+        <div class="gp-title">Gate: Adoption Pipeline</div>
+        <div class="gp-body">Review gate requires approval before downstream features can begin. Design review passed, awaiting build approval.</div>
+        <div class="gp-actions">
+          <button class="approve" id="approveBtn">Approve</button>
+          <button>Dismiss</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ITEMS TAB ===== -->
+    <div class="tab-content" id="itemsContent">
+      <div class="items-view">
+        <div class="items-header">All Items</div>
+        <div class="items-group expanded">
+          <div class="items-group-header"><span class="items-group-arrow">&#9654;</span> <div class="sb-dot" style="background:#8b5cf6"></div> Core Track</div>
+          <div class="items-group-children">
+            <div class="items-item"><div class="item-dot" style="background:#3b82f6"></div><span class="item-code">CORE-LEARN-1</span> Learning Engine</div>
+            <div class="items-item"><div class="item-dot" style="background:#22c55e"></div><span class="item-code">CORE-BASE-1</span> Base Runtime</div>
+            <div class="items-item"><div class="item-dot" style="background:#22c55e"></div><span class="item-code">CORE-AUTH-1</span> Auth System</div>
+          </div>
+        </div>
+        <div class="items-group expanded">
+          <div class="items-group-header"><span class="items-group-arrow">&#9654;</span> <div class="sb-dot" style="background:#f59e0b"></div> Distribution Track</div>
+          <div class="items-group-children">
+            <div class="items-item" id="itemDistAdopt"><div class="item-dot" id="itemDistAdoptDot" style="background:#f59e0b"></div><span class="item-code">DIST-ADOPT-1</span> Adoption Pipeline</div>
+            <div class="items-item"><div class="item-dot" style="background:#3b82f6"></div><span class="item-code">DIST-PKG-1</span> Packaging</div>
+            <div class="items-item"><div class="item-dot" style="background:#3b82f6"></div><span class="item-code">DIST-CLI-1</span> CLI Tools</div>
+          </div>
+        </div>
+        <div class="items-group expanded">
+          <div class="items-group-header"><span class="items-group-arrow">&#9654;</span> <div class="sb-dot" style="background:#06b6d4"></div> Platform Track</div>
+          <div class="items-group-children">
+            <div class="items-item"><div class="item-dot" style="background:#64748b"></div><span class="item-code">PLAT-API-1</span> API Gateway</div>
+            <div class="items-item"><div class="item-dot" style="background:#64748b"></div><span class="item-code">PLAT-DASH-1</span> Dashboard</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== OPS TAB ===== -->
+    <div class="tab-content" id="opsContent">
+      <div class="ops-view">
+        <div class="ops-header">Feature Operations</div>
+
+        <div class="ops-row" id="opsCorLearn" data-id="CORE-LEARN-1">
+          <div class="ops-row-header">
+            <div class="ops-row-dot" id="opsCorLearnDot" style="background:#3b82f6"></div>
+            <div class="ops-row-code">CORE-LEARN-1</div>
+            <div class="ops-row-name">Learning Engine</div>
+            <div class="ops-row-badge" style="background:#3b82f620;color:#3b82f6" id="opsCorLearnBadge">BUILDING</div>
+            <div class="ops-row-progress"><div class="ops-row-progress-fill" id="opsCorLearnProgress" style="width:62%;background:#3b82f6"></div></div>
+          </div>
+          <div class="ops-row-expand" id="opsCorLearnExpand">
+            <div class="ops-expand-section">
+              <div class="ops-expand-label">Pipeline</div>
+              <div class="ops-expand-item"><div class="dot" style="background:#22c55e"></div> scaffold &mdash; complete</div>
+              <div class="ops-expand-item"><div class="dot" style="background:#22c55e"></div> plan &mdash; complete</div>
+              <div class="ops-expand-item"><div class="dot" style="background:#22c55e"></div> build:1 &mdash; complete</div>
+              <div class="ops-expand-item"><div class="dot" style="background:#22c55e"></div> build:2 &mdash; complete</div>
+              <div class="ops-expand-item"><div class="dot" style="background:#3b82f6"></div> build:3 &mdash; in progress</div>
+              <div class="ops-expand-item" id="opsReportStep"><div class="dot" style="background:#64748b" id="opsReportDot"></div> <span id="opsReportText">report &mdash; pending</span></div>
+            </div>
+            <div class="ops-expand-section">
+              <div class="ops-expand-label">Sessions</div>
+              <div class="ops-expand-item"><div class="dot" style="background:#22c55e"></div> session-001 &mdash; 2m 14s</div>
+              <div class="ops-expand-item"><div class="dot" style="background:#3b82f6"></div> session-002 &mdash; running</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ops-row" id="opsDistAdopt" data-id="DIST-ADOPT-1">
+          <div class="ops-row-header">
+            <div class="ops-row-dot" id="opsDistAdoptDot" style="background:#f59e0b"></div>
+            <div class="ops-row-code">DIST-ADOPT-1</div>
+            <div class="ops-row-name">Adoption Pipeline</div>
+            <div class="ops-row-badge" id="opsDistAdoptBadge" style="background:#f59e0b20;color:#f59e0b">GATE</div>
+            <div class="ops-row-progress"><div class="ops-row-progress-fill" id="opsDistAdoptProgress" style="width:30%;background:#f59e0b"></div></div>
+          </div>
+        </div>
+
+        <div class="ops-row" id="opsDistPkg">
+          <div class="ops-row-header">
+            <div class="ops-row-dot" style="background:#3b82f6"></div>
+            <div class="ops-row-code">DIST-PKG-1</div>
+            <div class="ops-row-name">Packaging</div>
+            <div class="ops-row-badge" style="background:#3b82f620;color:#3b82f6">BUILDING</div>
+            <div class="ops-row-progress"><div class="ops-row-progress-fill" style="width:45%;background:#3b82f6"></div></div>
+          </div>
+        </div>
+
+        <div class="ops-row" id="opsDistCli">
+          <div class="ops-row-header">
+            <div class="ops-row-dot" style="background:#3b82f6"></div>
+            <div class="ops-row-code">DIST-CLI-1</div>
+            <div class="ops-row-name">CLI Tools</div>
+            <div class="ops-row-badge" style="background:#3b82f620;color:#3b82f6">BUILDING</div>
+            <div class="ops-row-progress"><div class="ops-row-progress-fill" style="width:55%;background:#3b82f6"></div></div>
+          </div>
+        </div>
+
+        <div class="ops-row">
+          <div class="ops-row-header">
+            <div class="ops-row-dot" style="background:#22c55e"></div>
+            <div class="ops-row-code">CORE-BASE-1</div>
+            <div class="ops-row-name">Base Runtime</div>
+            <div class="ops-row-badge" style="background:#22c55e20;color:#22c55e">COMPLETE</div>
+            <div class="ops-row-progress"><div class="ops-row-progress-fill" style="width:100%;background:#22c55e"></div></div>
+          </div>
+        </div>
+
+        <div class="ops-row">
+          <div class="ops-row-header">
+            <div class="ops-row-dot" style="background:#22c55e"></div>
+            <div class="ops-row-code">CORE-AUTH-1</div>
+            <div class="ops-row-name">Auth System</div>
+            <div class="ops-row-badge" style="background:#22c55e20;color:#22c55e">COMPLETE</div>
+            <div class="ops-row-progress"><div class="ops-row-progress-fill" style="width:100%;background:#22c55e"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DOCS TAB ===== -->
+    <div class="tab-content" id="docsContent">
+      <div class="docs-view">
+        <div class="docs-tree">
+          <div class="docs-tree-heading">CORE-LEARN-1</div>
+          <div class="docs-tree-item active" id="docsDesignItem"><span class="icon">&#128196;</span> design.md</div>
+          <div class="docs-tree-item"><span class="icon">&#128196;</span> plan.md</div>
+          <div class="docs-tree-item"><span class="icon">&#128196;</span> report.md</div>
+          <div class="docs-tree-heading">DIST-ADOPT-1</div>
+          <div class="docs-tree-item"><span class="icon">&#128196;</span> design.md</div>
+          <div class="docs-tree-item"><span class="icon">&#128196;</span> requirements.md</div>
+          <div class="docs-tree-heading">DIST-PKG-1</div>
+          <div class="docs-tree-item"><span class="icon">&#128196;</span> plan.md</div>
+          <div class="docs-tree-heading">CORE-AUTH-1</div>
+          <div class="docs-tree-item"><span class="icon">&#128196;</span> design.md</div>
+          <div class="docs-tree-item"><span class="icon">&#128196;</span> report.md</div>
+        </div>
+        <div class="docs-preview" id="docsPreview">
+          <button class="docs-back-btn" id="docsBackBtn" style="display:none">&larr; Back to Ops</button>
+          <div class="doc-title">CORE-LEARN-1 / design.md</div>
+          <div class="doc-meta">Last modified: 2 hours ago &middot; 1.2 KB</div>
+          <div style="margin-bottom:10px">
+            <button class="docs-edit-btn" id="docsEditBtn">Edit</button>
+            <button class="docs-save-btn" id="docsSaveBtn" style="display:none">Save</button>
+            <span class="docs-saved-flash" id="docsSavedFlash">Saved</span>
+          </div>
+          <textarea class="docs-edit-area" id="docsEditArea">## Learning Engine Design
+
+The learning engine processes user interaction patterns to build adaptive workflows.
+
+### Architecture
+- Event collector gathers interaction signals
+- Pattern recognizer identifies recurring sequences
+- Workflow generator creates optimized paths
+
+### Integration Points
+- Connects to `CORE-BASE-1` runtime for execution
+- Feeds adoption metrics to `DIST-ADOPT-1`</textarea>
+          <div class="doc-body" id="docsBodyContent">
+            <h2>Learning Engine Design</h2>
+            <p>The learning engine processes user interaction patterns to build adaptive workflows.</p>
+            <h2>Architecture</h2>
+            <p>&bull; Event collector gathers interaction signals<br>&bull; Pattern recognizer identifies recurring sequences<br>&bull; Workflow generator creates optimized paths</p>
+            <h2>Integration Points</h2>
+            <p>&bull; Connects to <code>CORE-BASE-1</code> runtime for execution<br>&bull; Feeds adoption metrics to <code>DIST-ADOPT-1</code></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shared context panel -->
+    <div class="context-panel" id="contextPanel">
+      <div class="cp-header">
+        <h3 id="cpTitle">CORE-LEARN-1</h3>
+        <button class="cp-close" id="cpClose">&times;</button>
+      </div>
+      <div class="cp-section">
+        <div class="cp-label">Status</div>
+        <div class="cp-status building" id="cpStatus">Building</div>
+        <div class="cp-progress"><div class="cp-progress-fill" id="cpProgress" style="width:62%;background:#3b82f6"></div></div>
+        <div class="cp-detail" id="cpDetail">Step 5/8 &middot; build:3 in progress<br>Session: session-002 (running)</div>
+      </div>
+      <div class="cp-section">
+        <div class="cp-label">Pipeline</div>
+        <div class="cp-detail">
+          <span style="color:#22c55e">&#10003;</span> scaffold &rarr;
+          <span style="color:#22c55e">&#10003;</span> plan &rarr;
+          <span style="color:#22c55e">&#10003;</span> build:1 &rarr;
+          <span style="color:#22c55e">&#10003;</span> build:2 &rarr;
+          <span style="color:#3b82f6">&#9679;</span> <span id="cpBuild3">build:3</span> &rarr;
+          <span style="color:#64748b" id="cpReportIcon">&#9675;</span> <span id="cpReportLabel">report</span>
+        </div>
+      </div>
+      <div class="cp-section">
+        <div class="cp-label">Files</div>
+        <div class="cp-file-item" id="cpFileDesign"><span class="icon">&#128196;</span> design.md</div>
+        <div class="cp-file-item"><span class="icon">&#128196;</span> plan.md</div>
+        <div class="cp-file-item"><span class="icon">&#128196;</span> src/engine.ts</div>
+      </div>
+      <div class="cp-section">
+        <div class="cp-label">Sessions</div>
+        <div class="cp-session">
+          <div class="cp-session-row"><div class="cp-session-dot" style="background:#22c55e"></div> session-001 &mdash; 2m 14s</div>
+        </div>
+        <div class="cp-session">
+          <div class="cp-session-row"><div class="cp-session-dot" style="background:#3b82f6"></div> session-002 &mdash; running</div>
+        </div>
+      </div>
+      <div class="cp-section" id="cpNavSection">
+        <div class="cp-link" id="cpViewInOps">View in Ops &rarr;</div>
+        <br>
+        <div class="cp-link" id="cpViewInGraph" style="display:none">View in Graph &rarr;</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<!-- Progress bar -->
+<div class="demo-progress"><div class="demo-progress-fill" id="demoProgress"></div></div>
+
+<script>
+// ============================
+// State
+// ============================
+let activeTab = 'graph';
+let demoTimer = null;
+let cameFromOps = false;
+
+// ============================
+// Tab switching
+// ============================
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+  const contentMap = { graph: 'graphContent', items: 'itemsContent', ops: 'opsContent', docs: 'docsContent' };
+  document.getElementById(contentMap[tab]).classList.add('active');
+
+  // Context panel visibility
+  const cp = document.getElementById('contextPanel');
+  if (tab === 'docs') {
+    cp.classList.remove('open');
+  }
+  // In graph/ops/items, keep panel state as is
+}
+
+// ============================
+// Draw graph edges
+// ============================
+function drawEdges() {
+  const svg = document.getElementById('graphEdges');
+  const canvas = document.getElementById('graphCanvas');
+  const rect = canvas.getBoundingClientRect();
+  svg.setAttribute('width', rect.width);
+  svg.setAttribute('height', rect.height);
+
+  const edges = [
+    ['nodeCorBase', 'nodeCorLearn'],
+    ['nodeCorLearn', 'nodeDistAdopt'],
+    ['nodeCorBase', 'nodeDistPkg'],
+    ['nodeDistAdopt', 'nodePlatApi'],
+    ['nodeDistPkg', 'nodePlatDash'],
+    ['nodeCorAuth', 'nodeDistCli'],
+    ['nodeDistCli', 'nodePlatDash'],
+  ];
+
+  svg.innerHTML = '';
+  edges.forEach(([fromId, toId]) => {
+    const from = document.getElementById(fromId);
+    const to = document.getElementById(toId);
+    if (!from || !to) return;
+    const fRect = from.getBoundingClientRect();
+    const tRect = to.getBoundingClientRect();
+    const cRect = canvas.getBoundingClientRect();
+
+    const x1 = fRect.left - cRect.left + fRect.width;
+    const y1 = fRect.top - cRect.top + fRect.height / 2;
+    const x2 = tRect.left - cRect.left;
+    const y2 = tRect.top - cRect.top + tRect.height / 2;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    line.id = `edge-${fromId}-${toId}`;
+
+    // dimmed edges to planned nodes
+    if (fromId.includes('Plat') || toId.includes('Plat')) {
+      line.classList.add('dimmed');
+    }
+
+    svg.appendChild(line);
+  });
+}
+
+// ============================
+// Annotation
+// ============================
+function showAnnotation(text) {
+  const el = document.getElementById('annotation');
+  el.textContent = text;
+  el.classList.add('visible');
+}
+function hideAnnotation() {
+  document.getElementById('annotation').classList.remove('visible');
+}
+
+// ============================
+// Demo sequence
+// ============================
+const TOTAL_DURATION = 50; // seconds
+
+function startDemo() {
+  // Reset everything
+  document.getElementById('preamble').classList.add('hidden');
+  document.getElementById('replayBtn').classList.remove('visible');
+  hideAnnotation();
+
+  // Reset graph nodes
+  const nodeDistAdopt = document.getElementById('nodeDistAdopt');
+  nodeDistAdopt.className = 'graph-node gate';
+  nodeDistAdopt.innerHTML = '<div class="node-badge">!</div><div class="node-label">DIST-ADOPT-1</div><div class="node-sub">Adoption Pipeline</div>';
+
+  const nodeCorLearn = document.getElementById('nodeCorLearn');
+  nodeCorLearn.className = 'graph-node building pulse';
+  nodeCorLearn.classList.remove('selected');
+
+  const nodePlatApi = document.getElementById('nodePlatApi');
+  nodePlatApi.className = 'graph-node planned dimmed';
+  const nodePlatDash = document.getElementById('nodePlatDash');
+  nodePlatDash.className = 'graph-node planned dimmed';
+
+  // Reset ops
+  document.getElementById('opsCorLearn').classList.remove('selected', 'expanded', 'ops-complete-flash');
+  document.getElementById('opsCorLearnDot').style.background = '#3b82f6';
+  document.getElementById('opsCorLearnBadge').textContent = 'BUILDING';
+  document.getElementById('opsCorLearnBadge').style.background = '#3b82f620';
+  document.getElementById('opsCorLearnBadge').style.color = '#3b82f6';
+  document.getElementById('opsCorLearnProgress').style.width = '62%';
+  document.getElementById('opsCorLearnProgress').style.background = '#3b82f6';
+
+  document.getElementById('opsDistAdoptDot').style.background = '#f59e0b';
+  document.getElementById('opsDistAdoptBadge').textContent = 'GATE';
+  document.getElementById('opsDistAdoptBadge').style.background = '#f59e0b20';
+  document.getElementById('opsDistAdoptBadge').style.color = '#f59e0b';
+  document.getElementById('opsDistAdoptProgress').style.width = '30%';
+  document.getElementById('opsDistAdoptProgress').style.background = '#f59e0b';
+
+  document.getElementById('opsReportDot').style.background = '#64748b';
+  document.getElementById('opsReportText').textContent = 'report \u2014 pending';
+
+  // Reset context panel
+  document.getElementById('contextPanel').classList.remove('open');
+  document.getElementById('cpStatus').className = 'cp-status building';
+  document.getElementById('cpStatus').textContent = 'Building';
+  document.getElementById('cpProgress').style.width = '62%';
+  document.getElementById('cpProgress').style.background = '#3b82f6';
+  document.getElementById('cpDetail').innerHTML = 'Step 5/8 \u00b7 build:3 in progress<br>Session: session-002 (running)';
+  document.getElementById('cpViewInOps').style.display = '';
+  document.getElementById('cpViewInGraph').style.display = 'none';
+  document.getElementById('cpViewInOps').classList.remove('glow');
+  document.getElementById('cpViewInGraph').classList.remove('glow');
+  document.getElementById('cpReportIcon').innerHTML = '&#9675;';
+  document.getElementById('cpReportIcon').style.color = '#64748b';
+  document.getElementById('cpReportLabel').style.color = '';
+
+  // Reset docs
+  document.getElementById('docsBackBtn').style.display = 'none';
+  document.getElementById('docsEditArea').classList.remove('visible');
+  document.getElementById('docsEditBtn').style.display = '';
+  document.getElementById('docsSaveBtn').style.display = 'none';
+  document.getElementById('docsSavedFlash').classList.remove('visible');
+  document.getElementById('docsBodyContent').style.display = '';
+  cameFromOps = false;
+
+  // Reset gate popover
+  document.getElementById('gatePopover').classList.remove('visible');
+
+  // Reset items
+  document.getElementById('itemDistAdoptDot').style.background = '#f59e0b';
+
+  // Switch to graph
+  switchTab('graph');
+  drawEdges();
+
+  // Progress bar
+  const progressEl = document.getElementById('demoProgress');
+  progressEl.style.width = '0%';
+
+  // Clear any existing timer
+  if (demoTimer) clearTimeout(demoTimer);
+
+  // Schedule steps
+  const steps = [
+    // Step 1: 0s - Graph view, intro
+    [0, () => {
+      showAnnotation('Starting in Graph view \u2014 the project at a glance');
+    }],
+
+    // Step 2: 4s - Gate badge pulses, popover
+    [4000, () => {
+      showAnnotation('Gate needs approval \u2014 click \u26a0 for quick action');
+      const badge = nodeDistAdopt.querySelector('.node-badge');
+      badge.style.animation = 'nodePulse 1s ease-in-out infinite';
+      // Position and show gate popover
+      const popover = document.getElementById('gatePopover');
+      const nRect = nodeDistAdopt.getBoundingClientRect();
+      const cRect = document.getElementById('graphCanvas').getBoundingClientRect();
+      popover.style.left = (nRect.left - cRect.left) + 'px';
+      popover.style.top = (nRect.top - cRect.top + nRect.height + 8) + 'px';
+      popover.classList.add('visible');
+    }],
+
+    // Step 3: 7s - Approve gate
+    [7000, () => {
+      showAnnotation('Approved! All views will reflect this change');
+      document.getElementById('gatePopover').classList.remove('visible');
+      // Transform DIST-ADOPT-1 to building
+      nodeDistAdopt.className = 'graph-node building';
+      nodeDistAdopt.innerHTML = '<div class="node-label">DIST-ADOPT-1</div><div class="node-sub">Adoption Pipeline</div>';
+      // Undim downstream
+      nodePlatApi.className = 'graph-node planned';
+      // Update edges
+      const edgeToPlatApi = document.getElementById('edge-nodeDistAdopt-nodePlatApi');
+      if (edgeToPlatApi) edgeToPlatApi.classList.remove('dimmed');
+      // Update items view
+      document.getElementById('itemDistAdoptDot').style.background = '#3b82f6';
+      // Update ops view
+      document.getElementById('opsDistAdoptDot').style.background = '#3b82f6';
+      document.getElementById('opsDistAdoptBadge').textContent = 'BUILDING';
+      document.getElementById('opsDistAdoptBadge').style.background = '#3b82f620';
+      document.getElementById('opsDistAdoptBadge').style.color = '#3b82f6';
+      document.getElementById('opsDistAdoptProgress').style.background = '#3b82f6';
+    }],
+
+    // Step 4: 10s - Click CORE-LEARN-1 node, context panel slides in
+    [10000, () => {
+      showAnnotation('Click node for detail \u2014 context panel shows everything');
+      nodeCorLearn.classList.add('selected');
+      document.getElementById('contextPanel').classList.add('open');
+    }],
+
+    // Step 5: 14s - "View in Ops" link glows, then switch to Ops
+    [14000, () => {
+      showAnnotation('Jump to Ops view \u2014 selection persists');
+      document.getElementById('cpViewInOps').classList.add('glow');
+    }],
+    [15500, () => {
+      switchTab('ops');
+      document.getElementById('contextPanel').classList.add('open');
+      document.getElementById('opsCorLearn').classList.add('selected');
+      document.getElementById('cpViewInOps').classList.remove('glow');
+    }],
+
+    // Step 6: 17s - In Ops, show selection persists
+    [17000, () => {
+      showAnnotation('Same item selected in Ops \u2014 gate approval from Graph already reflected');
+    }],
+
+    // Step 7: 20s - Expand CORE-LEARN-1 row
+    [20000, () => {
+      showAnnotation('Expand for investigation \u2014 pipeline, sessions, events inline');
+      document.getElementById('opsCorLearn').classList.add('expanded');
+    }],
+
+    // Step 8: 24s - Click design.md in context panel -> Docs
+    [24000, () => {
+      showAnnotation('Click a file \u2014 jumps to Docs with that file open');
+      document.getElementById('cpFileDesign').style.color = '#3b82f6';
+      cameFromOps = true;
+    }],
+    [25500, () => {
+      switchTab('docs');
+      // Context panel hides in docs
+      document.getElementById('docsBackBtn').style.display = '';
+    }],
+
+    // Step 9: 27s - Doc view active
+    [27000, () => {
+      showAnnotation('Doc preview \u2014 Back button remembers where you came from');
+    }],
+
+    // Step 10: 30s - Edit inline
+    [30000, () => {
+      showAnnotation('Edit inline \u2014 changes saved to disk');
+      document.getElementById('docsEditBtn').style.display = 'none';
+      document.getElementById('docsBodyContent').style.display = 'none';
+      document.getElementById('docsEditArea').classList.add('visible');
+      document.getElementById('docsSaveBtn').style.display = '';
+    }],
+    [31500, () => {
+      // Simulate typing
+      const ta = document.getElementById('docsEditArea');
+      ta.value += '\n\n### Performance\n- Sub-10ms response target';
+      ta.scrollTop = ta.scrollHeight;
+    }],
+    [32500, () => {
+      // Save
+      document.getElementById('docsSaveBtn').style.display = 'none';
+      document.getElementById('docsEditArea').classList.remove('visible');
+      document.getElementById('docsBodyContent').style.display = '';
+      document.getElementById('docsEditBtn').style.display = '';
+      document.getElementById('docsSavedFlash').classList.add('visible');
+    }],
+
+    // Step 11: 33s - Back to Ops
+    [33500, () => {
+      showAnnotation('Back to Ops \u2014 your expanded row is still there');
+      document.getElementById('docsSavedFlash').classList.remove('visible');
+    }],
+    [34500, () => {
+      switchTab('ops');
+      document.getElementById('contextPanel').classList.add('open');
+      document.getElementById('docsBackBtn').style.display = 'none';
+    }],
+
+    // Step 12: 36s - Progress advances
+    [36000, () => {
+      hideAnnotation();
+      document.getElementById('opsCorLearnProgress').style.width = '87%';
+      document.getElementById('cpProgress').style.width = '87%';
+      document.getElementById('cpDetail').innerHTML = 'Step 7/8 \u00b7 report in progress<br>Session: session-002 (running)';
+      document.getElementById('opsReportDot').style.background = '#3b82f6';
+      document.getElementById('opsReportText').textContent = 'report \u2014 in progress';
+      document.getElementById('cpReportIcon').innerHTML = '&#9679;';
+      document.getElementById('cpReportIcon').style.color = '#3b82f6';
+    }],
+
+    // Step 13: 39s - Complete
+    [39000, () => {
+      showAnnotation('Build complete \u2014 visible in Ops immediately');
+      // Complete the feature
+      document.getElementById('opsCorLearnDot').style.background = '#22c55e';
+      document.getElementById('opsCorLearnBadge').textContent = 'COMPLETE';
+      document.getElementById('opsCorLearnBadge').style.background = '#22c55e20';
+      document.getElementById('opsCorLearnBadge').style.color = '#22c55e';
+      document.getElementById('opsCorLearnProgress').style.width = '100%';
+      document.getElementById('opsCorLearnProgress').style.background = '#22c55e';
+      document.getElementById('opsCorLearn').classList.remove('expanded');
+      document.getElementById('opsCorLearn').classList.add('ops-complete-flash');
+      // Update context panel
+      document.getElementById('cpStatus').className = 'cp-status complete';
+      document.getElementById('cpStatus').textContent = 'Complete';
+      document.getElementById('cpProgress').style.width = '100%';
+      document.getElementById('cpProgress').style.background = '#22c55e';
+      document.getElementById('cpDetail').innerHTML = 'All steps complete<br>Duration: 4m 32s';
+      document.getElementById('cpViewInOps').style.display = 'none';
+      document.getElementById('cpViewInGraph').style.display = '';
+      document.getElementById('cpReportIcon').innerHTML = '&#10003;';
+      document.getElementById('cpReportIcon').style.color = '#22c55e';
+    }],
+
+    // Step 14: 42s - View in Graph link
+    [42000, () => {
+      showAnnotation('Back to Graph \u2014 see the updated project state');
+      document.getElementById('cpViewInGraph').classList.add('glow');
+    }],
+    [43500, () => {
+      switchTab('graph');
+      document.getElementById('contextPanel').classList.add('open');
+      document.getElementById('cpViewInGraph').classList.remove('glow');
+      drawEdges();
+    }],
+
+    // Step 15: 45s - Graph reflects all changes
+    [45000, () => {
+      showAnnotation('Graph reflects ALL changes \u2014 gates, completions, everything synced');
+      // CORE-LEARN-1 now complete
+      nodeCorLearn.className = 'graph-node complete selected';
+      nodeCorLearn.innerHTML = '<div class="node-label">CORE-LEARN-1</div><div class="node-sub">Learning Engine</div>';
+      // DIST-ADOPT-1 also complete (built while we were in Docs/Ops)
+      nodeDistAdopt.className = 'graph-node complete';
+      nodeDistAdopt.innerHTML = '<div class="node-label">DIST-ADOPT-1</div><div class="node-sub">Adoption Pipeline</div>';
+      // PLAT-API-1 now building (downstream unblocked)
+      nodePlatApi.className = 'graph-node building';
+    }],
+
+    // Step 16: 48s - Final state, show replay
+    [48000, () => {
+      hideAnnotation();
+      document.getElementById('replayBtn').classList.add('visible');
+    }],
+  ];
+
+  // Run steps
+  steps.forEach(([delay, fn]) => {
+    setTimeout(fn, delay);
+  });
+
+  // Progress bar animation
+  let startTime = Date.now();
+  function updateProgress() {
+    const elapsed = (Date.now() - startTime) / 1000;
+    const pct = Math.min(100, (elapsed / TOTAL_DURATION) * 100);
+    progressEl.style.width = pct + '%';
+    if (pct < 100) requestAnimationFrame(updateProgress);
+  }
+  requestAnimationFrame(updateProgress);
+}
+
+// ============================
+// Init
+// ============================
+window.addEventListener('load', () => {
+  drawEdges();
+  window.addEventListener('resize', drawEdges);
+});
+</script>
+</body>
+</html>

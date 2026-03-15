@@ -59,7 +59,7 @@ function mockConnectorFactory(dispatches, featureDir, overrides = {}) {
     return {
       async *run(prompt, _runOpts) {
         // Extract step_id from the prompt (format: step "step_id")
-        const stepMatch = prompt.match(/step "(\w+)"/);
+        const stepMatch = prompt.match(/step "([^"]+)"/);
         const stepId = stepMatch?.[1] ?? 'unknown';
 
         dispatches.push({ stepId, agentType, promptSnippet: prompt.slice(0, 120) });
@@ -115,8 +115,20 @@ function getStepResult(stepId, featureDir) {
   };
   const reviewResult = { clean: true, summary: 'No issues found', findings: [] };
   const testResult = { passing: true, summary: 'All tests pass', failures: [] };
+  const taskGraph = {
+    tasks: [
+      {
+        id: 'task-1',
+        description: 'Implement the main feature logic',
+        files_owned: ['src/main.js'],
+        files_read: ['src/util.js'],
+        depends_on: [],
+      },
+    ],
+  };
 
   switch (stepId) {
+    case 'decompose': return taskGraph;
     case 'review': return reviewResult;
     case 'run_tests': return testResult;
     default: return phaseResult;
@@ -188,7 +200,7 @@ describe('proof run: full pipeline', { skip: !stratumAvailable && 'stratum-mcp n
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  test('12-step pipeline completes with mock connectors', { timeout: 120000 }, async () => {
+  test('16-step pipeline completes with mock connectors', { timeout: 120000 }, async () => {
     const gateOpts = createAutoApproveGateOpts();
 
     await runBuild('PROOF-1', {
@@ -201,8 +213,10 @@ describe('proof run: full pipeline', { skip: !stratumAvailable && 'stratum-mcp n
     // --- Verify dispatched steps ---
     const stepIds = dispatches.map(d => d.stepId);
 
-    // These steps should execute (not skipped)
-    for (const step of ['explore_design', 'blueprint', 'verification', 'plan', 'execute']) {
+    // These steps should execute (not skipped).
+    // v0.3: explore_design, blueprint, verification, plan, decompose are agent-dispatched.
+    // execute is parallel_dispatch — its tasks are dispatched individually (not as "execute").
+    for (const step of ['explore_design', 'blueprint', 'verification', 'plan', 'decompose']) {
       assert.ok(stepIds.includes(step), `Step "${step}" should have been dispatched`);
     }
 
@@ -215,12 +229,17 @@ describe('proof run: full pipeline', { skip: !stratumAvailable && 'stratum-mcp n
     assert.ok(stepIds.includes('review'), 'review_check sub-flow: review step should dispatch');
     assert.ok(stepIds.includes('run_tests'), 'coverage_check sub-flow: run_tests step should dispatch');
 
+    // Parallel dispatch tasks should have dispatched (task-1 from mock decompose)
+    assert.ok(dispatches.some(d => d.stepId.startsWith('task')),
+      'parallel_dispatch should dispatch decomposed tasks');
+
     // --- Verify cross-agent dispatch ---
     const reviewDispatch = dispatches.find(d => d.stepId === 'review');
     assert.equal(reviewDispatch.agentType, 'codex', 'review step should dispatch to codex agent');
 
-    const executeDispatch = dispatches.find(d => d.stepId === 'execute');
-    assert.equal(executeDispatch.agentType, 'claude', 'execute step should dispatch to claude agent');
+    // Parallel dispatch tasks use the agent from the execute step spec (claude)
+    const taskDispatch = dispatches.find(d => d.stepId.startsWith('task'));
+    assert.equal(taskDispatch.agentType, 'claude', 'parallel dispatch tasks should dispatch to claude agent');
 
     // --- Verify audit trail ---
     const auditPath = join(tmpDir, 'docs', 'features', 'PROOF-1', 'audit.json');
@@ -244,7 +263,7 @@ describe('proof run: full pipeline', { skip: !stratumAvailable && 'stratum-mcp n
     const visionPath = join(tmpDir, '.compose', 'data', 'vision-state.json');
     assert.ok(existsSync(visionPath), 'vision-state.json should exist');
     const vision = JSON.parse(readFileSync(visionPath, 'utf-8'));
-    const item = vision.items.find(i => i.featureCode === 'feature:PROOF-1');
+    const item = vision.items.find(i => i.lifecycle?.featureCode === 'PROOF-1');
     assert.ok(item, 'must have feature item');
     assert.equal(item.status, 'complete', 'item status should be complete');
 

@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Multi-View: Items (Tree)</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 560px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 24px; text-align: left; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Tab bar */
+.tab-bar { display: flex; align-items: center; padding: 0 16px; height: 36px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; gap: 2px; }
+.tab-btn { font-size: 11px; font-weight: 600; padding: 6px 14px; border-radius: 4px 4px 0 0; background: none; border: none; color: #64748b; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid transparent; }
+.tab-btn:hover { color: #94a3b8; }
+.tab-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; background: #0f172a40; }
+
+/* Main layout */
+.main-layout { display: flex; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+.sidebar { width: 200px; background: #1e293b; border-right: 1px solid #334155; flex-shrink: 0; padding: 16px 0; overflow-y: auto; }
+.sidebar-section { padding: 0 14px; margin-bottom: 20px; }
+.sidebar-title { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; font-weight: 600; }
+.sidebar-check { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: #94a3b8; cursor: pointer; transition: color 0.2s; }
+.sidebar-check:hover { color: #e2e8f0; }
+.sidebar-check input[type="checkbox"] { accent-color: #3b82f6; width: 14px; height: 14px; cursor: pointer; }
+.sidebar-check.checked { color: #e2e8f0; }
+.sidebar-radio { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: #64748b; cursor: pointer; transition: all 0.2s; border-radius: 4px; padding: 5px 8px; margin: 0 -8px; }
+.sidebar-radio:hover { color: #94a3b8; background: #334155; }
+.sidebar-radio.active { color: #e2e8f0; background: #334155; }
+
+/* Center panel */
+.center-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Search bar */
+.search-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #334155; flex-shrink: 0; }
+.search-input { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #e2e8f0; outline: none; transition: border-color 0.2s; font-family: inherit; }
+.search-input:focus { border-color: #3b82f6; }
+.search-input::placeholder { color: #475569; }
+.filter-btn { font-size: 10px; font-weight: 600; padding: 4px 10px; border-radius: 4px; background: none; border: 1px solid #334155; color: #64748b; cursor: pointer; transition: all 0.2s; }
+.filter-btn:hover { border-color: #475569; color: #94a3b8; }
+.filter-btn.active { background: #3b82f620; border-color: #3b82f6; color: #3b82f6; }
+
+/* Tree */
+.tree-container { flex: 1; overflow-y: auto; padding: 8px 0; }
+.tree-group { margin-bottom: 4px; }
+.tree-group-header { display: flex; align-items: center; gap: 8px; padding: 6px 16px; font-size: 11px; font-weight: 600; color: #64748b; cursor: pointer; transition: all 0.2s; user-select: none; text-transform: uppercase; letter-spacing: 0.04em; }
+.tree-group-header:hover { color: #94a3b8; background: #1e293b40; }
+.tree-group-header .chevron { font-size: 9px; transition: transform 0.2s; display: inline-block; width: 12px; }
+.tree-group-header .chevron.open { transform: rotate(90deg); }
+.tree-group-header .count { font-size: 10px; color: #475569; font-weight: 500; margin-left: auto; }
+.tree-items { overflow: hidden; transition: max-height 0.3s ease; }
+.tree-items.collapsed { max-height: 0 !important; }
+
+/* Tree item row */
+.tree-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px 8px 36px; cursor: pointer; transition: all 0.2s; border-left: 3px solid transparent; position: relative; }
+.tree-item:hover { background: #1e293b; }
+.tree-item.selected { background: #1e293b; border-left-color: #3b82f6; }
+.tree-item.recently-modified-green { border-left-color: #22c55e; }
+.tree-item.recently-modified-amber { border-left-color: #f59e0b; }
+.tree-item.dimmed { opacity: 0.3; }
+
+.item-status { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.item-status.building { color: #3b82f6; animation: statusPulse 2s ease-in-out infinite; }
+.item-status.gate { color: #f59e0b; }
+.item-status.error { color: #ef4444; }
+.item-status.complete { color: #22c55e; }
+.item-status.planned { color: #475569; }
+
+.item-code { font-size: 12px; font-weight: 600; color: #e2e8f0; min-width: 120px; }
+.item-label { font-size: 11px; color: #64748b; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-agent { font-size: 10px; font-weight: 600; min-width: 50px; }
+.item-agent.claude { color: #f97316; }
+.item-agent.codex { color: #22c55e; }
+.item-elapsed { font-size: 10px; color: #475569; min-width: 30px; }
+
+@keyframes statusPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+@keyframes greenFlash { 0% { background: #22c55e30; } 100% { background: transparent; } }
+
+/* Context panel */
+.context-panel { width: 320px; background: #1e293b; border-left: 1px solid #334155; flex-shrink: 0; overflow-y: auto; transform: translateX(0); transition: all 0.3s ease; }
+.context-panel.collapsed { width: 0; border-left: none; overflow: hidden; }
+.cp-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #334155; }
+.cp-header h3 { font-size: 14px; font-weight: 700; }
+.cp-close { width: 24px; height: 24px; border-radius: 4px; background: none; border: 1px solid #475569; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: all 0.2s; }
+.cp-close:hover { background: #334155; color: #e2e8f0; }
+.cp-section { padding: 14px 16px; border-bottom: 1px solid #0f172a80; }
+.cp-section-title { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+
+/* Pipeline dots */
+.pipeline { display: flex; align-items: center; gap: 0; padding: 4px 0; }
+.pip-dot { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: #0f172a; flex-shrink: 0; }
+.pip-dot.done { background: #22c55e; }
+.pip-dot.active { background: #3b82f6; }
+.pip-dot.error { background: #ef4444; color: #fff; }
+.pip-dot.gate { background: #f59e0b; }
+.pip-dot.pending { background: #334155; color: #64748b; }
+.pip-line { width: 12px; height: 2px; flex-shrink: 0; }
+.pip-line.done { background: #22c55e60; }
+.pip-line.pending { background: #334155; }
+.pip-labels { display: flex; gap: 0; margin-top: 2px; }
+.pip-label { width: 18px; text-align: center; font-size: 7px; color: #64748b; flex-shrink: 0; }
+.pip-spacer { width: 12px; flex-shrink: 0; }
+
+/* Session rows */
+.session-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 11px; }
+.session-agent-cp { font-weight: 600; min-width: 50px; }
+.session-agent-cp.claude { color: #f97316; }
+.session-agent-cp.codex { color: #22c55e; }
+.session-dur { color: #64748b; min-width: 30px; }
+.session-stats { color: #475569; font-size: 10px; }
+
+/* Error item in panel */
+.error-item { background: #ef444410; border: 1px solid #ef444430; border-radius: 6px; padding: 8px 10px; font-size: 11px; color: #fca5a5; margin-bottom: 6px; }
+
+/* Gate actions */
+.gate-actions { display: flex; gap: 6px; margin-top: 8px; }
+.gate-actions button { padding: 4px 12px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.gate-actions button:hover { background: #475569; }
+.gate-actions button.primary { background: #22c55e; border-color: #22c55e; color: #000; }
+.gate-actions button.primary:hover { background: #16a34a; }
+
+/* Cross-view links */
+.cross-links { display: flex; flex-direction: column; gap: 6px; }
+.cross-link { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #3b82f6; cursor: pointer; transition: all 0.2s; padding: 4px 8px; border-radius: 4px; border: 1px solid transparent; }
+.cross-link:hover { background: #3b82f610; }
+.cross-link.glow { background: #3b82f620; border-color: #3b82f640; box-shadow: 0 0 12px rgba(59,130,246,0.2); }
+
+/* Files list */
+.file-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 11px; color: #94a3b8; }
+.file-icon { color: #475569; font-size: 10px; }
+
+/* Annotation */
+.annotation { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 18px; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; white-space: nowrap; max-width: 90vw; }
+.annotation.visible { opacity: 1; }
+
+/* Empty state for search */
+.tree-empty { padding: 40px 16px; text-align: center; font-size: 12px; color: #475569; }
+</style>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1>Multi-View: <span>Items (Tree)</span></h1>
+    <p>Hierarchical tree of all features grouped by track with search and filters. Same context panel as the graph view -- click any item to see its pipeline, gates, sessions, and errors. Status indicators show which features are being built, have gates, or have errors. Cross-view links let you jump to Graph or Ops without losing context.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="replay()">Replay</button>
+
+<!-- Tab bar -->
+<div class="tab-bar">
+  <button class="tab-btn">Graph</button>
+  <button class="tab-btn active">Items</button>
+  <button class="tab-btn">Ops</button>
+  <button class="tab-btn">Docs</button>
+</div>
+
+<!-- Main layout -->
+<div class="main-layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Tracks</div>
+      <label class="sidebar-check checked" data-track="knowledge">
+        <input type="checkbox" checked> Knowledge
+      </label>
+      <label class="sidebar-check checked" data-track="distribution">
+        <input type="checkbox" checked> Distribution
+      </label>
+      <label class="sidebar-check checked" data-track="governance">
+        <input type="checkbox" checked> Governance
+      </label>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Phases</div>
+      <div class="sidebar-radio active" data-phase="all">All</div>
+      <div class="sidebar-radio" data-phase="planning">Planning</div>
+      <div class="sidebar-radio" data-phase="implementation">Implementation</div>
+      <div class="sidebar-radio" data-phase="review">Review</div>
+      <div class="sidebar-radio" data-phase="complete">Complete</div>
+    </div>
+  </div>
+
+  <!-- Center: tree view -->
+  <div class="center-panel">
+    <div class="search-bar">
+      <input class="search-input" id="searchInput" type="text" placeholder="Search features...">
+      <button class="filter-btn active" data-status="all" id="filterAll">All</button>
+      <button class="filter-btn" data-status="active" id="filterActive">Active</button>
+      <button class="filter-btn" data-status="done" id="filterDone">Done</button>
+      <button class="filter-btn" data-status="blocked" id="filterBlocked">Blocked</button>
+    </div>
+    <div class="tree-container" id="treeContainer">
+      <!-- Rendered by JS -->
+    </div>
+  </div>
+
+  <!-- Context panel -->
+  <div class="context-panel" id="contextPanel">
+    <div style="padding:40px 16px;text-align:center;font-size:12px;color:#475569;">Select an item to see details</div>
+  </div>
+</div>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<script>
+// -- Data -----------------------------------------------------------
+const ITEMS = {
+  'CORE-LEARN-1':  { name: 'Core Learning',       track: 'knowledge',    status: 'building', agent: 'Claude', step: 5, totalSteps: 8, elapsed: '3m', phase: 'blueprint' },
+  'ONTO-PUB-2':    { name: 'Ontology Publish',     track: 'knowledge',    status: 'planned', phase: 'planning' },
+  'ONTO-PROV-1':   { name: 'Ontology Provision',   track: 'knowledge',    status: 'planned', phase: 'planning' },
+  'DIST-ADOPT-1':  { name: 'Dist Adoption',        track: 'distribution', status: 'gate', gateFrom: 'design', gateTo: 'prd', artifact: 'design.md', artPct: 87, artWords: 1240, artMissing: 'Open Questions', phase: 'design' },
+  'DIST-RELEASE-1':{ name: 'Dist Release',         track: 'distribution', status: 'complete', completedAgo: '28m', totalSteps: 8, agents: 3, phase: 'complete' },
+  'DIST-PUB-1':    { name: 'Dist Publish',         track: 'distribution', status: 'planned', blockedBy: 'DIST-ADOPT-1', phase: 'planning' },
+  'PRE-ASYNC-1':   { name: 'Pre-Async Hooks',      track: 'governance',   status: 'error', errorMsg: 'TypeError in module_x.py', errorAgent: 'Codex', errorStep: 6, errorPhase: 'implement', errorAgo: '4m', errorIO: '1r 2w 1e', phase: 'implementation' },
+  'SEC-DOMAIN-1':  { name: 'Security Domain',      track: 'governance',   status: 'building', agent: 'Codex', step: 6, totalSteps: 10, elapsed: '12m', phase: 'implement' },
+  'HITL-1':        { name: 'Human-in-Loop',        track: 'governance',   status: 'planned', blockedBy: 'PRE-ASYNC-1', phase: 'planning' },
+  'GOV-ROLES-1':   { name: 'Governance Roles',     track: 'governance',   status: 'planned', blockedBy: 'HITL-1', phase: 'planning' },
+};
+
+const TRACK_ORDER = ['knowledge', 'distribution', 'governance'];
+const TRACK_LABELS = { knowledge: 'Knowledge', distribution: 'Distribution', governance: 'Governance' };
+
+const STEPS = ['speckit', 'design', 'prd', 'blueprint', 'implement', 'test', 'review', 'deploy'];
+
+// -- State ----------------------------------------------------------
+let selectedId = null;
+let searchText = '';
+let statusFilter = 'all';
+let expandedGroups = { knowledge: true, distribution: true, governance: true };
+let demoTimeouts = [];
+
+// -- Colors ---------------------------------------------------------
+const C = {
+  blue: '#3b82f6', amber: '#f59e0b', red: '#ef4444', green: '#22c55e',
+  grey: '#475569', textDim: '#94a3b8', textMuted: '#64748b'
+};
+
+function statusIcon(s) {
+  if (s === 'building') return '\u25cf';
+  if (s === 'gate')     return '\u26a0';
+  if (s === 'error')    return '\u2715';
+  if (s === 'complete') return '\u2713';
+  return '\u25cb';
+}
+
+function statusText(item) {
+  const s = item.status;
+  if (s === 'building') return `${item.agent} \u00b7 ${item.step}/${item.totalSteps} \u00b7 ${item.elapsed}`;
+  if (s === 'gate')     return 'gate';
+  if (s === 'error')    return 'error';
+  if (s === 'complete') return 'complete';
+  if (item.blockedBy)   return 'blocked';
+  return 'planned';
+}
+
+// -- Render tree ----------------------------------------------------
+function renderTree() {
+  const container = document.getElementById('treeContainer');
+  const lowerSearch = searchText.toLowerCase();
+
+  let html = '';
+  for (const track of TRACK_ORDER) {
+    const items = Object.entries(ITEMS).filter(([,it]) => it.track === track);
+    const filtered = items.filter(([id, it]) => {
+      if (lowerSearch && !id.toLowerCase().includes(lowerSearch) && !it.name.toLowerCase().includes(lowerSearch) && !statusText(it).toLowerCase().includes(lowerSearch)) return false;
+      if (statusFilter === 'active' && it.status !== 'building' && it.status !== 'gate') return false;
+      if (statusFilter === 'done' && it.status !== 'complete') return false;
+      if (statusFilter === 'blocked' && it.status !== 'error' && !it.blockedBy) return false;
+      return true;
+    });
+    if (lowerSearch && filtered.length === 0) continue;
+
+    const expanded = expandedGroups[track];
+    html += `<div class="tree-group" data-track="${track}">`;
+    html += `<div class="tree-group-header" onclick="toggleGroup('${track}')">`;
+    html += `<span class="chevron ${expanded ? 'open' : ''}">\u25b6</span>`;
+    html += `${TRACK_LABELS[track]}`;
+    html += `<span class="count">${filtered.length}</span>`;
+    html += `</div>`;
+    html += `<div class="tree-items${expanded ? '' : ' collapsed'}" id="group-${track}" style="max-height:${expanded ? filtered.length * 50 + 'px' : '0'}">`;
+
+    for (const [id, it] of filtered) {
+      const sel = id === selectedId ? ' selected' : '';
+      const recentClass = it._recentGreen ? ' recently-modified-green' : it._recentAmber ? ' recently-modified-amber' : '';
+      const dimClass = it._dimmed ? ' dimmed' : '';
+      html += `<div class="tree-item${sel}${recentClass}${dimClass}" data-id="${id}" onclick="selectItem('${id}')">`;
+      html += `<div class="item-status ${it.status}">${statusIcon(it.status)}</div>`;
+      html += `<div class="item-code">${id}</div>`;
+      html += `<div class="item-label">${statusText(it)}</div>`;
+      if (it.status === 'building') {
+        html += `<div class="item-agent ${it.agent.toLowerCase()}">${it.agent}</div>`;
+        html += `<div class="item-elapsed">${it.elapsed}</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  if (!html) {
+    html = '<div class="tree-empty">No items match your search</div>';
+  }
+  container.innerHTML = html;
+}
+
+function toggleGroup(track) {
+  expandedGroups[track] = !expandedGroups[track];
+  renderTree();
+}
+
+// -- Selection & context panel --------------------------------------
+function selectItem(id) {
+  selectedId = id;
+  renderTree();
+  renderContextPanel(id);
+}
+
+function renderContextPanel(id) {
+  const panel = document.getElementById('contextPanel');
+  const it = ITEMS[id];
+  if (!it) { panel.innerHTML = '<div style="padding:40px 16px;text-align:center;font-size:12px;color:#475569;">Select an item to see details</div>'; return; }
+
+  let html = `<div class="cp-header"><h3>${id}</h3><button class="cp-close" onclick="deselectItem()">\u2715</button></div>`;
+
+  // Pipeline
+  html += `<div class="cp-section"><div class="cp-section-title">Pipeline</div><div class="pipeline">`;
+  const currentStep = it.step || 0;
+  STEPS.forEach((s, i) => {
+    if (i > 0) html += `<div class="pip-line ${i < currentStep ? 'done' : 'pending'}"></div>`;
+    let cls = 'pending';
+    if (it.status === 'complete') cls = 'done';
+    else if (it.status === 'error' && it.errorStep && i === it.errorStep - 1) cls = 'error';
+    else if (it.status === 'gate' && i === 2) cls = 'gate';
+    else if (i < currentStep) cls = 'done';
+    else if (i === currentStep && it.status === 'building') cls = 'active';
+    html += `<div class="pip-dot ${cls}">${i + 1}</div>`;
+  });
+  html += `</div><div class="pip-labels">`;
+  STEPS.forEach((s, i) => {
+    if (i > 0) html += `<div class="pip-spacer"></div>`;
+    html += `<div class="pip-label">${s.slice(0, 3)}</div>`;
+  });
+  html += `</div></div>`;
+
+  // Gate
+  if (it.status === 'gate') {
+    html += `<div class="cp-section"><div class="cp-section-title">Pending Gate</div>`;
+    html += `<div style="font-size:11px;color:#f59e0b;margin-bottom:4px">${it.gateFrom} &rarr; ${it.gateTo}</div>`;
+    html += `<div style="font-size:11px;color:#94a3b8;margin-bottom:4px">${it.artifact} &middot; ${it.artPct}% complete &middot; ${it.artWords} words</div>`;
+    html += `<div style="font-size:11px;color:#64748b;margin-bottom:8px">Missing: ${it.artMissing}</div>`;
+    html += `<div class="gate-actions"><button class="primary" id="approveBtn" onclick="handleApprove('${id}')">Approve</button><button>Revise</button></div>`;
+    html += `</div>`;
+  }
+
+  // Errors
+  if (it.status === 'error') {
+    html += `<div class="cp-section"><div class="cp-section-title">Errors</div>`;
+    html += `<div class="error-item">${it.errorMsg}<br><span style="font-size:10px;color:#64748b">${it.errorAgent} &middot; step ${it.errorStep} ${it.errorPhase} &middot; ${it.errorAgo} ago</span></div>`;
+    html += `</div>`;
+  }
+
+  // Sessions
+  html += `<div class="cp-section"><div class="cp-section-title">Sessions</div>`;
+  if (it.status === 'building') {
+    html += `<div class="session-row"><span class="session-agent-cp ${it.agent.toLowerCase()}">${it.agent}</span><span class="session-dur">${it.elapsed}</span><span class="session-stats">step ${it.step}/${it.totalSteps}</span></div>`;
+    html += `<div class="session-row"><span class="session-agent-cp claude">Claude</span><span class="session-dur">1m</span><span class="session-stats">speckit</span></div>`;
+  } else if (it.status === 'error') {
+    html += `<div class="session-row"><span class="session-agent-cp ${it.errorAgent.toLowerCase()}">${it.errorAgent}</span><span class="session-dur">${it.errorAgo}</span><span class="session-stats">${it.errorIO}</span></div>`;
+  } else if (it.status === 'complete') {
+    html += `<div class="session-row"><span class="session-agent-cp claude">Claude</span><span class="session-dur">${it.completedAgo}</span><span class="session-stats">${it.totalSteps} steps</span></div>`;
+  } else {
+    html += `<div style="font-size:11px;color:#475569">No sessions yet</div>`;
+  }
+  html += `</div>`;
+
+  // Files
+  html += `<div class="cp-section"><div class="cp-section-title">Files</div>`;
+  if (it.status === 'building' || it.status === 'error' || it.status === 'complete') {
+    html += `<div class="file-row"><span class="file-icon">\u25a1</span> .stratum.yaml</div>`;
+    html += `<div class="file-row"><span class="file-icon">\u25a1</span> speckit.md</div>`;
+    if (it.step > 2 || it.status === 'complete' || it.status === 'error') {
+      html += `<div class="file-row"><span class="file-icon">\u25a1</span> design.md</div>`;
+    }
+  } else {
+    html += `<div style="font-size:11px;color:#475569">No files yet</div>`;
+  }
+  html += `</div>`;
+
+  // Cross-view links
+  html += `<div class="cp-section"><div class="cp-section-title">Views</div>`;
+  html += `<div class="cross-links">`;
+  html += `<div class="cross-link" id="linkGraph">\u2192 View in Graph</div>`;
+  html += `<div class="cross-link" id="linkOps">\u2192 View in Ops</div>`;
+  html += `</div></div>`;
+
+  panel.innerHTML = html;
+}
+
+function deselectItem() {
+  selectedId = null;
+  renderTree();
+  document.getElementById('contextPanel').innerHTML = '<div style="padding:40px 16px;text-align:center;font-size:12px;color:#475569;">Select an item to see details</div>';
+}
+
+// -- Approve gate ---------------------------------------------------
+function handleApprove(id) {
+  const it = ITEMS[id];
+  it.status = 'building';
+  it.agent = 'Claude';
+  it.step = 1;
+  it.totalSteps = 6;
+  it.elapsed = '0m';
+  it.phase = 'speckit';
+  delete it.gateFrom;
+  delete it.gateTo;
+  delete it.artifact;
+  delete it.artPct;
+  delete it.artWords;
+  delete it.artMissing;
+
+  // Unblock downstream
+  for (const [nid, n] of Object.entries(ITEMS)) {
+    if (n.blockedBy === id) {
+      n.blockedBy = null;
+      n._dimmed = false;
+    }
+  }
+
+  renderTree();
+  if (selectedId === id) renderContextPanel(id);
+}
+
+// -- Search ---------------------------------------------------------
+document.getElementById('searchInput').addEventListener('input', function() {
+  searchText = this.value;
+  renderTree();
+});
+
+// -- Status filter buttons ------------------------------------------
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    statusFilter = this.dataset.status;
+    renderTree();
+  });
+});
+
+// -- Annotation -----------------------------------------------------
+const annoEl = document.getElementById('annotation');
+let annoTimer = null;
+function showAnnotation(text, duration) {
+  annoEl.textContent = text;
+  annoEl.classList.add('visible');
+  clearTimeout(annoTimer);
+  annoTimer = setTimeout(() => annoEl.classList.remove('visible'), duration || 3000);
+}
+
+// -- Demo helpers ---------------------------------------------------
+function clearDemoTimeouts() {
+  demoTimeouts.forEach(t => clearTimeout(t));
+  demoTimeouts.length = 0;
+}
+function at(ms, fn) {
+  demoTimeouts.push(setTimeout(fn, ms));
+}
+
+function resetData() {
+  ITEMS['CORE-LEARN-1'].status = 'building'; ITEMS['CORE-LEARN-1'].agent = 'Claude'; ITEMS['CORE-LEARN-1'].step = 5; ITEMS['CORE-LEARN-1'].totalSteps = 8; ITEMS['CORE-LEARN-1'].elapsed = '3m';
+  ITEMS['ONTO-PUB-2'].status = 'planned';
+  ITEMS['ONTO-PROV-1'].status = 'planned';
+  ITEMS['DIST-ADOPT-1'].status = 'gate'; ITEMS['DIST-ADOPT-1'].gateFrom = 'design'; ITEMS['DIST-ADOPT-1'].gateTo = 'prd'; ITEMS['DIST-ADOPT-1'].artifact = 'design.md'; ITEMS['DIST-ADOPT-1'].artPct = 87; ITEMS['DIST-ADOPT-1'].artWords = 1240; ITEMS['DIST-ADOPT-1'].artMissing = 'Open Questions';
+  ITEMS['DIST-RELEASE-1'].status = 'complete';
+  ITEMS['DIST-PUB-1'].status = 'planned'; ITEMS['DIST-PUB-1'].blockedBy = 'DIST-ADOPT-1';
+  ITEMS['PRE-ASYNC-1'].status = 'error'; ITEMS['PRE-ASYNC-1'].errorMsg = 'TypeError in module_x.py'; ITEMS['PRE-ASYNC-1'].errorAgent = 'Codex'; ITEMS['PRE-ASYNC-1'].errorStep = 6; ITEMS['PRE-ASYNC-1'].errorPhase = 'implement'; ITEMS['PRE-ASYNC-1'].errorAgo = '4m'; ITEMS['PRE-ASYNC-1'].errorIO = '1r 2w 1e';
+  ITEMS['SEC-DOMAIN-1'].status = 'building'; ITEMS['SEC-DOMAIN-1'].agent = 'Codex'; ITEMS['SEC-DOMAIN-1'].step = 6; ITEMS['SEC-DOMAIN-1'].totalSteps = 10; ITEMS['SEC-DOMAIN-1'].elapsed = '12m';
+  ITEMS['HITL-1'].status = 'planned'; ITEMS['HITL-1'].blockedBy = 'PRE-ASYNC-1';
+  ITEMS['GOV-ROLES-1'].status = 'planned'; ITEMS['GOV-ROLES-1'].blockedBy = 'HITL-1';
+
+  // Clear transient flags
+  for (const it of Object.values(ITEMS)) {
+    delete it._recentGreen;
+    delete it._recentAmber;
+    delete it._dimmed;
+  }
+
+  selectedId = null;
+  searchText = '';
+  statusFilter = 'all';
+  expandedGroups = { knowledge: true, distribution: true, governance: true };
+  document.getElementById('searchInput').value = '';
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('filterAll').classList.add('active');
+}
+
+// -- Start & replay -------------------------------------------------
+function startDemo() {
+  document.getElementById('preamble').classList.add('hidden');
+  document.getElementById('replayBtn').classList.remove('visible');
+  renderTree();
+  selectItem('CORE-LEARN-1');
+  runSequence();
+}
+
+function replay() {
+  clearDemoTimeouts();
+  annoEl.classList.remove('visible');
+  document.getElementById('replayBtn').classList.remove('visible');
+  resetData();
+  renderTree();
+  selectItem('CORE-LEARN-1');
+  runSequence();
+}
+
+function runSequence() {
+  // (0s) Initial state - tree open, CORE-LEARN-1 selected
+  showAnnotation('Tree view with ops status -- \u25cf building, \u26a0 gate, \u2715 error', 3500);
+
+  // (4s) CORE-LEARN-1 live update
+  at(4000, () => {
+    ITEMS['CORE-LEARN-1'].step = 5;
+    ITEMS['CORE-LEARN-1'].elapsed = '4m';
+    renderTree();
+    renderContextPanel('CORE-LEARN-1');
+    showAnnotation('Live updates -- step progress shows in both tree and context panel', 2500);
+  });
+
+  // (7s) Click DIST-ADOPT-1 - gate item
+  at(7000, () => {
+    selectItem('DIST-ADOPT-1');
+    showAnnotation('Click any item -- context panel shows full detail with actions', 2500);
+  });
+
+  // (10s) Approve gate
+  at(10000, () => {
+    handleApprove('DIST-ADOPT-1');
+    showAnnotation('Approve gates in the context panel -- tree updates immediately', 3000);
+  });
+
+  // (14s) Search "error"
+  at(14000, () => {
+    const input = document.getElementById('searchInput');
+    searchText = 'error';
+    input.value = 'error';
+    renderTree();
+    showAnnotation('Search filters the tree instantly', 2500);
+  });
+
+  // (17s) Clear search, click PRE-ASYNC-1
+  at(17000, () => {
+    const input = document.getElementById('searchInput');
+    searchText = '';
+    input.value = '';
+    renderTree();
+    selectItem('PRE-ASYNC-1');
+    showAnnotation('Error detail -- see the exact failure and which agent hit it', 2500);
+  });
+
+  // (20s) Highlight cross-view links
+  at(20000, () => {
+    const linkGraph = document.getElementById('linkGraph');
+    const linkOps = document.getElementById('linkOps');
+    if (linkGraph) linkGraph.classList.add('glow');
+    showAnnotation('Cross-view links -- jump to Graph or Ops for different perspective', 2500);
+    at(1200, () => {
+      if (linkGraph) linkGraph.classList.remove('glow');
+      if (linkOps) linkOps.classList.add('glow');
+    });
+    at(2400, () => {
+      if (linkOps) linkOps.classList.remove('glow');
+    });
+  });
+
+  // (23s) CORE-LEARN-1 completes
+  at(23000, () => {
+    ITEMS['CORE-LEARN-1'].status = 'complete';
+    ITEMS['CORE-LEARN-1'].completedAgo = '0m';
+    ITEMS['CORE-LEARN-1']._recentGreen = true;
+    // Flash the row
+    renderTree();
+    const row = document.querySelector('[data-id="CORE-LEARN-1"]');
+    if (row) {
+      row.style.animation = 'greenFlash 1s ease-out';
+      setTimeout(() => { row.style.animation = ''; }, 1000);
+    }
+    showAnnotation('Build completes -- green flash, recently-modified indicator', 2500);
+  });
+
+  // (27s) Filter to Active
+  at(27000, () => {
+    statusFilter = 'active';
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('filterActive').classList.add('active');
+    renderTree();
+    showAnnotation('Filter by status -- see only what\'s active', 2500);
+  });
+
+  // (30s) Clear filter, SEC-DOMAIN-1 completes
+  at(30000, () => {
+    statusFilter = 'all';
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('filterAll').classList.add('active');
+    ITEMS['SEC-DOMAIN-1'].status = 'complete';
+    ITEMS['SEC-DOMAIN-1'].completedAgo = '0m';
+    ITEMS['SEC-DOMAIN-1']._recentGreen = true;
+    renderTree();
+    const row = document.querySelector('[data-id="SEC-DOMAIN-1"]');
+    if (row) {
+      row.style.animation = 'greenFlash 1s ease-out';
+      setTimeout(() => { row.style.animation = ''; }, 1000);
+    }
+  });
+
+  // (33s) Final state, show replay
+  at(33000, () => {
+    showAnnotation('Demo complete', 2000);
+    document.getElementById('replayBtn').classList.add('visible');
+  });
+}
+</script>
+</body>
+</html>

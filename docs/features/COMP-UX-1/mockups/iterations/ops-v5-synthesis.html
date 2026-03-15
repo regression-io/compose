@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ops V5 — Synthesis</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Top strip: pipeline ── */
+.pipeline-strip { background: #1e293b; border-bottom: 1px solid #334155; padding: 12px 20px 10px; flex-shrink: 0; }
+.pipeline-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.pipeline-left { display: flex; align-items: center; gap: 10px; }
+.pipeline-left .feat { font-size: 12px; font-weight: 600; color: #3b82f6; }
+.pipeline-left .agent { font-size: 11px; color: #f97316; }
+.pipeline-left .step-label { font-size: 11px; color: #94a3b8; }
+.pipeline-right { display: flex; align-items: center; gap: 12px; }
+.pipeline-right .elapsed { font-size: 11px; color: #64748b; }
+
+.steps { display: flex; gap: 4px; align-items: center; }
+.step { width: 48px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 500; border: 1px solid; transition: all 0.6s ease; position: relative; }
+.step.done { background: #22c55e15; border-color: #22c55e40; color: #22c55e; }
+.step.active { background: #3b82f620; border-color: #3b82f6; color: #60a5fa; box-shadow: 0 0 8px #3b82f630; animation: stepGlow 2s ease-in-out infinite; }
+.step.active-gate { background: #f59e0b15; border-color: #f59e0b80; color: #f59e0b; box-shadow: 0 0 8px #f59e0b30; animation: gateGlow 2s ease-in-out infinite; }
+.step.pending { background: #1e293b; border-color: #334155; color: #475569; }
+.step.flash-green { animation: flashGreen 0.8s ease; }
+.arrow { color: #334155; font-size: 10px; }
+
+.progress-bar { height: 3px; background: #334155; border-radius: 2px; margin-top: 8px; }
+.progress-fill { height: 100%; background: #3b82f6; border-radius: 2px; transition: width 0.8s ease, background 0.5s ease; }
+.progress-fill.complete { background: #22c55e; }
+
+@keyframes stepGlow { 0%, 100% { box-shadow: 0 0 6px #3b82f620; } 50% { box-shadow: 0 0 14px #3b82f640; } }
+@keyframes gateGlow { 0%, 100% { box-shadow: 0 0 6px #f59e0b20; } 50% { box-shadow: 0 0 14px #f59e0b40; } }
+@keyframes flashGreen { 0% { box-shadow: 0 0 0 transparent; } 30% { box-shadow: 0 0 16px #22c55e60; } 100% { box-shadow: 0 0 0 transparent; } }
+
+/* ── Main area ── */
+.main { flex: 1; display: flex; overflow: hidden; }
+
+/* ── Sidebar ── */
+.sidebar { width: 220px; border-right: 1px solid #334155; padding: 14px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex-shrink: 0; }
+.sidebar-section h4 { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stat-card { background: #1e293b; border-radius: 6px; padding: 10px; text-align: center; transition: box-shadow 0.3s ease; border: 1px solid transparent; }
+.stat-card.flash-red { animation: redFlash 0.8s ease; }
+.stat-value { font-size: 20px; font-weight: 700; transition: transform 0.4s ease, color 0.3s ease; display: inline-block; }
+.stat-value.pulse { animation: valPulse 0.4s ease; }
+.stat-value.blue { color: #3b82f6; }
+.stat-value.green { color: #22c55e; }
+.stat-value.amber { color: #f59e0b; }
+.stat-value.red { color: #ef4444; }
+.stat-label { font-size: 9px; color: #64748b; text-transform: uppercase; margin-top: 2px; }
+
+@keyframes valPulse { 0% { transform: scale(1); } 40% { transform: scale(1.3); } 100% { transform: scale(1); } }
+@keyframes redFlash { 0% { box-shadow: 0 0 0 transparent; border-color: transparent; } 30% { box-shadow: 0 0 12px #ef444450; border-color: #ef444460; } 100% { box-shadow: 0 0 0 transparent; border-color: transparent; } }
+
+.active-build { background: #1e293b; border-radius: 8px; padding: 12px; border: 1px solid #334155; }
+.build-feat { font-size: 13px; font-weight: 600; color: #3b82f6; margin-bottom: 4px; }
+.build-step { font-size: 11px; color: #94a3b8; transition: all 0.3s ease; }
+.build-agent { font-size: 11px; color: #f97316; margin-top: 2px; }
+.build-status { font-size: 11px; color: #22c55e; font-weight: 600; margin-top: 2px; display: none; }
+.mini-progress { height: 4px; background: #334155; border-radius: 2px; margin-top: 8px; }
+.mini-progress-fill { height: 100%; background: #3b82f6; border-radius: 2px; transition: width 0.8s ease, background 0.5s ease; }
+
+.pending-gates { display: flex; flex-direction: column; gap: 4px; }
+.pending-gate { display: flex; align-items: center; gap: 6px; padding: 8px; background: #1e293b; border-radius: 6px; border: 1px solid #334155; transition: all 0.5s ease; }
+.pending-gate .dot { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
+.pending-gate .name { font-size: 11px; color: #e2e8f0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pending-gate button { font-size: 9px; padding: 2px 6px; border-radius: 3px; border: 1px solid #22c55e40; background: #22c55e15; color: #22c55e; cursor: pointer; transition: all 0.2s ease; }
+.pending-gate button:hover { background: #22c55e30; }
+.pending-gate .approved-text { font-size: 9px; color: #22c55e; font-weight: 600; display: none; }
+.pending-gate.approved { border-color: #22c55e40; }
+.pending-gate.fade-out { opacity: 0; height: 0; padding: 0; margin: 0; overflow: hidden; }
+
+/* ── Timeline ── */
+.timeline-area { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.timeline { position: relative; padding-left: 28px; }
+.timeline::before { content: ''; position: absolute; left: 11px; top: 0; bottom: 0; width: 1px; background: #334155; }
+
+.day-header { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin: 16px 0 10px -28px; padding-left: 0; }
+.day-header:first-child { margin-top: 0; }
+
+.event { position: relative; margin-bottom: 10px; padding: 10px 12px; background: #1e293b; border-radius: 8px; border: 1px solid #334155; transition: all 0.5s ease; }
+.event.slide-in { animation: slideIn 0.6s ease both; }
+.event.green-flash { animation: greenBorderFlash 0.8s ease; }
+
+@keyframes slideIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes greenBorderFlash { 0% { border-color: #334155; } 30% { border-color: #22c55e80; box-shadow: 0 0 8px #22c55e30; } 100% { border-color: #334155; } }
+
+.event-icon { position: absolute; left: -24px; top: 12px; width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; z-index: 1; }
+.event-icon.blue { background: #3b82f630; color: #3b82f6; border: 1.5px solid #3b82f660; }
+.event-icon.blue.pulse { animation: iconPulse 1.5s ease-in-out infinite; }
+.event-icon.green { background: #22c55e30; color: #22c55e; border: 1.5px solid #22c55e60; }
+.event-icon.amber { background: #f59e0b30; color: #f59e0b; border: 1.5px solid #f59e0b60; border-radius: 3px; }
+.event-icon.purple { background: #8b5cf630; color: #8b5cf6; border: 1.5px solid #8b5cf660; transform: rotate(45deg); }
+.event-icon.purple span { transform: rotate(-45deg); display: block; }
+.event-icon.red { background: #ef444430; color: #ef4444; border: 1.5px solid #ef444460; }
+.event-icon.green-sparkle { background: #22c55e40; color: #22c55e; border: 1.5px solid #22c55e80; animation: sparkle 1.5s ease infinite; }
+
+@keyframes iconPulse { 0%, 100% { box-shadow: 0 0 0 transparent; } 50% { box-shadow: 0 0 8px #3b82f640; } }
+@keyframes sparkle { 0%, 100% { box-shadow: 0 0 4px #22c55e30; } 50% { box-shadow: 0 0 12px #22c55e60; } }
+
+.event-title { font-size: 12px; font-weight: 500; color: #e2e8f0; }
+.event-detail { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.event-stats { font-size: 10px; color: #64748b; margin-top: 3px; font-family: 'SF Mono', 'Fira Code', monospace; }
+.event-actions { margin-top: 6px; display: flex; gap: 6px; align-items: center; }
+.event-actions button { font-size: 10px; padding: 3px 10px; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; border: 1px solid; }
+.btn-approve { background: #22c55e15; border-color: #22c55e40; color: #22c55e; }
+.btn-approve:hover { background: #22c55e30; }
+.btn-revise { background: #f59e0b15; border-color: #f59e0b40; color: #f59e0b; }
+.btn-revise:hover { background: #f59e0b30; }
+.event-approved { font-size: 10px; color: #22c55e; font-weight: 600; display: none; }
+
+/* ── Replay button ── */
+.replay-btn { position: fixed; top: 10px; right: 16px; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; z-index: 100; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+
+/* ── Preamble overlay ── */
+.preamble-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15, 23, 42, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.4s ease;
+}
+.preamble-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.preamble-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 40px 48px;
+  max-width: 480px;
+  text-align: center;
+}
+.preamble-card h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 16px;
+  letter-spacing: 0.02em;
+}
+.preamble-card h1 span {
+  color: #3b82f6;
+}
+.preamble-card p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #94a3b8;
+  margin-bottom: 28px;
+}
+.preamble-card button {
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  padding: 10px 28px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+.preamble-card button:hover {
+  background: #2563eb;
+}
+
+/* ── Annotation callouts ── */
+.annotation {
+  position: fixed;
+  z-index: 150;
+  background: #1e293b;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #e2e8f0;
+  max-width: 200px;
+  line-height: 1.4;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  white-space: normal;
+}
+.annotation.visible {
+  opacity: 1;
+}
+.annotation::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 5px solid transparent;
+}
+.annotation.arrow-down::after {
+  top: 100%;
+  left: 20px;
+  border-top-color: #3b82f6;
+}
+.annotation.arrow-up::after {
+  bottom: 100%;
+  left: 20px;
+  border-bottom-color: #3b82f6;
+}
+.annotation.arrow-left::after {
+  top: 10px;
+  right: 100%;
+  border-right-color: #3b82f6;
+}
+.annotation.arrow-right::after {
+  top: 10px;
+  left: 100%;
+  border-left-color: #3b82f6;
+}
+</style>
+</head>
+<body>
+
+<!-- Preamble overlay -->
+<div class="preamble-overlay" id="preamble">
+  <div class="preamble-card">
+    <h1><span>V5</span> — Synthesis</h1>
+    <p>Best of V1–V4 combined: Pipeline step boxes on top for orientation, sidebar stats + quick gate actions on the left, unified timeline in the main area mixing all event types chronologically.</p>
+    <button onclick="dismissPreamble()">Start Demo →</button>
+  </div>
+</div>
+
+<!-- Annotation callouts -->
+<div class="annotation arrow-down" id="ann-pipeline">Pipeline steps across the top — always visible for orientation</div>
+<div class="annotation arrow-right" id="ann-stats">Summary numbers at a glance</div>
+<div class="annotation arrow-right" id="ann-gate">Quick approve without leaving the dashboard</div>
+<div class="annotation arrow-left" id="ann-event">Events stream in as agents work</div>
+<div class="annotation arrow-left" id="ann-approved">Gate approved — pipeline resumes automatically</div>
+<div class="annotation arrow-up" id="ann-complete">Build ships — all steps green</div>
+
+<!-- Pipeline strip -->
+<div class="pipeline-strip">
+  <div class="pipeline-header">
+    <div class="pipeline-left">
+      <span class="feat">CORE-ASYNC-1</span>
+      <span class="agent">Claude</span>
+      <span class="step-label" id="currentStepLabel">Step 4/8 — build</span>
+    </div>
+    <div class="pipeline-right">
+      <span class="elapsed" id="elapsedTime">14m 32s</span>
+    </div>
+  </div>
+  <div class="steps" id="pipelineSteps">
+    <div class="step done" data-idx="0">design</div>
+    <div class="arrow">›</div>
+    <div class="step done" data-idx="1">prd</div>
+    <div class="arrow">›</div>
+    <div class="step done" data-idx="2">arch</div>
+    <div class="arrow">›</div>
+    <div class="step active" data-idx="3" id="stepBuild">build</div>
+    <div class="arrow">›</div>
+    <div class="step pending" data-idx="4" id="stepGate">gate</div>
+    <div class="arrow">›</div>
+    <div class="step pending" data-idx="5" id="stepTest">test</div>
+    <div class="arrow">›</div>
+    <div class="step pending" data-idx="6" id="stepReport">report</div>
+    <div class="arrow">›</div>
+    <div class="step pending" data-idx="7" id="stepShip">ship</div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 42%"></div></div>
+</div>
+
+<div class="main">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h4>Overview</h4>
+      <div class="stat-grid">
+        <div class="stat-card" id="statBuilds"><div class="stat-value blue" id="valBuilds">1</div><div class="stat-label">Builds</div></div>
+        <div class="stat-card" id="statGates"><div class="stat-value amber" id="valGates">2</div><div class="stat-label">Gates</div></div>
+        <div class="stat-card" id="statSessions"><div class="stat-value green" id="valSessions">4</div><div class="stat-label">Sessions</div></div>
+        <div class="stat-card" id="statErrors"><div class="stat-value red" id="valErrors">1</div><div class="stat-label">Errors</div></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h4>Active Build</h4>
+      <div class="active-build">
+        <div class="build-feat">CORE-ASYNC-1</div>
+        <div class="build-step" id="buildStep">build (step 4/8)</div>
+        <div class="build-agent">Claude</div>
+        <div class="build-status" id="buildStatus">Complete</div>
+        <div class="mini-progress"><div class="mini-progress-fill" id="miniFill" style="width: 42%"></div></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h4>Pending Gates</h4>
+      <div class="pending-gates" id="pendingGates">
+        <div class="pending-gate" id="sidebarGate1">
+          <div class="dot"></div>
+          <span class="name">AUTH-2 arch→build</span>
+          <button onclick="approveSidebarGate('sidebarGate1')">Approve</button>
+          <span class="approved-text">Approved ✓</span>
+        </div>
+        <div class="pending-gate" id="sidebarGate2">
+          <div class="dot"></div>
+          <span class="name">DATA-5 prd→arch</span>
+          <button onclick="approveSidebarGate('sidebarGate2')">Approve</button>
+          <span class="approved-text">Approved ✓</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="timeline-area" id="timelineArea">
+    <div class="timeline" id="timeline">
+      <div class="day-header">Today</div>
+
+      <div class="event" id="existingEvent1">
+        <div class="event-icon blue">●</div>
+        <div class="event-title">CORE-ASYNC-1 — build step started</div>
+        <div class="event-detail">Agent: <span style="color:#f97316">Claude</span> · Step 4 of 8</div>
+      </div>
+
+      <div class="event" id="existingEvent2">
+        <div class="event-icon purple"><span>◆</span></div>
+        <div class="event-title">CORE-ASYNC-1 — session completed</div>
+        <div class="event-stats">4r 2w 0e · 6m</div>
+      </div>
+
+      <div class="event" id="existingEvent3">
+        <div class="event-icon green">✓</div>
+        <div class="event-title">CORE-ASYNC-1 — architecture completed</div>
+        <div class="event-detail">All postconditions passed</div>
+      </div>
+
+      <div class="event" id="existingGateAuth" data-gate="auth">
+        <div class="event-icon amber">■</div>
+        <div class="event-title">AUTH-2 — gate: arch → build</div>
+        <div class="event-detail">Requires human approval to proceed</div>
+        <div class="event-actions">
+          <button class="btn-approve" onclick="approveTimelineGate('existingGateAuth')">Approve</button>
+          <button class="btn-revise">Revise</button>
+          <span class="event-approved">Approved ✓</span>
+        </div>
+      </div>
+
+      <div class="event" id="existingEvent5">
+        <div class="event-icon red">!</div>
+        <div class="event-title">DATA-5 — postcondition failed</div>
+        <div class="event-detail">Missing required field in schema contract</div>
+      </div>
+
+      <div class="day-header">Yesterday</div>
+
+      <div class="event" id="existingEvent6">
+        <div class="event-icon purple"><span>◆</span></div>
+        <div class="event-title">CORE-ASYNC-1 — session completed</div>
+        <div class="event-stats">6r 5w 0e · 18m</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="replay-btn" id="replayBtn" onclick="startAnimation()">↻ Replay</button>
+
+<script>
+// ── State ──
+let timeouts = [];
+let demoStarted = false;
+const steps = ['design','prd','arch','build','gate','test','report','ship'];
+
+function clearTimeouts() { timeouts.forEach(t => clearTimeout(t)); timeouts = []; }
+
+function at(ms, fn) { timeouts.push(setTimeout(fn, ms)); }
+
+// ── Preamble ──
+function dismissPreamble() {
+  const overlay = document.getElementById('preamble');
+  overlay.classList.add('hidden');
+  setTimeout(() => { overlay.style.display = 'none'; }, 400);
+  if (!demoStarted) {
+    demoStarted = true;
+    setTimeout(startAnimation, 300);
+  }
+}
+
+// ── Annotation helpers ──
+function showAnnotation(id, targetEl, arrowDir, offsetX, offsetY) {
+  const ann = document.getElementById(id);
+  if (!targetEl || !ann) return;
+  const rect = targetEl.getBoundingClientRect();
+  if (arrowDir === 'down') {
+    ann.style.left = (rect.left + (offsetX || 0)) + 'px';
+    ann.style.top = (rect.top - ann.offsetHeight - 10 + (offsetY || 0)) + 'px';
+  } else if (arrowDir === 'up') {
+    ann.style.left = (rect.left + (offsetX || 0)) + 'px';
+    ann.style.top = (rect.bottom + 10 + (offsetY || 0)) + 'px';
+  } else if (arrowDir === 'left') {
+    ann.style.left = (rect.right + 10 + (offsetX || 0)) + 'px';
+    ann.style.top = (rect.top + (offsetY || 0)) + 'px';
+  } else if (arrowDir === 'right') {
+    ann.style.left = (rect.left - ann.offsetWidth - 10 + (offsetX || 0)) + 'px';
+    ann.style.top = (rect.top + (offsetY || 0)) + 'px';
+  }
+  ann.classList.add('visible');
+}
+
+function hideAnnotation(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('visible');
+}
+
+function hideAllAnnotations() {
+  document.querySelectorAll('.annotation').forEach(a => a.classList.remove('visible'));
+}
+
+// ── Helpers ──
+function setStepState(idx, state) {
+  const el = document.querySelectorAll('.step')[idx];
+  if (!el) return;
+  el.className = 'step ' + state;
+  if (state === 'done') { el.classList.add('flash-green'); setTimeout(() => el.classList.remove('flash-green'), 800); }
+}
+
+function setProgress(pct) {
+  const fill = document.getElementById('progressFill');
+  const mini = document.getElementById('miniFill');
+  fill.style.width = pct + '%';
+  mini.style.width = pct + '%';
+  if (pct >= 100) { fill.classList.add('complete'); mini.classList.add('complete'); mini.style.background = '#22c55e'; }
+}
+
+function setStepLabel(text) { document.getElementById('currentStepLabel').textContent = text; }
+function setBuildStep(text) { document.getElementById('buildStep').textContent = text; }
+
+function pulseStat(id, newVal) {
+  const el = document.getElementById(id);
+  el.textContent = newVal;
+  el.classList.add('pulse');
+  setTimeout(() => el.classList.remove('pulse'), 400);
+}
+
+function flashCard(cardId) {
+  const card = document.getElementById(cardId);
+  card.classList.add('flash-red');
+  setTimeout(() => card.classList.remove('flash-red'), 800);
+}
+
+function addTimelineEvent(html, prepend) {
+  const timeline = document.getElementById('timeline');
+  const todayHeader = timeline.querySelector('.day-header');
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const eventEl = div.firstElementChild;
+  eventEl.classList.add('slide-in');
+  if (prepend && todayHeader && todayHeader.nextElementSibling) {
+    todayHeader.after(eventEl);
+  } else {
+    timeline.appendChild(eventEl);
+  }
+  // Scroll to top
+  document.getElementById('timelineArea').scrollTop = 0;
+  return eventEl;
+}
+
+function approveTimelineGate(id) {
+  const ev = document.getElementById(id);
+  if (!ev) return;
+  const btns = ev.querySelectorAll('.event-actions button');
+  const approved = ev.querySelector('.event-approved');
+  btns.forEach(b => b.style.display = 'none');
+  approved.style.display = 'inline';
+  ev.classList.add('green-flash');
+}
+
+function approveSidebarGate(id) {
+  const row = document.getElementById(id);
+  if (!row) return;
+  const btn = row.querySelector('button');
+  const text = row.querySelector('.approved-text');
+  btn.style.display = 'none';
+  text.style.display = 'inline';
+  row.classList.add('approved');
+  setTimeout(() => { row.classList.add('fade-out'); }, 600);
+}
+
+function addSidebarGate(id, name) {
+  const container = document.getElementById('pendingGates');
+  const div = document.createElement('div');
+  div.className = 'pending-gate';
+  div.id = id;
+  div.innerHTML = `<div class="dot"></div><span class="name">${name}</span><button onclick="approveSidebarGate('${id}')">Approve</button><span class="approved-text">Approved ✓</span>`;
+  container.appendChild(div);
+}
+
+// ── Reset to initial state ──
+function resetState() {
+  clearTimeouts();
+  // Pipeline steps
+  setStepState(0, 'done'); setStepState(1, 'done'); setStepState(2, 'done');
+  setStepState(3, 'active'); setStepState(4, 'pending'); setStepState(5, 'pending');
+  setStepState(6, 'pending'); setStepState(7, 'pending');
+
+  document.getElementById('progressFill').className = 'progress-fill';
+  document.getElementById('progressFill').style.width = '42%';
+  document.getElementById('miniFill').className = 'mini-progress-fill';
+  document.getElementById('miniFill').style.width = '42%';
+  document.getElementById('miniFill').style.background = '';
+
+  setStepLabel('Step 4/8 — build');
+  setBuildStep('build (step 4/8)');
+  document.getElementById('buildStatus').style.display = 'none';
+  document.getElementById('buildStep').style.display = '';
+  document.querySelector('.build-agent').style.display = '';
+  document.querySelector('.mini-progress').style.display = '';
+
+  // Stats
+  document.getElementById('valBuilds').textContent = '1';
+  document.getElementById('valGates').textContent = '2';
+  document.getElementById('valSessions').textContent = '4';
+  document.getElementById('valErrors').textContent = '1';
+
+  // Sidebar gates — remove dynamic ones, reset existing
+  document.getElementById('pendingGates').innerHTML = `
+    <div class="pending-gate" id="sidebarGate1">
+      <div class="dot"></div>
+      <span class="name">AUTH-2 arch→build</span>
+      <button onclick="approveSidebarGate('sidebarGate1')">Approve</button>
+      <span class="approved-text">Approved ✓</span>
+    </div>
+    <div class="pending-gate" id="sidebarGate2">
+      <div class="dot"></div>
+      <span class="name">DATA-5 prd→arch</span>
+      <button onclick="approveSidebarGate('sidebarGate2')">Approve</button>
+      <span class="approved-text">Approved ✓</span>
+    </div>`;
+
+  // Timeline — reset to initial events
+  document.getElementById('timeline').innerHTML = `
+      <div class="day-header">Today</div>
+      <div class="event" id="existingEvent1">
+        <div class="event-icon blue">●</div>
+        <div class="event-title">CORE-ASYNC-1 — build step started</div>
+        <div class="event-detail">Agent: <span style="color:#f97316">Claude</span> · Step 4 of 8</div>
+      </div>
+      <div class="event" id="existingEvent2">
+        <div class="event-icon purple"><span>◆</span></div>
+        <div class="event-title">CORE-ASYNC-1 — session completed</div>
+        <div class="event-stats">4r 2w 0e · 6m</div>
+      </div>
+      <div class="event" id="existingEvent3">
+        <div class="event-icon green">✓</div>
+        <div class="event-title">CORE-ASYNC-1 — architecture completed</div>
+        <div class="event-detail">All postconditions passed</div>
+      </div>
+      <div class="event" id="existingGateAuth" data-gate="auth">
+        <div class="event-icon amber">■</div>
+        <div class="event-title">AUTH-2 — gate: arch → build</div>
+        <div class="event-detail">Requires human approval to proceed</div>
+        <div class="event-actions">
+          <button class="btn-approve" onclick="approveTimelineGate('existingGateAuth')">Approve</button>
+          <button class="btn-revise">Revise</button>
+          <span class="event-approved">Approved ✓</span>
+        </div>
+      </div>
+      <div class="event" id="existingEvent5">
+        <div class="event-icon red">!</div>
+        <div class="event-title">DATA-5 — postcondition failed</div>
+        <div class="event-detail">Missing required field in schema contract</div>
+      </div>
+      <div class="day-header">Yesterday</div>
+      <div class="event" id="existingEvent6">
+        <div class="event-icon purple"><span>◆</span></div>
+        <div class="event-title">CORE-ASYNC-1 — session completed</div>
+        <div class="event-stats">6r 5w 0e · 18m</div>
+      </div>`;
+
+  document.getElementById('replayBtn').classList.remove('visible');
+  document.getElementById('elapsedTime').textContent = '14m 32s';
+  hideAllAnnotations();
+}
+
+// ── Animation sequence ──
+function startAnimation() {
+  resetState();
+
+  // (0.5s) Annotation: pipeline strip
+  at(500, () => {
+    showAnnotation('ann-pipeline', document.querySelector('.steps'), 'down', 40, 0);
+  });
+  at(3500, () => { hideAnnotation('ann-pipeline'); });
+
+  // (3s) Build step completes, gate becomes active
+  at(3000, () => {
+    setStepState(3, 'done');
+    setStepState(4, 'active-gate');
+    setProgress(54);
+    setStepLabel('Step 5/8 — gate');
+    setBuildStep('gate (step 5/8)');
+    document.getElementById('elapsedTime').textContent = '16m 05s';
+  });
+
+  // (3.5s) Annotation: sidebar stats
+  at(3500, () => {
+    showAnnotation('ann-stats', document.querySelector('.stat-grid'), 'right', 0, 0);
+  });
+  at(6500, () => { hideAnnotation('ann-stats'); });
+
+  // (5s) New timeline event: blueprint completed
+  at(5000, () => {
+    addTimelineEvent(`
+      <div class="event" id="evBlueprintDone">
+        <div class="event-icon green">✓</div>
+        <div class="event-title">CORE-ASYNC-1 — blueprint completed</div>
+        <div class="event-detail">All build artifacts generated successfully</div>
+      </div>`, true);
+    pulseStat('valSessions', '5');
+  });
+
+  // (5.5s) Annotation: timeline event
+  at(5500, () => {
+    const ev = document.getElementById('evBlueprintDone') || document.getElementById('existingEvent1');
+    showAnnotation('ann-event', ev, 'left', 0, 0);
+  });
+  at(8500, () => { hideAnnotation('ann-event'); });
+
+  // (8s) New gate event in timeline + sidebar
+  at(8000, () => {
+    addTimelineEvent(`
+      <div class="event" id="evGateBuildTest">
+        <div class="event-icon amber">■</div>
+        <div class="event-title">CORE-ASYNC-1 — gate: build → test</div>
+        <div class="event-detail">Requires human approval to proceed</div>
+        <div class="event-actions">
+          <button class="btn-approve" onclick="approveTimelineGate('evGateBuildTest')">Approve</button>
+          <button class="btn-revise">Revise</button>
+          <span class="event-approved">Approved ✓</span>
+        </div>
+      </div>`, true);
+    pulseStat('valGates', '3');
+    addSidebarGate('sidebarGate3', 'CORE-ASYNC-1 build→test');
+  });
+
+  // (9s) Annotation: sidebar gate
+  at(9000, () => {
+    showAnnotation('ann-gate', document.getElementById('sidebarGate3') || document.getElementById('sidebarGate1'), 'right', 0, 0);
+  });
+  at(12000, () => { hideAnnotation('ann-gate'); });
+
+  // (12s) Auto-approve the CORE-ASYNC-1 gate
+  at(12000, () => {
+    // Timeline gate
+    approveTimelineGate('evGateBuildTest');
+    // Sidebar gate
+    approveSidebarGate('sidebarGate3');
+    // Pipeline
+    setStepState(4, 'done');
+    setStepState(5, 'active');
+    setProgress(68);
+    setStepLabel('Step 6/8 — test');
+    setBuildStep('test (step 6/8)');
+    pulseStat('valGates', '2');
+    document.getElementById('elapsedTime').textContent = '19m 41s';
+  });
+
+  // (12.5s) Annotation: gate approved
+  at(12500, () => {
+    const ev = document.getElementById('evGateBuildTest');
+    showAnnotation('ann-approved', ev, 'left', 0, 0);
+  });
+  at(15500, () => { hideAnnotation('ann-approved'); });
+
+  // (16s) Test step started
+  at(16000, () => {
+    addTimelineEvent(`
+      <div class="event" id="evTestStarted">
+        <div class="event-icon blue pulse">●</div>
+        <div class="event-title">CORE-ASYNC-1 — test step started</div>
+        <div class="event-detail">Agent: <span style="color:#f97316">Claude</span> · Running integration suite</div>
+      </div>`, true);
+    document.getElementById('elapsedTime').textContent = '21m 12s';
+  });
+
+  // (19s) Session event with error
+  at(19000, () => {
+    addTimelineEvent(`
+      <div class="event" id="evSession2">
+        <div class="event-icon purple"><span>◆</span></div>
+        <div class="event-title">CORE-ASYNC-1 — session completed</div>
+        <div class="event-stats">5r 3w 1e · 8m</div>
+      </div>`, true);
+    pulseStat('valErrors', '2');
+    flashCard('statErrors');
+    pulseStat('valSessions', '6');
+    document.getElementById('elapsedTime').textContent = '23m 48s';
+  });
+
+  // (23s) Approve AUTH-2 gate via sidebar
+  at(23000, () => {
+    approveSidebarGate('sidebarGate1');
+    approveTimelineGate('existingGateAuth');
+    pulseStat('valGates', '1');
+  });
+
+  // (27s) Rapid-fire completion: test → report → ship
+  at(27000, () => {
+    setStepState(5, 'done');
+    setProgress(78);
+    setStepLabel('Step 7/8 — report');
+    setBuildStep('report (step 7/8)');
+  });
+
+  at(27700, () => {
+    setStepState(6, 'active');
+  });
+
+  at(28400, () => {
+    setStepState(6, 'done');
+    setProgress(88);
+    setStepLabel('Step 8/8 — ship');
+    setBuildStep('ship (step 8/8)');
+  });
+
+  at(29100, () => {
+    setStepState(7, 'active');
+  });
+
+  at(29800, () => {
+    setStepState(7, 'done');
+    setProgress(100);
+    setStepLabel('Complete');
+    document.getElementById('elapsedTime').textContent = '28m 14s';
+
+    // Build status
+    document.getElementById('buildStep').style.display = 'none';
+    document.querySelector('.build-agent').style.display = 'none';
+    document.querySelector('.mini-progress').style.display = 'none';
+    document.getElementById('buildStatus').style.display = 'block';
+
+    // Gates to 0
+    pulseStat('valGates', '0');
+
+    // Final timeline event
+    addTimelineEvent(`
+      <div class="event" id="evBuildComplete">
+        <div class="event-icon green-sparkle">✓</div>
+        <div class="event-title" style="color: #22c55e; font-weight: 600;">CORE-ASYNC-1 — Build complete ✓</div>
+        <div class="event-detail">All 8 steps passed · 28m 14s elapsed</div>
+      </div>`, true);
+  });
+
+  // (30s) Annotation: build complete
+  at(30000, () => {
+    const ev = document.getElementById('evBuildComplete');
+    showAnnotation('ann-complete', ev, 'up', 0, 0);
+  });
+  at(33000, () => { hideAnnotation('ann-complete'); });
+
+  // (33.5s) Show replay
+  at(33500, () => {
+    document.getElementById('replayBtn').classList.add('visible');
+  });
+}
+
+// Preamble shows on load — animation starts on dismiss
+// Replay button re-triggers animation directly (preamble already dismissed)
+
+</script>
+</body>
+</html>

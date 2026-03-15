@@ -175,21 +175,48 @@ function FlowDetail({ flowId, onClose }) {
       {!flow && !error && <Spinner />}
       {flow && (
         <div style={{ fontSize: '0.82em', opacity: 0.8 }}>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-            <span><StatusBadge status={flow.status} /></span>
-            <span>steps {flow.completed_steps}/{flow.step_count}</span>
-            {flow.round > 0 && <span>round {flow.round}</span>}
-          </div>
-          {Array.isArray(flow.ordered_steps) && flow.ordered_steps.length > 0 && (
-            <ol style={{ margin: 0, padding: '0 0 0 18px', lineHeight: 1.7 }}>
-              {flow.ordered_steps.map((s, i) => (
-                <li key={s.id} style={{ opacity: i < flow.completed_steps ? 0.4 : 1 }}>
-                  <span style={{ fontFamily: 'monospace' }}>{s.id}</span>
-                  {s.mode === 'gate' && <span style={{ marginLeft: 6, color: '#f59e0b', fontSize: '0.9em' }}>gate</span>}
-                </li>
-              ))}
-            </ol>
-          )}
+          {/* STRAT-PAR-3: completed_steps / active_steps are now string[] */}
+          {(() => {
+            const completedSet = new Set(Array.isArray(flow.completed_steps) ? flow.completed_steps : []);
+            const activeSet    = new Set(Array.isArray(flow.active_steps)    ? flow.active_steps    : []);
+            const completedCount = completedSet.size;
+            const stepCount      = flow.step_count ?? '?';
+
+            return (
+              <>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                  <span><StatusBadge status={flow.status} /></span>
+                  <span>
+                    steps {completedCount}/{stepCount}
+                    {activeSet.size > 0 && (
+                      <span style={{ marginLeft: 6, color: '#34d399', fontSize: '0.85em' }}>
+                        ∥ {activeSet.size} running
+                      </span>
+                    )}
+                  </span>
+                  {flow.round > 0 && <span>round {flow.round}</span>}
+                </div>
+                {Array.isArray(flow.ordered_steps) && flow.ordered_steps.length > 0 && (
+                  <ol style={{ margin: 0, padding: '0 0 0 18px', lineHeight: 1.7 }}>
+                    {flow.ordered_steps.map((s) => (
+                      <li
+                        key={s.id}
+                        style={{
+                          opacity:    completedSet.has(s.id) ? 0.4 : 1,
+                          fontWeight: activeSet.has(s.id) ? 700 : 'normal',
+                          color:      activeSet.has(s.id) ? '#34d399' : 'inherit',
+                        }}
+                      >
+                        <span style={{ fontFamily: 'monospace' }}>{s.id}</span>
+                        {s.mode === 'gate' && <span style={{ marginLeft: 6, color: '#f59e0b', fontSize: '0.9em' }}>gate</span>}
+                        {activeSet.has(s.id) && <span style={{ marginLeft: 6, fontSize: '0.85em' }}>∥ running</span>}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -235,7 +262,10 @@ function FlowList({ activeBuild }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.88em', fontWeight: 500 }}>{f.flow_name || f.flow_id}</span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: '0.78em', opacity: 0.5 }}>{f.completed_steps}/{f.step_count}</span>
+              {/* STRAT-PAR-3: completed_steps is now string[] */}
+              <span style={{ fontSize: '0.78em', opacity: 0.5 }}>
+                {Array.isArray(f.completed_steps) ? f.completed_steps.length : (f.completed_steps ?? 0)}/{f.step_count ?? '?'}
+              </span>
               <StatusBadge status={f.status} />
             </div>
           </div>

@@ -1,5 +1,0 @@
-{
-  "version": "1.0",
-  "capabilities": { "stratum": true },
-  "paths": { "docs": "docs", "features": "docs/features" }
-}

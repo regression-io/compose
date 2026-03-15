@@ -14,10 +14,10 @@ import { buildSummaryPrompt, summarize } from './summarizer.js';
 import { updateBlock, closeCurrentBlock } from './block-tracker.js';
 import { serializeSession, persistSession, readLastSession, readSessionsByFeature } from './session-store.js';
 
-import { TARGET_ROOT, DATA_DIR } from './project-root.js';
+import { getTargetRoot, getDataDir } from './project-root.js';
 
-const PROJECT_ROOT = TARGET_ROOT;
-const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+const PROJECT_ROOT = getTargetRoot();
+const SESSIONS_FILE = path.join(getDataDir(), 'sessions.json');
 
 /** Tools whose events count toward the Haiku summary batch threshold */
 const SIGNIFICANT_TOOLS = new Set(['Write', 'Edit', 'Bash', 'NotebookEdit']);

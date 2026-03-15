@@ -119,3 +119,58 @@ test('flow step prompt includes child flow context', () => {
   assert.ok(prompt.includes('Generate the database schema'), 'should contain child intent');
   assert.ok(prompt.includes('## Context'), 'should contain context section');
 });
+
+// ---------------------------------------------------------------------------
+// T10 — buildRetryPrompt with conflicts (STRAT-PAR-2)
+// ---------------------------------------------------------------------------
+
+test('T10.1 — buildRetryPrompt with 3 args (no conflicts arg) — no conflict section', () => {
+  const violations = ['schema was empty'];
+  const prompt = buildRetryPrompt(fullDispatch, violations, context);
+
+  assert.ok(prompt.includes('RETRY'), 'should contain RETRY header');
+  assert.ok(!prompt.includes('File Ownership Conflicts'), 'should NOT contain conflict section');
+});
+
+test('T10.2 — buildRetryPrompt with conflicts=undefined — no conflict section', () => {
+  const violations = ['schema was empty'];
+  const prompt = buildRetryPrompt(fullDispatch, violations, context, undefined);
+
+  assert.ok(!prompt.includes('File Ownership Conflicts'), 'should NOT contain conflict section');
+});
+
+test('T10.3 — buildRetryPrompt with conflicts=[] — no conflict section', () => {
+  const violations = ['schema was empty'];
+  const prompt = buildRetryPrompt(fullDispatch, violations, context, []);
+
+  assert.ok(!prompt.includes('File Ownership Conflicts'), 'should NOT contain conflict section');
+});
+
+test('T10.4 — buildRetryPrompt with one conflict — File Ownership Conflicts section present', () => {
+  const violations = ['File ownership conflicts detected'];
+  const conflicts = [{ task_a: 'task-a', task_b: 'task-b', files: ['src/x.js'] }];
+  const prompt = buildRetryPrompt(fullDispatch, violations, context, conflicts);
+
+  assert.ok(prompt.includes('File Ownership Conflicts'), 'should contain conflict section header');
+  assert.ok(prompt.includes('task-a'), 'should mention task-a');
+  assert.ok(prompt.includes('task-b'), 'should mention task-b');
+  assert.ok(prompt.includes('src/x.js'), 'should list the conflicting file');
+  assert.ok(prompt.includes('depends_on'), 'should include depends_on guidance');
+});
+
+test('T10.5 — buildRetryPrompt with two conflict pairs — both listed', () => {
+  const violations = ['File ownership conflicts detected'];
+  const conflicts = [
+    { task_a: 'task-001', task_b: 'task-002', files: ['src/foo.js'] },
+    { task_a: 'task-003', task_b: 'task-004', files: ['src/bar.js', 'src/baz.js'] },
+  ];
+  const prompt = buildRetryPrompt(fullDispatch, violations, context, conflicts);
+
+  assert.ok(prompt.includes('task-001'), 'should mention task-001');
+  assert.ok(prompt.includes('task-002'), 'should mention task-002');
+  assert.ok(prompt.includes('task-003'), 'should mention task-003');
+  assert.ok(prompt.includes('task-004'), 'should mention task-004');
+  assert.ok(prompt.includes('src/foo.js'), 'should list src/foo.js');
+  assert.ok(prompt.includes('src/bar.js'), 'should list src/bar.js');
+  assert.ok(prompt.includes('src/baz.js'), 'should list src/baz.js');
+});

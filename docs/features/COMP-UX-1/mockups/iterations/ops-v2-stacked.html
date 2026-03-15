@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ops V2 — Stacked Collapsible</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; }
+
+.header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1e293b; border-bottom: 1px solid #334155; font-size: 13px; font-weight: 600; }
+
+.content { flex: 1; overflow-y: auto; }
+
+.section { border-bottom: 1px solid #334155; }
+.section-header { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #1e293b; cursor: pointer; user-select: none; }
+.section-header:hover { background: #283548; }
+.section-header .chevron { color: #475569; font-size: 10px; width: 16px; }
+.section-header h3 { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+.section-header .count { font-size: 10px; background: #3b82f620; color: #3b82f6; padding: 1px 6px; border-radius: 8px; transition: all 0.4s ease; }
+.section-header .count.warn { background: #f59e0b20; color: #f59e0b; }
+.section-header .count.err { background: #ef444420; color: #ef4444; }
+.section-header .status { font-size: 11px; margin-left: auto; color: #475569; transition: all 0.3s ease; }
+
+.section-body { padding: 12px 16px; background: #0f172a; }
+
+/* Pipeline */
+.pipe-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pipe-feat { font-size: 13px; font-weight: 600; color: #3b82f6; }
+.pipe-info { font-size: 11px; color: #94a3b8; }
+.pipe-time { font-size: 11px; color: #475569; margin-left: auto; }
+
+.pipe-steps { display: flex; gap: 2px; margin-top: 4px; }
+.pipe-step { height: 6px; flex: 1; border-radius: 3px; transition: background 0.5s ease; }
+.pipe-step.done { background: #22c55e; }
+.pipe-step.active { background: #3b82f6; animation: pulse 1.5s ease-in-out infinite; }
+.pipe-step.gate-active { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+.pipe-step.gate-step { background: #f59e0b; }
+.pipe-step.pending { background: #334155; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.pipe-labels { display: flex; margin-top: 4px; }
+.pipe-label { flex: 1; font-size: 8px; color: #475569; text-align: center; text-transform: uppercase; }
+
+/* Gates */
+.gate-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; margin-bottom: 4px; background: #1e293b; border: 1px solid #334155; transition: all 0.5s ease; overflow: hidden; max-height: 60px; opacity: 1; }
+.gate-row.approved { border-color: #22c55e; box-shadow: 0 0 12px #22c55e40; }
+.gate-row.slide-out { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; }
+.gate-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; transition: background 0.3s ease; }
+.gate-dot.approved { background: #22c55e; }
+.gate-feat { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+.gate-phase { font-size: 11px; color: #64748b; flex: 1; }
+.gate-phase .arrow { color: #3b82f6; margin: 0 4px; }
+.gate-btns { display: flex; gap: 4px; }
+.gate-btns button { font-size: 10px; padding: 3px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; }
+.btn-a { background: #22c55e15; border-color: #22c55e40; color: #22c55e; }
+.btn-r { background: #f59e0b10; border-color: #f59e0b30; color: #f59e0b; }
+
+/* Sessions */
+.sess-table { width: 100%; }
+.sess-table th { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; text-align: left; padding: 4px 8px; border-bottom: 1px solid #334155; font-weight: 500; }
+.sess-table td { font-size: 12px; padding: 6px 8px; border-bottom: 1px solid #1e293b; }
+.sess-agent { font-weight: 600; }
+.sess-agent.claude { color: #f97316; }
+.sess-agent.codex { color: #22c55e; }
+.sess-feat { color: #e2e8f0; }
+.sess-dur { color: #64748b; text-align: right; font-variant-numeric: tabular-nums; }
+.sess-stat { font-size: 10px; font-variant-numeric: tabular-nums; }
+.sess-stat .r { color: #3b82f6; }
+.sess-stat .w { color: #f59e0b; }
+.sess-stat .e { color: #ef4444; }
+.sess-summary { color: #475569; font-size: 11px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Animation: new session row */
+.sess-new { animation: slideIn 0.5s ease-out; }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-20px); max-height: 0; }
+  to { opacity: 1; transform: translateY(0); max-height: 50px; }
+}
+
+/* Animation: error flash */
+@keyframes errorFlash {
+  0%, 100% { background: transparent; }
+  25% { background: #ef444430; }
+  50% { background: transparent; }
+  75% { background: #ef444420; }
+}
+.error-flash { animation: errorFlash 0.8s ease; }
+
+/* Build complete */
+.build-complete { display: none; align-items: center; justify-content: center; gap: 8px; padding: 12px; }
+.build-complete.show { display: flex; }
+.build-complete .check { color: #22c55e; font-size: 24px; animation: checkPop 0.5s ease; }
+.build-complete .text { color: #22c55e; font-size: 14px; font-weight: 600; }
+@keyframes checkPop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.3); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Replay button */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 4px 12px; border-radius: 4px; border: 1px solid #3b82f640; background: #3b82f620; color: #3b82f6; cursor: pointer; font-weight: 600; }
+.replay-btn:hover { background: #3b82f640; }
+
+/* Fast complete animation */
+@keyframes fastGreen {
+  from { background: #334155; }
+  to { background: #22c55e; }
+}
+
+/* Preamble overlay */
+.preamble-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(15, 23, 42, 0.92); display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble-overlay.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { background: #1e293b; border: 1px solid #3b82f6; border-radius: 12px; padding: 40px 48px; max-width: 480px; text-align: center; }
+.preamble-card h1 { font-size: 22px; color: #e2e8f0; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.01em; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 28px; }
+.preamble-card .start-btn { font-size: 14px; padding: 10px 28px; border-radius: 6px; border: 1px solid #3b82f6; background: #3b82f6; color: #fff; cursor: pointer; font-weight: 600; letter-spacing: 0.02em; transition: background 0.2s ease; }
+.preamble-card .start-btn:hover { background: #2563eb; }
+
+/* Annotation callouts */
+.annotation { position: fixed; z-index: 150; background: #1e293b; border: 1px solid #3b82f6; border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #e2e8f0; max-width: 200px; line-height: 1.4; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+.annotation.visible { opacity: 1; }
+.annotation::after { content: ''; position: absolute; width: 0; height: 0; border: 6px solid transparent; }
+/* Arrow pointing down (callout above target) */
+.annotation.arrow-down::after { top: 100%; left: 24px; border-top-color: #3b82f6; }
+/* Arrow pointing up (callout below target) */
+.annotation.arrow-up::after { bottom: 100%; left: 24px; border-bottom-color: #3b82f6; }
+/* Arrow pointing left (callout is to the right of target) */
+.annotation.arrow-left::after { right: 100%; top: 12px; border-right-color: #3b82f6; }
+</style>
+</head>
+<body>
+
+<!-- Preamble overlay -->
+<div class="preamble-overlay" id="preamble">
+  <div class="preamble-card">
+    <h1>V2 &mdash; Stacked Collapsible</h1>
+    <p>Three collapsible sections stacked vertically: Pipeline progress bar at top, pending gates in the middle, session history table at bottom. Each section can be collapsed when not needed. Most information-dense layout.</p>
+    <button class="start-btn" onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Annotation callouts -->
+<div class="annotation arrow-down" id="ann-progress">Progress segments fill as steps complete</div>
+<div class="annotation arrow-down" id="ann-gates">Gates queue up here &mdash; approve to unblock</div>
+<div class="annotation arrow-up" id="ann-sessions">Agent work sessions with I/O counters</div>
+<div class="annotation arrow-down" id="ann-approved">Approved! Gate slides out, pipeline resumes</div>
+<div class="annotation arrow-up" id="ann-error">Error detected &mdash; red flash on the session row</div>
+<div class="annotation arrow-down" id="ann-complete">All steps done &mdash; build complete checkmark</div>
+
+<button class="replay-btn" onclick="replay()">Replay</button>
+
+<div class="header">
+  <span style="color: #3b82f6; font-weight: 700; letter-spacing: 0.05em;">OPS</span>
+  <span style="color: #475569; font-size: 11px;">Build operations &mdash; collapsible sections</span>
+</div>
+
+<div class="content">
+  <!-- Pipeline section -->
+  <div class="section" id="pipeline-section">
+    <div class="section-header">
+      <span class="chevron">&#9660;</span>
+      <h3>Pipeline</h3>
+      <span class="count" id="pipeline-count">1 active</span>
+      <span class="status" id="pipeline-status">CORE-ASYNC-1 &middot; step 4/8 &middot; 2m32s</span>
+    </div>
+    <div class="section-body" id="pipeline-body">
+      <div class="pipe-row" id="pipe-row">
+        <span class="pipe-feat">CORE-ASYNC-1</span>
+        <span class="pipe-info">blueprint &middot; Claude</span>
+        <span class="pipe-time" id="pipe-time">2m 32s elapsed</span>
+      </div>
+      <div class="pipe-steps" id="pipe-steps">
+        <div class="pipe-step done" id="step-0"></div>
+        <div class="pipe-step done" id="step-1"></div>
+        <div class="pipe-step done" id="step-2"></div>
+        <div class="pipe-step active" id="step-3"></div>
+        <div class="pipe-step gate-step" id="step-4"></div>
+        <div class="pipe-step pending" id="step-5"></div>
+        <div class="pipe-step pending" id="step-6"></div>
+        <div class="pipe-step pending" id="step-7"></div>
+      </div>
+      <div class="pipe-labels">
+        <span class="pipe-label">design</span>
+        <span class="pipe-label">prd</span>
+        <span class="pipe-label">arch</span>
+        <span class="pipe-label">build</span>
+        <span class="pipe-label">gate</span>
+        <span class="pipe-label">test</span>
+        <span class="pipe-label">report</span>
+        <span class="pipe-label">ship</span>
+      </div>
+      <div class="build-complete" id="build-complete">
+        <span class="check">&#10003;</span>
+        <span class="text">Build complete</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gates section -->
+  <div class="section" id="gates-section">
+    <div class="section-header">
+      <span class="chevron">&#9660;</span>
+      <h3>Gates</h3>
+      <span class="count warn" id="gate-count">2 pending</span>
+    </div>
+    <div class="section-body" id="gates-body">
+      <div class="gate-row" id="gate-0">
+        <div class="gate-dot" id="gate-dot-0"></div>
+        <span class="gate-feat">CORE-ASYNC-1</span>
+        <span class="gate-phase">design <span class="arrow">&rarr;</span> prd</span>
+        <div class="gate-btns">
+          <button class="btn-a">Approve</button>
+          <button class="btn-r">Revise</button>
+        </div>
+      </div>
+      <div class="gate-row" id="gate-1">
+        <div class="gate-dot" id="gate-dot-1"></div>
+        <span class="gate-feat">GEN-REF-1</span>
+        <span class="gate-phase">plan <span class="arrow">&rarr;</span> implement</span>
+        <div class="gate-btns">
+          <button class="btn-a">Approve</button>
+          <button class="btn-r">Revise</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sessions section -->
+  <div class="section">
+    <div class="section-header">
+      <span class="chevron">&#9660;</span>
+      <h3>Sessions</h3>
+      <span class="count" id="session-count">4 recent</span>
+    </div>
+    <div class="section-body" style="padding: 0 16px 12px;">
+      <table class="sess-table">
+        <thead>
+          <tr><th>Agent</th><th>Feature</th><th>Summary</th><th style="text-align:right">Time</th><th>I/O</th></tr>
+        </thead>
+        <tbody id="sess-tbody">
+          <tr>
+            <td><span class="sess-agent claude">Claude</span></td>
+            <td class="sess-feat">CORE-ASYNC-1</td>
+            <td class="sess-summary">Wrote design.md with problem statement and arch options</td>
+            <td class="sess-dur">12m</td>
+            <td class="sess-stat"><span class="r">3r</span> <span class="w">4w</span> <span class="e">0e</span></td>
+          </tr>
+          <tr>
+            <td><span class="sess-agent codex">Codex</span></td>
+            <td class="sess-feat">DIST-RELEASE-1</td>
+            <td class="sess-summary">Fixed pyproject.toml deps, 1 test failure on publish</td>
+            <td class="sess-dur">4m</td>
+            <td class="sess-stat"><span class="r">1r</span> <span class="w">2w</span> <span class="e">1e</span></td>
+          </tr>
+          <tr>
+            <td><span class="sess-agent claude">Claude</span></td>
+            <td class="sess-feat">GEN-REF-1</td>
+            <td class="sess-summary">Completed plan.md with 12 tasks, acceptance criteria</td>
+            <td class="sess-dur">8m</td>
+            <td class="sess-stat"><span class="r">5r</span> <span class="w">3w</span> <span class="e">0e</span></td>
+          </tr>
+          <tr>
+            <td><span class="sess-agent claude">Claude</span></td>
+            <td class="sess-feat">PRE-ASYNC-REF-1</td>
+            <td class="sess-summary">Analyzed sync I/O boundaries, wrote refactor strategy</td>
+            <td class="sess-dur">6m</td>
+            <td class="sess-stat"><span class="r">4r</span> <span class="w">1w</span> <span class="e">0e</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let timers = [];
+
+function clearTimers() {
+  timers.forEach(t => clearTimeout(t));
+  timers = [];
+}
+
+function at(ms, fn) {
+  timers.push(setTimeout(fn, ms));
+}
+
+/* Annotation positioning & display */
+function positionAnnotation(annId, targetEl, placement) {
+  const ann = document.getElementById(annId);
+  const rect = targetEl.getBoundingClientRect();
+  // Reset arrow classes
+  ann.className = 'annotation';
+
+  if (placement === 'above') {
+    ann.classList.add('arrow-down');
+    ann.style.left = Math.max(8, rect.left + 16) + 'px';
+    ann.style.top = (rect.top - ann.offsetHeight - 14) + 'px';
+  } else if (placement === 'below') {
+    ann.classList.add('arrow-up');
+    ann.style.left = Math.max(8, rect.left + 16) + 'px';
+    ann.style.top = (rect.bottom + 14) + 'px';
+  } else if (placement === 'right') {
+    ann.classList.add('arrow-left');
+    ann.style.left = (rect.right + 14) + 'px';
+    ann.style.top = (rect.top + rect.height / 2 - 16) + 'px';
+  }
+}
+
+function showAnnotation(annId, targetEl, placement, duration) {
+  const ann = document.getElementById(annId);
+  // Make visible briefly to measure, then position
+  ann.style.visibility = 'hidden';
+  ann.style.opacity = '0';
+  ann.style.display = 'block';
+  positionAnnotation(annId, targetEl, placement);
+  ann.style.visibility = '';
+  ann.classList.add('visible');
+  at(duration, () => {
+    ann.classList.remove('visible');
+  });
+}
+
+function hideAllAnnotations() {
+  document.querySelectorAll('.annotation').forEach(a => a.classList.remove('visible'));
+}
+
+/* Preamble */
+function startDemo() {
+  const overlay = document.getElementById('preamble');
+  overlay.classList.add('hidden');
+  setTimeout(() => { overlay.style.display = 'none'; }, 500);
+  setTimeout(runScenario, 600);
+}
+
+function resetState() {
+  // Reset pipeline steps
+  const steps = document.querySelectorAll('.pipe-step');
+  steps[0].className = 'pipe-step done';
+  steps[1].className = 'pipe-step done';
+  steps[2].className = 'pipe-step done';
+  steps[3].className = 'pipe-step active';
+  steps[4].className = 'pipe-step gate-step';
+  steps[5].className = 'pipe-step pending';
+  steps[6].className = 'pipe-step pending';
+  steps[7].className = 'pipe-step pending';
+
+  // Reset pipeline status
+  document.getElementById('pipeline-status').textContent = 'CORE-ASYNC-1 \u00b7 step 4/8 \u00b7 2m32s';
+  document.getElementById('pipeline-count').textContent = '1 active';
+  document.getElementById('pipe-time').textContent = '2m 32s elapsed';
+
+  // Reset pipe-row visibility
+  document.getElementById('pipe-row').style.display = '';
+  document.querySelector('.pipe-steps').style.display = '';
+  document.querySelector('.pipe-labels').style.display = '';
+
+  // Reset build complete
+  document.getElementById('build-complete').classList.remove('show');
+
+  // Reset gates
+  const gate0 = document.getElementById('gate-0');
+  const gate1 = document.getElementById('gate-1');
+  gate0.className = 'gate-row';
+  gate1.className = 'gate-row';
+  gate0.style.display = '';
+  gate1.style.display = '';
+  document.getElementById('gate-dot-0').className = 'gate-dot';
+  document.getElementById('gate-dot-1').className = 'gate-dot';
+  document.getElementById('gate-count').textContent = '2 pending';
+  document.getElementById('gate-count').className = 'count warn';
+
+  // Reset sessions - remove any dynamically added rows
+  const tbody = document.getElementById('sess-tbody');
+  while (tbody.children.length > 4) {
+    tbody.removeChild(tbody.firstElementChild);
+  }
+  // Remove animation classes from remaining rows
+  tbody.querySelectorAll('.sess-new, .error-flash').forEach(el => {
+    el.classList.remove('sess-new', 'error-flash');
+  });
+  document.getElementById('session-count').textContent = '4 recent';
+
+  // Reset annotations
+  hideAllAnnotations();
+
+  // Reset preamble count style
+  const pc = document.getElementById('pipeline-count');
+  pc.style.background = '';
+  pc.style.color = '';
+}
+
+function runScenario() {
+  // (3s) Step 4 completes, step 5 (gate) starts pulsing amber
+  // + Annotation: progress segments
+  at(3000, () => {
+    document.getElementById('step-3').className = 'pipe-step done';
+    document.getElementById('step-4').className = 'pipe-step gate-active';
+    showAnnotation('ann-progress', document.getElementById('pipe-steps'), 'above', 2500);
+  });
+
+  // (5s) Pipeline status updates
+  at(5000, () => {
+    document.getElementById('pipeline-status').textContent = 'CORE-ASYNC-1 \u00b7 step 5/8 \u00b7 gate';
+    document.getElementById('pipe-time').textContent = '3m 05s elapsed';
+  });
+
+  // (6s) Annotation: gates section
+  at(6000, () => {
+    showAnnotation('ann-gates', document.getElementById('gates-section'), 'below', 3000);
+  });
+
+  // (7s) New session row slides in at top
+  // + Annotation: sessions
+  at(7000, () => {
+    const tbody = document.getElementById('sess-tbody');
+    const row = document.createElement('tr');
+    row.className = 'sess-new';
+    row.innerHTML = `
+      <td><span class="sess-agent codex">Codex</span></td>
+      <td class="sess-feat">CORE-ASYNC-1</td>
+      <td class="sess-summary">Completed blueprint with async event model</td>
+      <td class="sess-dur">3m</td>
+      <td class="sess-stat"><span class="r">2r</span> <span class="w">3w</span> <span class="e">0e</span></td>
+    `;
+    tbody.insertBefore(row, tbody.firstChild);
+    document.getElementById('session-count').textContent = '5 recent';
+    showAnnotation('ann-sessions', document.getElementById('sess-tbody'), 'below', 2500);
+  });
+
+  // (10s) First gate approved - green glow then slide out
+  // + Annotation: approved
+  at(10000, () => {
+    document.getElementById('gate-0').classList.add('approved');
+    document.getElementById('gate-dot-0').classList.add('approved');
+    showAnnotation('ann-approved', document.getElementById('gate-0'), 'above', 2500);
+  });
+  at(11000, () => {
+    document.getElementById('gate-0').classList.add('slide-out');
+  });
+  at(11500, () => {
+    document.getElementById('gate-0').style.display = 'none';
+    document.getElementById('gate-count').textContent = '1 pending';
+  });
+
+  // (13s) Pipeline segment 5 turns green, segment 6 starts pulsing blue
+  at(13000, () => {
+    document.getElementById('step-4').className = 'pipe-step done';
+    document.getElementById('step-5').className = 'pipe-step active';
+    document.getElementById('pipeline-status').textContent = 'CORE-ASYNC-1 \u00b7 step 6/8 \u00b7 test';
+    document.getElementById('pipe-time').textContent = '4m 12s elapsed';
+  });
+
+  // (16s) New session row with error
+  // + Annotation: error flash
+  at(16000, () => {
+    const tbody = document.getElementById('sess-tbody');
+    const row = document.createElement('tr');
+    row.className = 'sess-new error-flash';
+    row.id = 'error-row';
+    row.innerHTML = `
+      <td><span class="sess-agent claude">Claude</span></td>
+      <td class="sess-feat">DIST-RELEASE-1</td>
+      <td class="sess-summary">Retry publish failed &mdash; registry timeout on upload</td>
+      <td class="sess-dur">2m</td>
+      <td class="sess-stat"><span class="r">1r</span> <span class="w">0w</span> <span class="e" style="font-weight:700">1e</span></td>
+    `;
+    tbody.insertBefore(row, tbody.firstChild);
+    document.getElementById('session-count').textContent = '6 recent';
+  });
+  at(16500, () => {
+    const errRow = document.getElementById('error-row');
+    if (errRow) showAnnotation('ann-error', errRow, 'below', 2500);
+  });
+
+  // (20s) Second gate approved
+  at(20000, () => {
+    document.getElementById('gate-1').classList.add('approved');
+    document.getElementById('gate-dot-1').classList.add('approved');
+  });
+  at(21000, () => {
+    document.getElementById('gate-1').classList.add('slide-out');
+  });
+  at(21500, () => {
+    document.getElementById('gate-1').style.display = 'none';
+    const badge = document.getElementById('gate-count');
+    badge.textContent = '0 pending';
+    badge.className = 'count';
+  });
+
+  // (24s) Segments 6, 7, 8 rapidly complete
+  at(24000, () => {
+    document.getElementById('step-5').className = 'pipe-step done';
+    document.getElementById('step-6').className = 'pipe-step active';
+    document.getElementById('pipeline-status').textContent = 'CORE-ASYNC-1 \u00b7 step 7/8 \u00b7 report';
+  });
+  at(24700, () => {
+    document.getElementById('step-6').className = 'pipe-step done';
+    document.getElementById('step-7').className = 'pipe-step active';
+    document.getElementById('pipeline-status').textContent = 'CORE-ASYNC-1 \u00b7 step 8/8 \u00b7 ship';
+  });
+  at(25400, () => {
+    document.getElementById('step-7').className = 'pipe-step done';
+  });
+
+  // (27s) Build complete
+  // + Annotation: build complete
+  at(27000, () => {
+    document.getElementById('pipe-row').style.display = 'none';
+    document.querySelector('.pipe-steps').style.display = 'none';
+    document.querySelector('.pipe-labels').style.display = 'none';
+    document.getElementById('build-complete').classList.add('show');
+    document.getElementById('pipeline-status').textContent = '';
+    document.getElementById('pipeline-count').textContent = 'complete';
+    document.getElementById('pipeline-count').className = 'count';
+    document.getElementById('pipeline-count').style.background = '#22c55e20';
+    document.getElementById('pipeline-count').style.color = '#22c55e';
+  });
+  at(27500, () => {
+    showAnnotation('ann-complete', document.getElementById('build-complete'), 'above', 3000);
+  });
+}
+
+function replay() {
+  clearTimers();
+  resetState();
+  // Hide preamble if visible
+  const overlay = document.getElementById('preamble');
+  overlay.classList.add('hidden');
+  overlay.style.display = 'none';
+  // Small delay to let DOM reset
+  setTimeout(runScenario, 100);
+}
+
+// Show preamble on load, wait for user click
+window.addEventListener('DOMContentLoaded', () => {
+  // Preamble is visible by default; demo starts on "Start Demo" click
+});
+</script>
+
+</body>
+</html>

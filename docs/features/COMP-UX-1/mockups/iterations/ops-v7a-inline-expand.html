@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ops V7a — Inline Expand</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Header */
+.header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #1e293b; border-bottom: 1px solid #334155; font-size: 13px; font-weight: 600; }
+.header .title { color: #e2e8f0; letter-spacing: 0.05em; }
+.header .stats { color: #64748b; font-weight: 400; font-size: 12px; margin-left: 8px; }
+.replay-btn { margin-left: auto; font-size: 11px; padding: 4px 12px; border-radius: 4px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; cursor: pointer; }
+.replay-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+
+/* Feature list */
+.feature-list { flex: 1; overflow-y: auto; padding: 2px 0; }
+
+/* Feature row */
+.feature-row { border-bottom: 1px solid #334155; transition: all 0.3s ease; }
+.feature-row.complete .row-header { opacity: 0.7; }
+.feature-row.complete .progress-fill { background: #22c55e !important; }
+
+.row-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; user-select: none; transition: background 0.15s; }
+.row-header:hover { background: #1e293b80; }
+
+.chevron { font-size: 10px; color: #64748b; width: 14px; flex-shrink: 0; transition: transform 0.3s ease; }
+.feature-row.expanded .chevron { transform: rotate(90deg); }
+
+.feat-code { font-size: 12px; font-weight: 600; color: #e2e8f0; width: 120px; flex-shrink: 0; }
+
+/* Progress bar in row */
+.row-progress { width: 100px; height: 6px; background: #334155; border-radius: 3px; flex-shrink: 0; overflow: hidden; }
+.progress-fill { height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.8s ease; }
+
+.row-fraction { font-size: 11px; color: #94a3b8; width: 40px; flex-shrink: 0; }
+.row-step { font-size: 11px; color: #64748b; width: 40px; flex-shrink: 0; }
+.row-agent { font-size: 11px; font-weight: 500; width: 50px; flex-shrink: 0; }
+.row-agent.claude { color: #f97316; }
+.row-agent.codex { color: #22c55e; }
+.row-time { font-size: 11px; color: #475569; width: 30px; flex-shrink: 0; text-align: right; }
+
+.row-badges { display: flex; gap: 4px; margin-left: auto; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 500; }
+.badge.warn { background: #f59e0b20; color: #f59e0b; }
+.badge.error { background: #ef444420; color: #ef4444; }
+.badge.ok { background: #22c55e20; color: #22c55e; }
+
+/* Expanded detail */
+.row-detail { max-height: 0; opacity: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; }
+.feature-row.expanded .row-detail { max-height: 400px; opacity: 1; }
+
+.detail-inner { margin: 0 16px 12px 40px; padding: 12px 16px; background: #0f172a; border-left: 2px solid #3b82f650; border-radius: 0 6px 6px 0; }
+
+/* Pipeline in detail */
+.detail-pipeline { display: flex; align-items: center; gap: 0; margin-bottom: 14px; flex-wrap: wrap; }
+.detail-pipeline .pipe-step { display: flex; align-items: center; gap: 0; }
+.pipe-dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid; display: flex; align-items: center; justify-content: center; font-size: 6px; transition: all 0.4s ease; }
+.pipe-dot.done { border-color: #22c55e; background: #22c55e30; color: #22c55e; }
+.pipe-dot.active { border-color: #3b82f6; background: #3b82f630; color: #3b82f6; box-shadow: 0 0 6px #3b82f640; }
+.pipe-dot.pending { border-color: #475569; background: transparent; color: #475569; }
+.pipe-dot.gate-dot { border-color: #f59e0b; background: #f59e0b20; color: #f59e0b; }
+.pipe-line { width: 16px; height: 1.5px; flex-shrink: 0; }
+.pipe-line.done { background: #22c55e50; }
+.pipe-line.pending { background: #47556950; }
+.pipe-label { font-size: 9px; color: #64748b; position: absolute; margin-top: 20px; transform: translateX(-50%); left: 50%; white-space: nowrap; }
+.pipe-step { position: relative; display: flex; align-items: center; }
+.pipe-step-wrap { position: relative; display: flex; flex-direction: column; align-items: center; }
+.pipe-step-label { font-size: 8px; color: #64748b; margin-top: 3px; letter-spacing: 0.03em; }
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 4px #3b82f640; }
+  50% { box-shadow: 0 0 10px #3b82f680; }
+}
+.pipe-dot.active { animation: pulse-dot 1.5s ease infinite; }
+
+/* Gate section */
+.detail-gate { background: #f59e0b08; border: 1px solid #f59e0b20; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; transition: all 0.4s ease; }
+.detail-gate.approved { background: #22c55e08; border-color: #22c55e20; }
+.gate-title { font-size: 11px; color: #f59e0b; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.gate-title .icon { font-size: 12px; }
+.gate-meta { font-size: 10px; color: #64748b; margin-bottom: 8px; }
+.gate-actions { display: flex; gap: 6px; }
+.gate-actions button { font-size: 10px; padding: 3px 10px; border-radius: 4px; border: 1px solid; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+.btn-approve { background: #22c55e15; border-color: #22c55e40; color: #22c55e; }
+.btn-approve:hover { background: #22c55e25; }
+.btn-revise { background: #f59e0b10; border-color: #f59e0b30; color: #f59e0b; }
+.btn-kill { background: #ef444410; border-color: #ef444425; color: #ef4444; }
+.gate-approved-text { font-size: 11px; color: #22c55e; font-weight: 600; }
+
+/* Events */
+.detail-events { }
+.detail-events-title { font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.event-line { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 2px 0; transition: all 0.3s ease; }
+.event-icon { width: 14px; text-align: center; flex-shrink: 0; font-size: 10px; }
+.event-icon.err { color: #ef4444; }
+.event-icon.session { color: #3b82f6; }
+.event-icon.ok { color: #22c55e; }
+.event-icon.started { color: #3b82f6; }
+.event-text { color: #94a3b8; flex: 1; }
+.event-agent { font-size: 10px; font-weight: 500; width: 44px; flex-shrink: 0; }
+.event-agent.claude { color: #f97316; }
+.event-agent.codex { color: #22c55e; }
+.event-time { font-size: 10px; color: #475569; width: 50px; text-align: right; flex-shrink: 0; }
+
+@keyframes flashGreen {
+  0% { box-shadow: 0 0 0 0 #22c55e60; }
+  50% { box-shadow: 0 0 12px 4px #22c55e40; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes flashRed {
+  0% { box-shadow: 0 0 0 0 #ef444460; }
+  50% { box-shadow: 0 0 12px 4px #ef444440; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); max-height: 0; }
+  to { opacity: 1; transform: translateY(0); max-height: 30px; }
+}
+@keyframes slideInRow {
+  from { opacity: 0; transform: translateY(-20px); max-height: 0; }
+  to { opacity: 1; transform: translateY(0); max-height: 60px; }
+}
+.event-line.entering { animation: slideDown 0.3s ease forwards; }
+.feature-row.entering { animation: slideInRow 0.4s ease forwards; }
+.flash-green { animation: flashGreen 0.5s ease; }
+.flash-red { animation: flashRed 0.5s ease; }
+
+/* Pulse dot for new events */
+@keyframes pulseDot {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.pulse { animation: pulseDot 1s ease infinite; }
+
+/* Preamble overlay */
+.preamble-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: #1e293b; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: opacity 0.5s ease;
+}
+.preamble-overlay.hidden { opacity: 0; pointer-events: none; }
+.preamble-title { font-size: 28px; font-weight: 700; color: #e2e8f0; margin-bottom: 12px; letter-spacing: 0.02em; }
+.preamble-desc { font-size: 14px; color: #94a3b8; max-width: 480px; text-align: center; line-height: 1.6; margin-bottom: 32px; }
+.preamble-start {
+  font-size: 14px; font-weight: 600; padding: 10px 28px; border-radius: 6px;
+  border: 1px solid #3b82f6; background: #3b82f620; color: #3b82f6;
+  cursor: pointer; transition: all 0.2s;
+}
+.preamble-start:hover { background: #3b82f640; }
+
+/* Annotation callouts */
+.annotation {
+  position: fixed; z-index: 50;
+  background: #1e293b; border: 1px solid #3b82f6; border-radius: 6px;
+  padding: 8px 12px; font-size: 11px; color: #e2e8f0; max-width: 200px;
+  line-height: 1.4; pointer-events: none;
+  bottom: 24px; right: 24px;
+  opacity: 0; transform: translateY(6px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+.annotation.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="preamble-overlay" id="preamble">
+  <div class="preamble-title">V7A — Inline Accordion</div>
+  <div class="preamble-desc">Feature rows that expand inline to reveal full build detail — pipeline, gates, and recent events. Click a row to expand, click another to switch. Monitoring when collapsed, investigation when expanded. One view for both.</div>
+  <button class="preamble-start" onclick="startDemo()">Start Demo →</button>
+</div>
+
+<div class="annotation" id="annotation"></div>
+
+<div class="header">
+  <span class="title">OPS</span>
+  <span class="stats" id="header-stats">4 builds &middot; 2 gates &middot; 1 error</span>
+  <button class="replay-btn" id="replay-btn" onclick="replay()">Replay</button>
+</div>
+
+<div class="feature-list" id="feature-list"></div>
+
+<script>
+// --- State ---
+const STEPS = ['design','prd','arch','plan','blue','impl','gate','test','deploy'];
+
+const features = [
+  { id: 'CORE-ASYNC-1', progress: [5,8], step: 'gate', agent: 'Claude', time: '3m', warnings: 1, errors: 0,
+    pipeline: ['done','done','done','done','done','active','gate-dot','pending','pending'],
+    gate: { from: 'blueprint', to: 'implement', artifact: 'blueprint.md 100% complete \u00b7 720 words' },
+    events: [
+      { icon: 'session', text: 'Session: 3r 2w 0e \u00b7 3m', agent: 'Claude', agentClass: 'claude', time: '1m ago' },
+      { icon: 'ok', text: 'blueprint completed', agent: 'Claude', agentClass: 'claude', time: '3m ago' },
+    ]
+  },
+  { id: 'GEN-REF-1', progress: [8,10], step: 'impl', agent: 'Codex', time: '12m', warnings: 1, errors: 1,
+    pipeline: ['done','done','done','done','done','done','active','pending','pending'],
+    gate: { from: 'plan', to: 'implement', artifact: 'plan.md 100% complete \u00b7 890 words' },
+    events: [
+      { icon: 'err', text: 'TypeError in module_x.py', agent: 'Codex', agentClass: 'codex', time: '2m ago' },
+      { icon: 'session', text: 'Session: 5r 3w 1e \u00b7 8m', agent: 'Codex', agentClass: 'codex', time: '4m ago' },
+      { icon: 'ok', text: 'blueprint completed', agent: 'Claude', agentClass: 'claude', time: '12m ago' },
+    ]
+  },
+  { id: 'DIST-RELEASE-1', progress: [10,10], step: 'done', agent: '', time: '28m', warnings: 0, errors: 0, complete: true,
+    pipeline: STEPS.map(() => 'done'),
+    gate: null,
+    events: []
+  },
+  { id: 'PRE-ASYNC-1', progress: [2,8], step: 'prd', agent: 'Claude', time: '1m', warnings: 0, errors: 0,
+    pipeline: ['done','done','pending','pending','pending','pending','pending','pending','pending'],
+    gate: null,
+    events: [
+      { icon: 'ok', text: 'design completed', agent: 'Claude', agentClass: 'claude', time: '1m ago' },
+    ]
+  },
+];
+
+let expandedId = null;
+let animTimer = null;
+
+// --- Render ---
+function render() {
+  const list = document.getElementById('feature-list');
+  list.innerHTML = '';
+  features.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'feature-row' + (expandedId === f.id ? ' expanded' : '') + (f.complete ? ' complete' : '') + (f.entering ? ' entering' : '');
+    row.id = 'row-' + f.id;
+
+    const pctW = (f.progress[0] / f.progress[1]) * 100;
+    const badges = [];
+    if (f.warnings > 0) badges.push(`<span class="badge warn">\u26a0${f.warnings}</span>`);
+    if (f.errors > 0) badges.push(`<span class="badge error">\u2715${f.errors}</span>`);
+    if (f.complete) badges.push(`<span class="badge ok">\u2713</span>`);
+
+    row.innerHTML = `
+      <div class="row-header" onclick="toggleRow('${f.id}')">
+        <span class="chevron">\u25b8</span>
+        <span class="feat-code">${f.id}</span>
+        <div class="row-progress"><div class="progress-fill" style="width:${pctW}%"></div></div>
+        <span class="row-fraction">${f.complete ? 'complete' : f.progress[0]+'/'+f.progress[1]}</span>
+        <span class="row-step">${f.complete ? '' : f.step}</span>
+        <span class="row-agent ${f.agent.toLowerCase()}">${f.agent}</span>
+        <span class="row-time">${f.time}</span>
+        <span class="row-badges">${badges.join('')}</span>
+      </div>
+      <div class="row-detail">
+        <div class="detail-inner">
+          ${renderPipeline(f)}
+          ${f.gate ? renderGate(f) : ''}
+          ${f.events.length ? renderEvents(f) : ''}
+        </div>
+      </div>
+    `;
+    list.appendChild(row);
+    if (f.entering) { setTimeout(() => { f.entering = false; }, 500); }
+  });
+}
+
+function renderPipeline(f) {
+  let html = '<div class="detail-pipeline">';
+  STEPS.forEach((s, i) => {
+    const status = f.pipeline[i] || 'pending';
+    html += `<div class="pipe-step">
+      <div class="pipe-step-wrap">
+        <div class="pipe-dot ${status}" id="pipe-${f.id}-${i}">${status === 'done' ? '\u2713' : status === 'active' ? '\u25cf' : '\u00b7'}</div>
+        <span class="pipe-step-label">${s}</span>
+      </div>`;
+    if (i < STEPS.length - 1) {
+      const lineStatus = (status === 'done' && (f.pipeline[i+1] === 'done' || f.pipeline[i+1] === 'active' || f.pipeline[i+1] === 'gate-dot')) ? 'done' : 'pending';
+      html += `<div class="pipe-line ${lineStatus}"></div>`;
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderGate(f) {
+  if (f.gateApproved) {
+    return `<div class="detail-gate approved" id="gate-${f.id}">
+      <div class="gate-title" style="color:#22c55e"><span class="icon">\u2713</span> GATE: ${f.gate.from} \u2192 ${f.gate.to}</div>
+      <span class="gate-approved-text">Approved \u2713</span>
+    </div>`;
+  }
+  return `<div class="detail-gate" id="gate-${f.id}">
+    <div class="gate-title"><span class="icon">\u26a0</span> GATE: ${f.gate.from} \u2192 ${f.gate.to}</div>
+    <div class="gate-meta">${f.gate.artifact}</div>
+    <div class="gate-actions">
+      <button class="btn-approve" onclick="approveGate('${f.id}', event)">Approve</button>
+      <button class="btn-revise">Revise</button>
+      <button class="btn-kill">Kill</button>
+    </div>
+  </div>`;
+}
+
+function renderEvents(f) {
+  const iconMap = { err: '\u2715', session: '\u25c6', ok: '\u2713', started: '\u25cf' };
+  let html = '<div class="detail-events"><div class="detail-events-title">Recent</div>';
+  f.events.forEach((e, i) => {
+    html += `<div class="event-line" id="event-${f.id}-${i}">
+      <span class="event-icon ${e.icon}">${iconMap[e.icon] || '\u25cf'}</span>
+      <span class="event-text">${e.text}</span>
+      <span class="event-agent ${e.agentClass}">${e.agent}</span>
+      <span class="event-time">${e.time}</span>
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function toggleRow(id) {
+  if (expandedId === id) {
+    expandedId = null;
+  } else {
+    expandedId = id;
+  }
+  render();
+}
+
+function approveGate(id, ev) {
+  if (ev) ev.stopPropagation();
+  const f = features.find(x => x.id === id);
+  if (!f) return;
+  f.gateApproved = true;
+  f.warnings = Math.max(0, f.warnings - 1);
+  const gateEl = document.getElementById('gate-' + id);
+  if (gateEl) gateEl.classList.add('flash-green');
+  render();
+  updateHeaderStats();
+}
+
+function updateHeaderStats() {
+  const builds = features.length;
+  const gates = features.filter(f => f.gate && !f.gateApproved).length;
+  const errors = features.reduce((s, f) => s + f.errors, 0);
+  document.getElementById('header-stats').textContent = `${builds} builds \u00b7 ${gates} gate${gates !== 1 ? 's' : ''} \u00b7 ${errors} error${errors !== 1 ? 's' : ''}`;
+}
+
+// --- Annotations ---
+let annotationTimers = [];
+function showAnnotation(text, durationMs) {
+  const el = document.getElementById('annotation');
+  el.textContent = text;
+  el.classList.add('visible');
+  const tid = setTimeout(() => { el.classList.remove('visible'); }, durationMs || 2500);
+  annotationTimers.push(tid);
+}
+function clearAnnotations() {
+  annotationTimers.forEach(t => clearTimeout(t));
+  annotationTimers = [];
+  const el = document.getElementById('annotation');
+  el.classList.remove('visible');
+}
+
+// --- Preamble ---
+function startDemo() {
+  const overlay = document.getElementById('preamble');
+  overlay.classList.add('hidden');
+  setTimeout(() => { overlay.style.display = 'none'; }, 500);
+  runAnimation();
+}
+
+// --- Animation Sequence ---
+let scheduledTimers = [];
+function runAnimation() {
+  if (animTimer) clearTimeout(animTimer);
+  scheduledTimers.forEach(t => clearTimeout(t));
+  scheduledTimers = [];
+  clearAnnotations();
+  const schedule = [
+    // 0s: render initial state, all collapsed
+    [0, () => {
+      expandedId = null;
+      // reset features to initial
+      resetFeatures();
+      render();
+    }],
+    // 3s: expand GEN-REF-1
+    [3000, () => { expandedId = 'GEN-REF-1'; render(); showAnnotation('Click a row to see full build detail inline', 2500); }],
+    // 5.5s: pipeline annotation
+    [5500, () => { showAnnotation('Pipeline visualization shows every step\u2019s status', 2500); }],
+    // 8s: gate annotation
+    [8000, () => { showAnnotation('Gate with approve buttons \u2014 right in the expanded detail', 2500); }],
+    // 10.5s: approve GEN-REF gate
+    [10500, () => { approveGate('GEN-REF-1'); showAnnotation('Approved! Gate clears, pipeline advances', 2500); }],
+    // 13s: new event in GEN-REF: implement started
+    [13000, () => {
+      const f = features.find(x => x.id === 'GEN-REF-1');
+      f.events.unshift({ icon: 'started', text: 'implement step started \u00b7 Codex', agent: 'Codex', agentClass: 'codex', time: 'now' });
+      f.pipeline[6] = 'done'; // gate done
+      f.pipeline[5] = 'done';
+      render();
+      const ev = document.getElementById('event-GEN-REF-1-0');
+      if (ev) ev.classList.add('entering');
+    }],
+    // 16s: collapse GEN-REF, expand CORE-ASYNC
+    [16000, () => { expandedId = 'CORE-ASYNC-1'; render(); showAnnotation('Click another row \u2014 smooth switch, only one expanded', 2500); }],
+    // 19s: approve CORE-ASYNC gate
+    [19000, () => { approveGate('CORE-ASYNC-1'); }],
+    // 18s: pipeline advances in CORE-ASYNC — test starts
+    [22000, () => {
+      const f = features.find(x => x.id === 'CORE-ASYNC-1');
+      f.pipeline[5] = 'done';
+      f.pipeline[6] = 'done';
+      f.pipeline[7] = 'active';
+      f.step = 'test';
+      f.progress = [7, 8];
+      render();
+    }],
+    // 21s: error in CORE-ASYNC
+    [25000, () => {
+      const f = features.find(x => x.id === 'CORE-ASYNC-1');
+      f.errors = 1;
+      f.events.unshift({ icon: 'err', text: 'AssertionError in test_core.py', agent: 'Claude', agentClass: 'claude', time: 'now' });
+      render();
+      const ev = document.getElementById('event-CORE-ASYNC-1-0');
+      if (ev) ev.classList.add('entering');
+      const row = document.getElementById('row-CORE-ASYNC-1');
+      if (row) row.classList.add('flash-red');
+      updateHeaderStats();
+      showAnnotation('Errors highlighted in the event list', 2500);
+    }],
+    // 24s: collapse CORE-ASYNC. PRE-ASYNC advances
+    [28000, () => {
+      expandedId = null;
+      const f = features.find(x => x.id === 'PRE-ASYNC-1');
+      f.progress = [3, 8];
+      f.step = 'arch';
+      f.pipeline[2] = 'active';
+      render();
+    }],
+    // 27s: GEN-REF completes
+    [31000, () => {
+      const f = features.find(x => x.id === 'GEN-REF-1');
+      f.progress = [10, 10];
+      f.complete = true;
+      f.step = 'done';
+      f.errors = 0;
+      f.warnings = 0;
+      f.pipeline = STEPS.map(() => 'done');
+      render();
+      updateHeaderStats();
+    }],
+    // 30s: new row TEST-INFRA-1
+    [34000, () => {
+      features.push({
+        id: 'TEST-INFRA-1', progress: [1, 8], step: 'design', agent: 'Claude', time: '0m', warnings: 0, errors: 0,
+        pipeline: ['active','pending','pending','pending','pending','pending','pending','pending','pending'],
+        gate: null, events: [
+          { icon: 'started', text: 'design step started', agent: 'Claude', agentClass: 'claude', time: 'now' }
+        ],
+        entering: true
+      });
+      render();
+      updateHeaderStats();
+    }],
+    // 33s: CORE-ASYNC completes
+    [37000, () => {
+      const f = features.find(x => x.id === 'CORE-ASYNC-1');
+      f.progress = [8, 8];
+      f.complete = true;
+      f.step = 'done';
+      f.errors = 0;
+      f.warnings = 0;
+      f.pipeline = STEPS.map(() => 'done');
+      render();
+      updateHeaderStats();
+      showAnnotation('Build done \u2014 row collapses to green complete state', 2500);
+    }],
+    // 35s: done — show replay
+    [40000, () => {
+      document.getElementById('replay-btn').style.borderColor = '#3b82f6';
+      document.getElementById('replay-btn').style.color = '#3b82f6';
+    }],
+  ];
+
+  schedule.forEach(([delay, fn]) => {
+    const tid = setTimeout(fn, delay);
+    scheduledTimers.push(tid);
+  });
+}
+
+function resetFeatures() {
+  // Remove any added features beyond original 4
+  features.length = 4;
+  // Reset CORE-ASYNC-1
+  const ca = features[0];
+  ca.progress = [5,8]; ca.step = 'gate'; ca.agent = 'Claude'; ca.time = '3m'; ca.warnings = 1; ca.errors = 0; ca.complete = false;
+  ca.pipeline = ['done','done','done','done','done','active','gate-dot','pending','pending'];
+  ca.gate = { from: 'blueprint', to: 'implement', artifact: 'blueprint.md 100% complete \u00b7 720 words' };
+  ca.gateApproved = false;
+  ca.events = [
+    { icon: 'session', text: 'Session: 3r 2w 0e \u00b7 3m', agent: 'Claude', agentClass: 'claude', time: '1m ago' },
+    { icon: 'ok', text: 'blueprint completed', agent: 'Claude', agentClass: 'claude', time: '3m ago' },
+  ];
+  // Reset GEN-REF-1
+  const gr = features[1];
+  gr.progress = [8,10]; gr.step = 'impl'; gr.agent = 'Codex'; gr.time = '12m'; gr.warnings = 1; gr.errors = 1; gr.complete = false;
+  gr.pipeline = ['done','done','done','done','done','done','active','pending','pending'];
+  gr.gate = { from: 'plan', to: 'implement', artifact: 'plan.md 100% complete \u00b7 890 words' };
+  gr.gateApproved = false;
+  gr.events = [
+    { icon: 'err', text: 'TypeError in module_x.py', agent: 'Codex', agentClass: 'codex', time: '2m ago' },
+    { icon: 'session', text: 'Session: 5r 3w 1e \u00b7 8m', agent: 'Codex', agentClass: 'codex', time: '4m ago' },
+    { icon: 'ok', text: 'blueprint completed', agent: 'Claude', agentClass: 'claude', time: '12m ago' },
+  ];
+  // Reset DIST-RELEASE-1
+  const dr = features[2];
+  dr.progress = [10,10]; dr.step = 'done'; dr.agent = ''; dr.time = '28m'; dr.warnings = 0; dr.errors = 0; dr.complete = true;
+  dr.pipeline = STEPS.map(() => 'done');
+  dr.gate = null; dr.gateApproved = false; dr.events = [];
+  // Reset PRE-ASYNC-1
+  const pa = features[3];
+  pa.progress = [2,8]; pa.step = 'prd'; pa.agent = 'Claude'; pa.time = '1m'; pa.warnings = 0; pa.errors = 0; pa.complete = false;
+  pa.pipeline = ['done','done','pending','pending','pending','pending','pending','pending','pending'];
+  pa.gate = null; pa.gateApproved = false;
+  pa.events = [
+    { icon: 'ok', text: 'design completed', agent: 'Claude', agentClass: 'claude', time: '1m ago' },
+  ];
+}
+
+function replay() {
+  document.getElementById('replay-btn').style.borderColor = '#334155';
+  document.getElementById('replay-btn').style.color = '#94a3b8';
+  clearAnnotations();
+  runAnimation();
+}
+
+// --- Init ---
+render();
+// Animation starts when user clicks "Start Demo" in preamble
+</script>
+</body>
+</html>

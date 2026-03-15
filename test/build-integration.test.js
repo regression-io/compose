@@ -243,7 +243,7 @@ describe('build integration', { skip: !stratumAvailable && 'stratum-mcp not inst
     const visionPath = join(tmpDir, '.compose', 'data', 'vision-state.json');
     assert.ok(existsSync(visionPath), 'vision-state.json should exist');
     const vision = JSON.parse(readFileSync(visionPath, 'utf-8'));
-    const item = vision.items.find(i => i.featureCode === 'feature:TEST-1');
+    const item = vision.items.find(i => i.lifecycle?.featureCode === 'TEST-1');
     assert.ok(item, 'must have feature item');
     assert.equal(item.status, 'complete', 'item status should be complete');
 
@@ -316,12 +316,16 @@ describe('build integration: sub-flow dispatch', { skip: !stratumAvailable && 's
     assert.ok(Array.isArray(audit.trace), 'audit must have trace array');
 
     // The parent flow's steps should all have run:
-    // implement (direct step), review (sub-flow), ship (direct step after sub-flow)
+    // implement (direct step), review (sub-flow), ship (in-process step after sub-flow)
     const markerDir = join(tmpDir, '.compose', 'data', 'markers');
     assert.ok(existsSync(join(markerDir, 'implement.done')),
       'implement step (before sub-flow) should have run');
-    assert.ok(existsSync(join(markerDir, 'ship.done')),
-      'ship step (after sub-flow) should have run — proves parent continued after child completed');
+
+    // Ship step runs in-process (executeShipStep) — no connector dispatch, so no marker file.
+    // Verify via audit trace instead.
+    const shipTrace = audit.trace.find(t => t.step_id === 'ship' || t.stepId === 'ship');
+    assert.ok(shipTrace,
+      'ship step (after sub-flow) should appear in audit trace — proves parent continued after child completed');
 
     // Sub-flow's own steps should also have run
     assert.ok(existsSync(join(markerDir, 'review.done')),
@@ -330,7 +334,7 @@ describe('build integration: sub-flow dispatch', { skip: !stratumAvailable && 's
     // vision-state should show complete
     const visionPath = join(tmpDir, '.compose', 'data', 'vision-state.json');
     const vision = JSON.parse(readFileSync(visionPath, 'utf-8'));
-    const item = vision.items.find(i => i.featureCode === 'feature:SUB-1');
+    const item = vision.items.find(i => i.lifecycle?.featureCode === 'SUB-1');
     assert.ok(item, 'must have feature item');
     assert.equal(item.status, 'complete', 'item status should be complete');
   });

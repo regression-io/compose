@@ -12,9 +12,9 @@ export const VALID_STATUSES = ['planned', 'ready', 'in_progress', 'review', 'com
 export const VALID_CONNECTION_TYPES = ['informs', 'blocks', 'supports', 'contradicts', 'implements'];
 export const VALID_PHASES = ['vision', 'specification', 'planning', 'implementation', 'verification', 'release'];
 
-import { DATA_DIR as DEFAULT_DATA_DIR } from './project-root.js';
+import { getDataDir as getDefaultDataDir } from './project-root.js';
 
-const DATA_FILE = path.join(DEFAULT_DATA_DIR, 'vision-state.json');
+const DATA_FILE = path.join(getDefaultDataDir(), 'vision-state.json');
 
 function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -22,11 +22,24 @@ function slugify(title) {
 
 export class VisionStore {
   constructor(dataDir) {
-    this._dataDir = dataDir || DEFAULT_DATA_DIR;
+    this._dataDir = dataDir || getDefaultDataDir();
     this._dataFile = dataDir ? path.join(dataDir, 'vision-state.json') : DATA_FILE;
     this.items = new Map();
     this.connections = new Map();
     this.gates = new Map();
+    this._load();
+  }
+
+  /**
+   * Re-target the store at a different data directory.
+   * Clears all in-memory state and reloads from the new location.
+   */
+  reloadFrom(dataDir) {
+    this._dataDir = dataDir;
+    this._dataFile = path.join(dataDir, 'vision-state.json');
+    this.items.clear();
+    this.connections.clear();
+    this.gates.clear();
     this._load();
   }
 
@@ -98,7 +111,7 @@ export class VisionStore {
   }
 
   /** Create a new vision item */
-  createItem({ type, title, description = '', confidence = 0, status = 'planned', phase, position, parentId, files }) {
+  createItem({ type, title, description = '', confidence = 0, status = 'planned', phase, position, parentId, files, priority, assignedTo, governance, featureCode }) {
     if (!VALID_TYPES.includes(type)) throw new Error(`Invalid type: ${type}`);
     if (!title) throw new Error('title required');
     if (!VALID_STATUSES.includes(status)) throw new Error(`Invalid status: ${status}`);
@@ -117,6 +130,10 @@ export class VisionStore {
       phase: phase || null,
       parentId: parentId || null,
       files: Array.isArray(files) ? files : [],
+      priority: priority || null,
+      assignedTo: assignedTo || null,
+      governance: governance || null,
+      featureCode: featureCode || null,
       slug: slugify(title),
       position: position || { x: 100 + Math.random() * 400, y: 100 + Math.random() * 300 },
       createdAt: now,

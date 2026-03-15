@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator.jsx';
 import { ScrollArea } from '@/components/ui/scroll-area.jsx';
 import { TYPE_COLORS, STATUS_COLORS, PHASES, PHASE_LABELS, STATUSES, CONFIDENCE_LABELS, LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS } from './constants.js';
 import ConnectionGraph from './ConnectionGraph.jsx';
+import ConfidenceBar from './shared/ConfidenceBar.jsx';
 
 function ConfidenceControl({ level, onChange }) {
   const colors = ['hsl(var(--muted-foreground))', 'hsl(var(--destructive))', 'hsl(var(--accent))', 'hsl(var(--success))', 'hsl(var(--success))'];
@@ -351,7 +352,7 @@ export default function ItemDetailPanel({ item, items, connections, gates, onUpd
   const typeColor = TYPE_COLORS[item.type] || TYPE_COLORS.task;
 
   return (
-    <div className="w-80 shrink-0 border-l border-border bg-card flex flex-col h-full">
+    <div className="w-full bg-card flex flex-col h-full">
       {/* Header */}
       <div className="p-3 pb-2 flex items-start gap-2">
         <div className="flex-1 min-w-0">
@@ -417,6 +418,9 @@ export default function ItemDetailPanel({ item, items, connections, gates, onUpd
               onChange={(c) => onUpdate(item.id, { confidence: c })}
             />
           </div>
+
+          {/* COMP-UI-5: ConfidenceBar — read-only visual display (4-bar with color + label) */}
+          <ConfidenceBar level={item.confidence || 0} />
 
           {/* Phase selector */}
           <div>

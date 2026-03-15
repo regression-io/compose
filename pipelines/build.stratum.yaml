@@ -1,4 +1,4 @@
-version: "0.2"
+version: "0.3"
 
 workflow:
   name: build
@@ -27,6 +27,9 @@ contracts:
     passing:  {type: boolean}
     summary:  {type: string}
     failures: {type: array}
+
+  TaskGraph:
+    tasks: {type: array}
 
 functions:
   design_gate:
@@ -213,30 +216,52 @@ flows:
       # Gate: Plan review
       - id: plan_gate
         function: plan_gate
-        on_approve: execute
+        on_approve: decompose
         on_revise: plan
         on_kill: null
         depends_on: [plan]
 
-      # Phase: Execute (with review and coverage sub-flows)
-      - id: execute
+      # Phase: Decompose — analyze the plan and emit a task graph
+      - id: decompose
+        type: decompose
         agent: claude
         intent: >
-          Execute the implementation plan using TDD. For each task:
-          write the test first, watch it fail, implement, watch it pass.
-          After all tasks are done, return a summary of what was built.
-        inputs:
-          featureCode: "$.input.featureCode"
-          description: "$.input.description"
-        output_contract: PhaseResult
+          Read the implementation plan and decompose it into independent tasks.
+          For each task, identify files_owned (exclusive write), files_read (read-only),
+          and depends_on (tasks that must complete first).
+          Return a TaskGraph with the task array.
+        output_contract: TaskGraph
+        ensure:
+          - "no_file_conflicts(result.tasks)"
+          - "len(result.tasks) >= 1"
         retries: 2
         depends_on: [plan_gate]
+
+      # Phase: Execute — parallel dispatch of decomposed tasks
+      - id: execute
+        type: parallel_dispatch
+        source: "$.steps.decompose.output.tasks"
+        agent: claude
+        max_concurrent: 3
+        isolation: worktree
+        require: all
+        merge: sequential_apply
+        intent_template: >
+          Implement this task using TDD. Write the test first, watch it fail,
+          implement, watch it pass.
+
+          Task: {task.description}
+          You own these files (may create/modify): {task.files_owned}
+          You may read (but NOT modify): {task.files_read}
+
+          Feature: {task.id}
+        depends_on: [decompose]
 
       # Sub-flow: Review (codex reviews; build.js dispatches claude fix on ensure_failed)
       - id: review
         flow: review_check
         inputs:
-          task: "$.steps.execute.output.summary"
+          task: "$.steps.execute.output.outcome"
           blueprint: "$.input.description"
         ensure:
           - "result.clean == True"
@@ -246,7 +271,7 @@ flows:
       - id: coverage
         flow: coverage_check
         inputs:
-          task: "$.steps.execute.output.summary"
+          task: "$.steps.execute.output.outcome"
           plan: "$.input.description"
         ensure:
           - "result.passing == True"

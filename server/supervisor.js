@@ -17,10 +17,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPOSE_HOME, TARGET_ROOT, ensureDataDir } from './project-root.js';
+import { COMPOSE_HOME, getTargetRoot, ensureDataDir } from './project-root.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-console.log('[supervisor] Target project:', TARGET_ROOT);
+console.log('[supervisor] Target project:', getTargetRoot());
 const PID_FILE = path.join(COMPOSE_HOME, '.compose-supervisor.pid');
 
 const PROCESSES = [

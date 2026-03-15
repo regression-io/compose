@@ -33,7 +33,10 @@ if (!cmd || cmd === '--help' || cmd === '-h') {
   console.log('  feature   Add a single feature (folder, design seed, ROADMAP entry)')
   console.log('  build     Run a feature through the headless lifecycle')
   console.log('  pipeline  View and edit the build pipeline')
-  console.log('  roadmap   Show roadmap status and next buildable features')
+  console.log('  roadmap            Show roadmap status and next buildable features')
+  console.log('  roadmap generate   Regenerate ROADMAP.md from feature.json files')
+  console.log('  roadmap migrate    Extract ROADMAP.md entries into feature.json files')
+  console.log('  roadmap check      Verify feature.json and ROADMAP.md are in sync')
   console.log('  init      Initialize Compose in the current project')
   console.log('  setup     Install global skill + register stratum-mcp')
   process.exit(0)
@@ -441,7 +444,17 @@ if (cmd === 'feature') {
 
   mkdirSync(featureDir, { recursive: true })
 
+  // Write feature.json (source of truth)
+  const { writeFeature } = await import('../lib/feature-json.js')
   const today = new Date().toISOString().slice(0, 10)
+  writeFeature(cwd, {
+    code: featureCode,
+    description,
+    status: 'PLANNED',
+    created: today,
+  }, featuresDir)
+  console.log(`Created ${join(featureDir, 'feature.json')}`)
+
   const designContent = `# ${featureCode}: ${description}
 
 **Status:** PLANNED
@@ -516,14 +529,97 @@ _This is a seed design doc created by \`compose feature\`. The \`compose build\`
 }
 
 if (cmd === 'roadmap') {
+  const subcmd = args[0]
+
+  // compose roadmap generate — regenerate ROADMAP.md from feature.json files
+  if (subcmd === 'generate' || subcmd === 'gen') {
+    const { writeRoadmap } = await import('../lib/roadmap-gen.js')
+    const cwd = process.cwd()
+    const path = writeRoadmap(cwd)
+    console.log(`Generated ${path} from feature.json files`)
+    process.exit(0)
+  }
+
+  // compose roadmap migrate — extract ROADMAP.md entries into feature.json files
+  if (subcmd === 'migrate') {
+    const { migrateRoadmap } = await import('../lib/migrate-roadmap.js')
+    const cwd = process.cwd()
+    const dryRun = args.includes('--dry-run')
+    const overwrite = args.includes('--overwrite')
+    const result = migrateRoadmap(cwd, { dryRun, overwrite })
+    if (!dryRun) {
+      console.log(`Created: ${result.created.length} feature.json files`)
+      if (result.created.length > 0) console.log(`  ${result.created.join(', ')}`)
+      console.log(`Updated: ${result.updated.length}`)
+      if (result.updated.length > 0) console.log(`  ${result.updated.join(', ')}`)
+      console.log(`Skipped: ${result.skipped.length} (already exist, use --overwrite to replace)`)
+      if (result.skipped.length > 0) console.log(`  ${result.skipped.join(', ')}`)
+    }
+    process.exit(0)
+  }
+
+  // compose roadmap check — verify feature.json ↔ ROADMAP.md consistency
+  if (subcmd === 'check') {
+    const { listFeatures } = await import('../lib/feature-json.js')
+    const { parseRoadmap } = await import('../lib/roadmap-parser.js')
+    const cwd = process.cwd()
+    const roadmapPath = join(cwd, 'ROADMAP.md')
+    if (!existsSync(roadmapPath)) {
+      console.error('No ROADMAP.md found. Run: compose roadmap generate')
+      process.exit(1)
+    }
+    const features = listFeatures(cwd)
+    const roadmapEntries = parseRoadmap(readFileSync(roadmapPath, 'utf-8'))
+    const roadmapCodes = new Set(roadmapEntries.filter(e => !e.code.startsWith('_anon_')).map(e => e.code))
+    const featureCodes = new Set(features.map(f => f.code))
+
+    let clean = true
+    // Features in feature.json but missing from ROADMAP.md
+    for (const f of features) {
+      if (!roadmapCodes.has(f.code)) {
+        console.log(`MISSING from ROADMAP.md: ${f.code}`)
+        clean = false
+      }
+    }
+    // Features in ROADMAP.md but missing feature.json
+    for (const e of roadmapEntries) {
+      if (e.code.startsWith('_anon_')) continue
+      if (!featureCodes.has(e.code)) {
+        console.log(`NO feature.json: ${e.code}`)
+        clean = false
+      }
+    }
+    // Status mismatches
+    const roadmapMap = new Map(roadmapEntries.map(e => [e.code, e]))
+    for (const f of features) {
+      const rm = roadmapMap.get(f.code)
+      if (rm && rm.status !== f.status) {
+        console.log(`STATUS MISMATCH: ${f.code} — feature.json=${f.status}, ROADMAP.md=${rm.status}`)
+        clean = false
+      }
+    }
+
+    if (clean) {
+      console.log('feature.json and ROADMAP.md are in sync.')
+    } else {
+      console.log('\nRun `compose roadmap generate` to regenerate ROADMAP.md from feature.json.')
+      process.exit(1)
+    }
+    process.exit(0)
+  }
+
+  // Default: compose roadmap (show status)
   const { parseRoadmap, filterBuildable } = await import('../lib/roadmap-parser.js')
   const { buildDag, topoSort } = await import('../lib/build-dag.js')
   const { readdirSync, statSync } = await import('fs')
 
   const SYM = { COMPLETE: '\x1b[32m✓\x1b[0m', PLANNED: '\x1b[90m○\x1b[0m', IN_PROGRESS: '\x1b[33m◐\x1b[0m', PARTIAL: '\x1b[33m◐\x1b[0m', SUPERSEDED: '\x1b[90m✗\x1b[0m', PARKED: '\x1b[90m⏸\x1b[0m' }
 
-  function showRoadmap(roadmapPath, label) {
+  function showRoadmap(roadmapPath, fallbackLabel) {
     const text = readFileSync(roadmapPath, 'utf-8')
+    // Extract project name from "# Title Roadmap" or "# Title" heading
+    const titleMatch = text.match(/^#\s+(.+?)(?:\s+Roadmap)?\s*$/m)
+    const label = titleMatch ? titleMatch[1].trim() : fallbackLabel
     const allEntries = parseRoadmap(text)
     const named = allEntries.filter(e => !e.code.startsWith('_anon_'))
 
@@ -648,11 +744,24 @@ if (cmd === 'pipeline') {
 }
 
 if (cmd === 'build') {
-  const featureCodes = args.filter(a => !a.startsWith('-'))
+  // Parse --cwd <path> for cross-repo builds
+  let agentWorkDir = null
+  const cwdIdx = args.indexOf('--cwd')
+  if (cwdIdx !== -1) {
+    const cwdValue = args[cwdIdx + 1]
+    if (!cwdValue || cwdValue.startsWith('-')) {
+      console.error('Error: --cwd requires a path argument')
+      process.exit(1)
+    }
+    agentWorkDir = resolve(cwdValue)
+  }
+  const filteredArgs = args.filter((a, i) => i !== cwdIdx && (cwdIdx === -1 || i !== cwdIdx + 1))
+
+  const featureCodes = filteredArgs.filter(a => !a.startsWith('-'))
   const featureCode = featureCodes[0]
-  const abort = args.includes('--abort')
-  const all = args.includes('--all')
-  const dryRun = args.includes('--dry-run')
+  const abort = filteredArgs.includes('--abort')
+  const all = filteredArgs.includes('--all')
+  const dryRun = filteredArgs.includes('--dry-run')
 
   // Multiple codes: compose build FEAT-1 FEAT-2 FEAT-3
   const isMulti = featureCodes.length > 1
@@ -671,9 +780,10 @@ if (cmd === 'build') {
     console.error('       compose build --all               (builds entire roadmap)')
     console.error('')
     console.error('Options:')
-    console.error('  --abort     Abort the active build')
-    console.error('  --all       Build all PLANNED features in dependency order')
-    console.error('  --dry-run   Print build order without executing')
+    console.error('  --abort        Abort the active build')
+    console.error('  --all          Build all PLANNED features in dependency order')
+    console.error('  --dry-run      Print build order without executing')
+    console.error('  --cwd <path>   Agent working directory (for cross-repo features)')
     process.exit(1)
   }
 
@@ -688,6 +798,7 @@ if (cmd === 'build') {
   if (isBatch) {
     import('../lib/build-all.js').then(({ runBuildAll }) => {
       const batchOpts = { cwd: buildCwd, dryRun }
+      if (agentWorkDir) batchOpts.workingDirectory = agentWorkDir
       if (isMulti) {
         batchOpts.features = featureCodes
       } else if (isPrefix) {
@@ -702,7 +813,9 @@ if (cmd === 'build') {
     })
   } else {
     import('../lib/build.js').then(({ runBuild }) => {
-      runBuild(featureCode, { abort }).then(() => {
+      const singleOpts = { abort }
+      if (agentWorkDir) singleOpts.workingDirectory = agentWorkDir
+      runBuild(featureCode, singleOpts).then(() => {
         process.exit(0)
       }).catch((err) => {
         console.error(`Build failed: ${err.message}`)

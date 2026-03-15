@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SmartMemory — Zoom Level Navigation</title>
+<script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 640px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.7; margin-bottom: 24px; text-align: left; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Header bar */
+.header-bar { display: flex; align-items: center; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; padding: 0 16px; gap: 0; }
+.header-logo { font-size: 13px; font-weight: 700; color: #3b82f6; margin-right: 12px; }
+.header-project { font-size: 11px; color: #64748b; font-weight: 500; margin-right: 20px; padding-right: 20px; border-right: 1px solid #334155; }
+.tab-item { position: relative; padding: 0 16px; height: 40px; display: flex; align-items: center; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; transition: color 0.2s; user-select: none; }
+.tab-item.active { color: #e2e8f0; }
+.tab-item::after { content: ''; position: absolute; bottom: 0; left: 6px; right: 6px; height: 2px; background: transparent; border-radius: 1px; transition: background 0.2s; }
+.tab-item.active::after { background: #3b82f6; }
+.header-spacer { flex: 1; }
+.header-stats { display: flex; align-items: center; gap: 12px; font-size: 11px; font-weight: 600; }
+.stat-building { color: #3b82f6; }
+.stat-gate { color: #f59e0b; }
+.stat-error { color: #ef4444; }
+.stat-complete { color: #22c55e; }
+
+/* Main layout */
+.app-body { display: flex; flex: 1; overflow: hidden; position: relative; }
+.content-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.content-main { flex: 1; display: flex; overflow: hidden; }
+.tab-content-wrap { flex: 1; min-width: 0; position: relative; overflow: hidden; }
+.tab-content { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.15s ease; overflow: hidden; }
+.tab-content.active { opacity: 1; pointer-events: auto; }
+
+/* Context panel */
+.context-panel { width: 0; background: #1e293b; border-left: 1px solid #334155; flex-shrink: 0; overflow-y: auto; overflow-x: hidden; transition: width 0.25s ease; }
+.context-panel.open-40 { width: 40%; }
+.context-panel.open-50 { width: 50%; }
+.cp-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #334155; min-width: 280px; gap: 8px; }
+.cp-header-left { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.cp-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.cp-badge { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.cp-badge.type-feature { background: #3b82f620; color: #3b82f6; }
+.cp-badge.type-spec { background: #8b5cf620; color: #8b5cf6; }
+.cp-badge.phase-badge { background: #64748b20; color: #94a3b8; }
+.cp-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-title-hint { font-size: 9px; color: #475569; font-style: italic; }
+.cp-close { width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: #64748b; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.cp-close:hover { background: #334155; color: #e2e8f0; }
+.cp-section { padding: 10px 14px; border-bottom: 1px solid #334155; min-width: 280px; }
+.cp-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 6px; }
+.cp-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; }
+.cp-status.building { background: #3b82f620; color: #3b82f6; }
+.cp-status.gate { background: #f59e0b20; color: #f59e0b; }
+.cp-status.complete { background: #22c55e20; color: #22c55e; }
+.cp-status.error { background: #ef444420; color: #ef4444; }
+.cp-status.planned { background: #64748b20; color: #94a3b8; }
+.cp-status.parked { background: #64748b20; color: #64748b; }
+.cp-status.in_progress { background: #3b82f620; color: #3b82f6; }
+.cp-status.blocked { background: #ef444420; color: #ef4444; }
+.cp-detail { font-size: 11px; color: #94a3b8; line-height: 1.6; }
+
+/* Status + confidence row */
+.cp-status-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cp-confidence { display: flex; align-items: center; gap: 4px; }
+.cp-conf-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #475569; background: transparent; cursor: pointer; transition: all 0.2s; }
+.cp-conf-dot.filled { background: #3b82f6; border-color: #3b82f6; }
+.cp-conf-label { font-size: 10px; color: #64748b; margin-left: 4px; }
+.cp-conf-bar { width: 60px; height: 4px; background: #334155; border-radius: 2px; overflow: hidden; margin-left: 4px; }
+.cp-conf-bar-fill { height: 100%; border-radius: 2px; background: #3b82f6; transition: width 0.3s; }
+
+/* Phase selector */
+.cp-select { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; font-size: 11px; padding: 4px 8px; border-radius: 4px; outline: none; cursor: pointer; }
+.cp-select:focus { border-color: #3b82f6; }
+
+/* Description editable */
+.cp-desc { font-size: 11px; color: #94a3b8; line-height: 1.6; cursor: pointer; padding: 4px 6px; border-radius: 4px; transition: background 0.15s; }
+.cp-desc:hover { background: #334155; }
+.cp-desc-hint { font-size: 9px; color: #475569; font-style: italic; margin-top: 4px; }
+
+/* Connections */
+.cp-conn-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; padding: 3px 0; }
+.cp-conn-type { font-size: 10px; color: #64748b; min-width: 70px; }
+.cp-conn-link { color: #3b82f6; cursor: pointer; font-weight: 600; }
+.cp-conn-link:hover { text-decoration: underline; }
+.cp-conn-delete { width: 16px; height: 16px; border-radius: 3px; border: none; background: transparent; color: #475569; cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; margin-left: auto; }
+.cp-conn-delete:hover { background: #ef444420; color: #ef4444; }
+.cp-add-conn { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; color: #3b82f6; cursor: pointer; padding: 4px 8px; border-radius: 4px; border: 1px dashed #3b82f640; background: transparent; margin-top: 6px; transition: all 0.2s; }
+.cp-add-conn:hover { background: #3b82f610; border-color: #3b82f6; }
+
+/* Connection sub-graph placeholder */
+.cp-conn-graph { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 12px; margin-top: 8px; text-align: center; font-size: 11px; color: #64748b; min-height: 50px; display: flex; align-items: center; justify-content: center; }
+.cp-conn-graph .conn-node { display: inline-flex; align-items: center; justify-content: center; padding: 3px 8px; border-radius: 4px; background: #1e293b; border: 1px solid #334155; font-size: 10px; font-weight: 600; color: #94a3b8; white-space: nowrap; }
+.cp-conn-graph .conn-node.active { border-color: #3b82f6; color: #3b82f6; }
+.cp-conn-graph .conn-arrow { color: #475569; margin: 0 4px; font-size: 12px; }
+
+/* Lifecycle */
+.cp-lifecycle { display: flex; flex-direction: column; gap: 6px; }
+.cp-lifecycle-label { font-size: 11px; color: #94a3b8; }
+.cp-lifecycle-dots { display: flex; align-items: center; gap: 0; }
+.cp-lc-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #475569; background: transparent; }
+.cp-lc-dot.done { background: #22c55e; border-color: #22c55e; }
+.cp-lc-dot.current { background: #3b82f6; border-color: #3b82f6; }
+.cp-lc-line { width: 12px; height: 2px; background: #475569; }
+.cp-lc-line.done { background: #22c55e; }
+
+/* New ops section divider */
+.cp-ops-divider { padding: 6px 14px; border-bottom: 1px solid #334155; min-width: 280px; text-align: center; }
+.cp-ops-divider-text { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #334155; }
+
+/* Delete button */
+.cp-delete-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: calc(100% - 28px); margin: 12px 14px; padding: 8px; border-radius: 6px; border: 1px solid #ef444440; background: transparent; color: #ef4444; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.cp-delete-btn:hover { background: #ef444420; border-color: #ef4444; }
+
+/* Pipeline dots */
+.pipeline { display: flex; align-items: center; gap: 0; padding: 8px 0; position: relative; }
+.pipe-step { display: flex; flex-direction: column; align-items: center; gap: 0; position: relative; z-index: 1; }
+.pipe-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #475569; background: #1e293b; transition: all 0.4s ease; position: relative; }
+.pipe-dot.done { background: #22c55e; border-color: #22c55e; }
+.pipe-dot.active { background: #3b82f6; border-color: #3b82f6; animation: pipePulse 2s ease-in-out infinite; }
+.pipe-dot.gate-dot { background: #f59e0b; border-color: #f59e0b; }
+.pipe-dot.error-dot { background: #ef4444; border-color: #ef4444; }
+@keyframes pipePulse { 0%,100% { box-shadow: 0 0 0 0 #3b82f640; } 50% { box-shadow: 0 0 8px 3px #3b82f640; } }
+.pipe-line { width: 16px; height: 2px; background: #475569; flex-shrink: 0; margin-top: -9px; align-self: flex-start; position: relative; top: 9px; }
+.pipe-line.done { background: #22c55e; }
+.pipe-label { font-size: 8px; color: #475569; margin-top: 4px; white-space: nowrap; }
+.pipe-label.active { color: #3b82f6; font-weight: 600; }
+.pipe-label.done { color: #22c55e; }
+.pipe-summary { font-size: 10px; color: #64748b; margin-top: 4px; }
+
+/* Gate card */
+.gate-card { background: #1a1500; border: 1px solid #f59e0b40; border-radius: 8px; padding: 10px 12px; margin: 6px 0; }
+.gate-card .gate-title { font-size: 11px; font-weight: 700; color: #fcd34d; margin-bottom: 4px; }
+.gate-card .gate-meta { font-size: 10px; color: #94a3b8; margin-bottom: 8px; }
+.gate-card .gate-artifacts { font-size: 10px; color: #64748b; margin-bottom: 8px; }
+.gate-card .gate-actions { display: flex; gap: 6px; }
+.gate-btn { padding: 4px 14px; border-radius: 4px; border: none; font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.gate-btn.approve { background: #22c55e; color: #000; }
+.gate-btn.approve:hover { background: #16a34a; }
+.gate-btn.revise { background: #334155; color: #f59e0b; border: 1px solid #f59e0b40; }
+.gate-btn.kill { background: #334155; color: #ef4444; border: 1px solid #ef444440; }
+.gate-btn.approved { background: #334155; color: #22c55e; cursor: default; border: 1px solid #22c55e40; }
+
+/* Error card */
+.error-card { background: #1a0505; border-left: 3px solid #ef4444; border-radius: 0 8px 8px 0; padding: 10px 12px; margin: 6px 0; }
+.error-card .error-title { font-size: 11px; font-weight: 700; color: #fca5a5; margin-bottom: 4px; }
+.error-card .error-msg { font-size: 11px; color: #ef4444; font-family: 'SF Mono', 'Fira Code', monospace; margin-bottom: 4px; }
+.error-card .error-meta { font-size: 10px; color: #64748b; }
+
+/* Session rows */
+.session-row { display: flex; align-items: flex-start; gap: 8px; font-size: 11px; color: #94a3b8; padding: 4px 0; border-bottom: 1px solid #33415540; }
+.session-row:last-child { border-bottom: none; }
+.session-agent { font-weight: 600; min-width: 50px; flex-shrink: 0; }
+.session-agent.claude { color: #f97316; }
+.session-agent.codex { color: #22c55e; }
+.session-duration { color: #64748b; min-width: 36px; flex-shrink: 0; }
+.session-stats { color: #475569; font-size: 10px; min-width: 70px; flex-shrink: 0; }
+.session-summary { flex: 1; color: #94a3b8; font-size: 10px; }
+
+/* Cross-view links */
+.cp-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #3b82f6; cursor: pointer; padding: 4px 0; transition: color 0.2s; }
+.cp-link:hover { color: #60a5fa; }
+.cp-file-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; padding: 3px 0; cursor: pointer; transition: color 0.15s; }
+.cp-file-item:hover { color: #3b82f6; }
+.cp-file-item .icon { font-size: 10px; opacity: 0.6; }
+
+/* Progress bar inline */
+.inline-progress { display: inline-flex; align-items: center; gap: 4px; }
+.inline-bar { width: 60px; height: 4px; background: #334155; border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; }
+.inline-bar-fill { height: 100%; border-radius: 2px; background: #3b82f6; transition: width 0.6s ease; }
+.inline-step { font-size: 10px; color: #64748b; }
+.inline-agent { font-size: 10px; font-weight: 600; }
+.inline-agent.claude { color: #f97316; }
+.inline-agent.codex { color: #22c55e; }
+.inline-time { font-size: 10px; color: #475569; }
+
+/* Resize divider */
+.resize-divider { width: 4px; background: #334155; cursor: col-resize; flex-shrink: 0; transition: background 0.15s; }
+.resize-divider:hover, .resize-divider.dragging { background: #3b82f6; }
+.resize-divider.hidden { display: none; }
+
+/* Ops strip */
+.ops-strip { display: flex; align-items: center; height: 36px; background: #1e293b; border-top: 1px solid #334155; flex-shrink: 0; padding: 0 16px; gap: 16px; font-size: 11px; overflow-x: auto; transition: height 0.2s ease, opacity 0.2s ease, border-width 0.2s ease; }
+.ops-strip.hidden { height: 0; opacity: 0; border-top-width: 0; overflow: hidden; padding: 0; }
+.ops-entry { display: flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; padding: 2px 8px; border-radius: 4px; transition: all 0.2s; }
+.ops-entry:hover { background: #334155; }
+.ops-entry.selected { background: #33415580; }
+.ops-entry .ops-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ops-entry .ops-code { font-weight: 700; color: #cbd5e1; }
+.ops-entry .ops-info { color: #64748b; }
+.ops-entry .ops-action { padding: 1px 8px; border-radius: 3px; border: 1px solid #f59e0b40; color: #f59e0b; font-size: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s; background: transparent; }
+.ops-entry .ops-action:hover { background: #f59e0b20; }
+.ops-entry .ops-action.approved { border-color: #22c55e40; color: #22c55e; }
+.ops-entry.flash-green { animation: opsFlashGreen 1s ease; }
+@keyframes opsFlashGreen { 0% { background: #22c55e30; } 100% { background: transparent; } }
+
+/* Blocks progress squares in ops */
+.ops-blocks { display: inline-flex; gap: 2px; }
+.ops-block { width: 8px; height: 8px; border-radius: 1px; }
+.ops-block.done { background: #3b82f6; }
+.ops-block.pending { background: #334155; }
+
+/* Graph view */
+#cyGraph { width: 100%; height: 100%; }
+
+/* Tree view */
+.items-view { padding: 16px 20px; overflow-y: auto; height: 100%; }
+.items-search { width: 100%; padding: 6px 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px; margin-bottom: 14px; outline: none; }
+.items-search:focus { border-color: #3b82f6; }
+.items-search::placeholder { color: #475569; }
+.items-group { margin-bottom: 8px; }
+.items-group-header { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #cbd5e1; padding: 6px 8px; cursor: pointer; border-radius: 4px; transition: background 0.15s; user-select: none; }
+.items-group-header:hover { background: #1e293b; }
+.items-group-arrow { font-size: 10px; color: #64748b; transition: transform 0.2s; display: inline-block; width: 12px; }
+.items-group.expanded .items-group-arrow { transform: rotate(90deg); }
+.items-group-count { font-size: 10px; color: #64748b; font-weight: 400; }
+.items-group-badges { display: flex; gap: 6px; margin-left: auto; }
+.items-group-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+.items-group-children { display: none; padding-left: 12px; }
+.items-group.expanded .items-group-children { display: block; }
+.items-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #94a3b8; padding: 5px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+.items-item:hover { background: #1e293b; color: #e2e8f0; }
+.items-item.selected { background: #1e293b; color: #e2e8f0; border-left: 2px solid #3b82f6; }
+.items-item .item-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.items-item .item-code { font-weight: 600; color: #cbd5e1; min-width: 110px; }
+.items-item .item-name { flex: 1; }
+.items-item .item-inline { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.items-item .item-badge { font-size: 9px; padding: 1px 6px; border-radius: 3px; margin-left: auto; font-weight: 600; white-space: nowrap; }
+.items-item .blocked-note { font-size: 9px; color: #475569; font-style: italic; margin-left: 4px; white-space: nowrap; }
+.items-item.flash-green { animation: itemFlashGreen 0.8s ease; }
+@keyframes itemFlashGreen { 0% { background: #22c55e20; } 100% { background: transparent; } }
+
+/* Track colors */
+.track-knowledge { color: #8b5cf6; }
+.track-distribution { color: #f59e0b; }
+.track-governance { color: #06b6d4; }
+.track-worker { color: #10b981; }
+.track-agent { color: #f97316; }
+.track-async { color: #ef4444; }
+.dot-knowledge { background: #8b5cf6; }
+.dot-distribution { background: #f59e0b; }
+.dot-governance { background: #06b6d4; }
+.dot-worker { background: #10b981; }
+.dot-agent { background: #f97316; }
+.dot-async { background: #ef4444; }
+
+/* Docs view */
+.docs-view { display: flex; height: 100%; }
+.docs-tree { width: 250px; background: #0f172a; border-right: 1px solid #1e293b; padding: 12px; overflow-y: auto; flex-shrink: 0; }
+.docs-tree-heading { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 6px; margin-top: 10px; }
+.docs-tree-heading:first-child { margin-top: 0; }
+.docs-tree-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; margin-bottom: 1px; }
+.docs-tree-item:hover { background: #1e293b; color: #94a3b8; }
+.docs-tree-item.active { background: #1e293b; color: #e2e8f0; }
+.docs-tree-item .icon { font-size: 10px; }
+.docs-tree-indent { padding-left: 16px; }
+.docs-preview { flex: 1; padding: 20px 28px; overflow-y: auto; }
+.docs-preview .doc-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.docs-preview .doc-meta { font-size: 11px; color: #64748b; margin-bottom: 16px; }
+.docs-preview .doc-body { font-size: 13px; color: #cbd5e1; line-height: 1.8; }
+.docs-preview .doc-body h2 { font-size: 15px; font-weight: 700; color: #e2e8f0; margin: 16px 0 8px; }
+.docs-preview .doc-body p { margin-bottom: 10px; }
+.docs-preview .doc-body code { background: #334155; padding: 1px 5px; border-radius: 3px; font-size: 12px; color: #93c5fd; }
+.docs-back-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #3b82f6; cursor: pointer; padding: 4px 10px; border-radius: 4px; border: 1px solid #3b82f640; background: transparent; transition: all 0.2s; margin-bottom: 12px; }
+.docs-back-btn:hover { background: #3b82f620; }
+
+/* Annotation */
+.annotation { position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 20px; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; white-space: nowrap; max-width: 90vw; }
+.annotation.visible { opacity: 1; }
+
+/* Progress bar */
+.demo-progress { position: fixed; bottom: 0; left: 0; right: 0; height: 3px; background: #1e293b; z-index: 50; }
+.demo-progress-fill { height: 100%; background: #3b82f6; width: 0%; transition: width 0.3s linear; }
+
+/* Cytoscape node badge overlay */
+.cy-badge { position: absolute; z-index: 10; width: 16px; height: 16px; border-radius: 50%; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.cy-badge.gate-badge { background: #f59e0b; color: #000; }
+.cy-badge.error-badge { background: #ef4444; color: #fff; }
+
+/* Gate popover on graph */
+.graph-gate-popover { position: absolute; z-index: 20; background: #1e293b; border: 1px solid #f59e0b60; border-radius: 8px; padding: 10px 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-width: 200px; display: none; }
+.graph-gate-popover.visible { display: block; }
+.graph-gate-popover .gp-title { font-size: 11px; font-weight: 700; color: #fcd34d; margin-bottom: 4px; }
+.graph-gate-popover .gp-meta { font-size: 10px; color: #94a3b8; margin-bottom: 8px; }
+.graph-gate-popover .gp-actions { display: flex; gap: 6px; }
+</style>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1>SmartMemory &mdash; <span>Zoom Level Navigation</span></h1>
+    <p>Real SmartMemory project data across three zoom levels. High level (Graph) shows the full dependency network &mdash; 25+ features across 6 tracks with live ops status on nodes. Mid level (Tree) shows features grouped by track with rollup badges, listed flat within each track (blocked-by shown as inline notes, not indentation). Low level (Detail Panel) is the workhorse &mdash; type/phase badges, status dropdown, confidence dots, editable description, connections with sub-graph, lifecycle dots, pipeline progress, gate approvals, sessions, errors, and linked files. The ops strip at the bottom keeps you aware of all active work regardless of view.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="startDemo()">Replay</button>
+
+<!-- Header bar -->
+<div class="header-bar">
+  <div class="header-logo">Compose</div>
+  <div class="header-project">SmartMemory</div>
+  <div class="tab-item active" data-tab="graph" id="tabGraph">Graph</div>
+  <div class="tab-item" data-tab="items" id="tabItems">Tree</div>
+  <div class="tab-item" data-tab="docs" id="tabDocs">Docs</div>
+  <div class="header-spacer"></div>
+  <div class="header-stats" id="headerStats">
+    <span class="stat-building" id="statBuilding">&#9679; 2 building</span>
+    <span class="stat-gate" id="statGate">&#9888; 1 gate</span>
+    <span class="stat-error" id="statError">&#10005; 1 error</span>
+    <span class="stat-complete" id="statComplete">&#10003; 2 complete</span>
+  </div>
+</div>
+
+<!-- App body -->
+<div class="app-body">
+  <div class="content-wrap">
+    <div class="content-main">
+      <div class="tab-content-wrap">
+
+        <!-- GRAPH TAB -->
+        <div class="tab-content active" id="graphContent">
+          <div id="cyGraph"></div>
+          <div class="graph-gate-popover" id="gatePopover">
+            <div class="gp-title">&#9888; Gate: plan &rarr; implement</div>
+            <div class="gp-meta">Artifacts: 85% complete &middot; 2,400 words</div>
+            <div class="gp-actions">
+              <button class="gate-btn approve" id="graphApproveBtn">Approve</button>
+              <button class="gate-btn revise">Revise</button>
+              <button class="gate-btn kill">Kill</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TREE TAB -->
+        <div class="tab-content" id="itemsContent">
+          <div class="items-view" id="itemsView">
+            <input class="items-search" placeholder="Search features..." readonly>
+
+            <!-- Knowledge Track -->
+            <div class="items-group expanded" id="trackKnowledge">
+              <div class="items-group-header">
+                <span class="items-group-arrow">&#9654;</span>
+                <div class="item-dot dot-knowledge" style="width:8px;height:8px;border-radius:50%;flex-shrink:0"></div>
+                Knowledge
+                <span class="items-group-count">(12)</span>
+                <div class="items-group-badges">
+                  <span class="items-group-badge" style="background:#3b82f620;color:#3b82f6" id="knowBuildBadge">&#9679;1 building</span>
+                </div>
+              </div>
+              <div class="items-group-children">
+                <div class="items-item selected" data-id="CORE-LEARN-1" id="itemCoreLearn">
+                  <div class="item-dot" style="background:#3b82f6" id="itemCoreLearnDot"></div>
+                  <span class="item-code">CORE-LEARN-1</span>
+                  <span class="item-name">Self-Correction</span>
+                  <div class="item-inline">
+                    <div class="inline-bar"><div class="inline-bar-fill" style="width:50%" id="coreLearnBar"></div></div>
+                    <span class="inline-step" id="coreLearnStep">4/8</span>
+                    <span class="inline-agent claude">Claude</span>
+                    <span class="inline-time">3m</span>
+                  </div>
+                </div>
+                <div class="items-item" data-id="ONTO-PUB-2">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">ONTO-PUB-2</span>
+                  <span class="item-name">Entity Benchmark</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="ONTO-PUB-4">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">ONTO-PUB-4</span>
+                  <span class="item-name">Relation Benchmark</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="ONTO-PUB-5">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">ONTO-PUB-5</span>
+                  <span class="item-name">Service Enhancements</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="CORE-EXT-1b">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">CORE-EXT-1b</span>
+                  <span class="item-name">Tiered EntityRuler</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                  <span class="blocked-note">&larr; blocked by ONTO-PUB-5</span>
+                </div>
+                <div class="items-item" data-id="CORE-CONF-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">CORE-CONF-1</span>
+                  <span class="item-name">Calibration</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="ONTO-PROV-1" id="itemOntoProvTree">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">ONTO-PROV-1</span>
+                  <span class="item-name">Provenance Trust</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                  <span class="blocked-note" id="provBlockedNote">&larr; blocked by CORE-LEARN-1</span>
+                </div>
+                <div class="items-item" data-id="ONTO-CONF-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">ONTO-CONF-1</span>
+                  <span class="item-name">Ontology Confidence</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="ONTO-DRIFT-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">ONTO-DRIFT-1</span>
+                  <span class="item-name">Ontology Drift Adaptation</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="NEURO-1a">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">NEURO-1a</span>
+                  <span class="item-name">Progressive Memory Compression</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="CORE-BG-2">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">CORE-BG-2</span>
+                  <span class="item-name">Pipeline Enrichment Offload</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="RLM-1e">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">RLM-1e</span>
+                  <span class="item-name">Batched Concurrent Extraction</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Distribution Track -->
+            <div class="items-group expanded" id="trackDistribution">
+              <div class="items-group-header">
+                <span class="items-group-arrow">&#9654;</span>
+                <div class="item-dot dot-distribution" style="width:8px;height:8px;border-radius:50%;flex-shrink:0"></div>
+                Distribution
+                <span class="items-group-count">(6)</span>
+                <div class="items-group-badges">
+                  <span class="items-group-badge" style="background:#f59e0b20;color:#f59e0b" id="distGateBadge">&#9888;1 gate</span>
+                  <span class="items-group-badge" style="background:#22c55e20;color:#22c55e">&#10003;1 complete</span>
+                </div>
+              </div>
+              <div class="items-group-children">
+                <div class="items-item" data-id="DIST-ADOPT-1" id="itemDistAdopt">
+                  <div class="item-dot" style="background:#f59e0b" id="itemDistAdoptDot"></div>
+                  <span class="item-code">DIST-ADOPT-1</span>
+                  <span class="item-name">OSS Adoption</span>
+                  <span class="item-badge" style="background:#f59e0b20;color:#f59e0b" id="itemDistAdoptBadge">&#9888; gate: plan&rarr;implement</span>
+                </div>
+                <div class="items-item" data-id="DIST-BENCH-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">DIST-BENCH-1</span>
+                  <span class="item-name">Benchmark Suite</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="DIST-PUB-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">DIST-PUB-1</span>
+                  <span class="item-name">Technical Publication</span>
+                  <span class="item-badge" style="background:#64748b20;color:#64748b">parked</span>
+                  <span class="blocked-note">&larr; blocked by DIST-BENCH-1</span>
+                </div>
+                <div class="items-item" data-id="DIST-INTEGRATIONS-1" id="itemDistIntegrations">
+                  <div class="item-dot" style="background:#64748b" id="itemDistIntDot"></div>
+                  <span class="item-code">DIST-INTEGRATIONS-1</span>
+                  <span class="item-name">Integrations</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                  <span class="blocked-note" id="distIntBlockedNote">&larr; blocked by DIST-ADOPT-1</span>
+                </div>
+                <div class="items-item" data-id="DIST-AGENT-HOOKS-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">DIST-AGENT-HOOKS-1</span>
+                  <span class="item-name">Agent Lifecycle</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="DIST-RELEASE-1">
+                  <div class="item-dot" style="background:#22c55e"></div>
+                  <span class="item-code">DIST-RELEASE-1</span>
+                  <span class="item-name">PyPI Publish</span>
+                  <span class="item-badge" style="background:#22c55e20;color:#22c55e">&#10003; 28m</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Governance Track -->
+            <div class="items-group expanded" id="trackGovernance">
+              <div class="items-group-header">
+                <span class="items-group-arrow">&#9654;</span>
+                <div class="item-dot dot-governance" style="width:8px;height:8px;border-radius:50%;flex-shrink:0"></div>
+                Governance
+                <span class="items-group-count">(5)</span>
+                <div class="items-group-badges">
+                  <span class="items-group-badge" style="background:#3b82f620;color:#3b82f6">&#9679;1 building</span>
+                </div>
+              </div>
+              <div class="items-group-children">
+                <div class="items-item" data-id="SEC-DOMAIN-1" id="itemSecDomain">
+                  <div class="item-dot" style="background:#3b82f6"></div>
+                  <span class="item-code">SEC-DOMAIN-1</span>
+                  <span class="item-name">Declarative Security Policies</span>
+                  <div class="item-inline">
+                    <div class="inline-bar"><div class="inline-bar-fill" style="width:60%"></div></div>
+                    <span class="inline-step">6/10</span>
+                    <span class="inline-agent codex">Codex</span>
+                    <span class="inline-time">12m</span>
+                  </div>
+                </div>
+                <div class="items-item" data-id="HITL-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">HITL-1</span>
+                  <span class="item-name">HITL Directive System</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="SEC-GUARDRAIL-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">SEC-GUARDRAIL-1</span>
+                  <span class="item-name">Memory-Layer Guardrails</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="GOV-ROLES-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">GOV-ROLES-1</span>
+                  <span class="item-name">Workspace Roles</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="OBS-COVERAGE-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">OBS-COVERAGE-1</span>
+                  <span class="item-name">Memory Coverage Analytics</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Agent Track (collapsed) -->
+            <div class="items-group" id="trackAgent">
+              <div class="items-group-header">
+                <span class="items-group-arrow">&#9654;</span>
+                <div class="item-dot dot-agent" style="width:8px;height:8px;border-radius:50%;flex-shrink:0"></div>
+                Agent
+                <span class="items-group-count">(3)</span>
+                <div class="items-group-badges">
+                  <span class="items-group-badge" style="background:#ef444420;color:#ef4444">&#10005;1 error</span>
+                </div>
+              </div>
+              <div class="items-group-children">
+                <div class="items-item" data-id="CORE-AGENT-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">CORE-AGENT-1</span>
+                  <span class="item-name">Agent Entity Node</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                </div>
+                <div class="items-item" data-id="MAYA-EXEC-1" id="itemMayaExec">
+                  <div class="item-dot" style="background:#ef4444"></div>
+                  <span class="item-code">MAYA-EXEC-1</span>
+                  <span class="item-name">Executive Context Layer</span>
+                  <span class="item-badge" style="background:#ef444420;color:#ef4444">&#10005; error</span>
+                </div>
+                <div class="items-item" data-id="MAYA-MCP-2">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">MAYA-MCP-2</span>
+                  <span class="item-name">fastmcp 3.0 Migration</span>
+                  <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+                  <span class="blocked-note">&larr; blocked by MAYA-EXEC-1</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Async Track (collapsed) -->
+            <div class="items-group" id="trackAsync">
+              <div class="items-group-header">
+                <span class="items-group-arrow">&#9654;</span>
+                <div class="item-dot dot-async" style="width:8px;height:8px;border-radius:50%;flex-shrink:0"></div>
+                Async
+                <span class="items-group-count">(2)</span>
+                <div class="items-group-badges">
+                  <span class="items-group-badge" style="background:#64748b20;color:#64748b">parked</span>
+                </div>
+              </div>
+              <div class="items-group-children">
+                <div class="items-item" data-id="PRE-ASYNC-REF-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">PRE-ASYNC-REF-1</span>
+                  <span class="item-name">Pre-Async Refactor</span>
+                  <span class="item-badge" style="background:#64748b20;color:#64748b">parked</span>
+                </div>
+                <div class="items-item" data-id="CORE-ASYNC-1">
+                  <div class="item-dot" style="background:#64748b"></div>
+                  <span class="item-code">CORE-ASYNC-1</span>
+                  <span class="item-name">Full Async Migration</span>
+                  <span class="item-badge" style="background:#64748b20;color:#64748b">parked</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DOCS TAB -->
+        <div class="tab-content" id="docsContent">
+          <div class="docs-view">
+            <div class="docs-tree" id="docsTree">
+              <div class="docs-tree-heading">CORE-LEARN-1</div>
+              <div class="docs-tree-item active" data-file="design.md">
+                <span class="icon">&#128196;</span> design.md
+              </div>
+              <div class="docs-tree-item" data-file="plan.md">
+                <span class="icon">&#128196;</span> plan.md
+              </div>
+              <div class="docs-tree-item" data-file="blueprint.md">
+                <span class="icon">&#128196;</span> blueprint.md
+              </div>
+              <div class="docs-tree-heading">SEC-DOMAIN-1</div>
+              <div class="docs-tree-item" data-file="sec-design.md">
+                <span class="icon">&#128196;</span> design.md
+              </div>
+              <div class="docs-tree-item" data-file="sec-plan.md">
+                <span class="icon">&#128196;</span> plan.md
+              </div>
+              <div class="docs-tree-item" data-file="sec-contract.json">
+                <span class="icon">&#128196;</span> contract.json
+              </div>
+              <div class="docs-tree-heading">DIST-RELEASE-1</div>
+              <div class="docs-tree-item" data-file="release-plan.md">
+                <span class="icon">&#128196;</span> plan.md
+              </div>
+              <div class="docs-tree-item" data-file="release-report.md">
+                <span class="icon">&#128196;</span> report.md
+              </div>
+              <div class="docs-tree-heading">Project</div>
+              <div class="docs-tree-item" data-file="roadmap.md">
+                <span class="icon">&#128196;</span> roadmap.md
+              </div>
+              <div class="docs-tree-item" data-file="changelog.md">
+                <span class="icon">&#128196;</span> CHANGELOG.md
+              </div>
+            </div>
+            <div class="docs-preview" id="docsPreview">
+              <button class="docs-back-btn" id="docsBackBtn">&larr; Back to Tree</button>
+              <div class="doc-title">CORE-LEARN-1 / design.md</div>
+              <div class="doc-meta">Last modified: 3 minutes ago &middot; 4 sessions &middot; Claude</div>
+              <div class="doc-body">
+                <h2>Self-Correction + Negative Feedback Architecture</h2>
+                <p>The self-correction module enables SmartMemory to learn from negative feedback signals. When a retrieved memory is marked as unhelpful or incorrect, the system adjusts confidence scores and extraction weights to reduce similar false positives.</p>
+                <h2>Feedback Signal Types</h2>
+                <p>Three primary feedback channels: explicit user corrections via <code>memory.correct()</code>, implicit signals from re-retrieval patterns, and automated validation against ground truth during benchmark runs (<code>ONTO-PUB-2</code>).</p>
+                <h2>Correction Pipeline</h2>
+                <p>Corrections flow through a staged pipeline: signal intake, impact analysis, weight adjustment, and verification. The pipeline integrates with <code>ONTO-PROV-1</code> provenance tracking to maintain an audit trail of all corrections.</p>
+                <h2>Negative Weight Decay</h2>
+                <p>Negative feedback applies exponential decay to affected entity confidence scores. Decay rate is configurable per-domain and respects <code>SEC-DOMAIN-1</code> security boundaries.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /tab-content-wrap -->
+
+      <!-- Resizable divider -->
+      <div class="resize-divider" id="panelDivider"></div>
+
+      <!-- Context panel -->
+      <div class="context-panel open-40" id="contextPanel">
+        <div id="cpContent"><!-- Populated by JS --></div>
+      </div>
+    </div>
+
+    <!-- Ops strip -->
+    <div class="ops-strip" id="opsStrip">
+      <div class="ops-entry selected" id="opsCoreLearn" data-id="CORE-LEARN-1">
+        <div class="ops-dot" style="background:#3b82f6"></div>
+        <span class="ops-code">CORE-LEARN-1</span>
+        <div class="ops-blocks">
+          <div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div>
+          <div class="ops-block pending"></div><div class="ops-block pending"></div><div class="ops-block pending"></div><div class="ops-block pending"></div>
+        </div>
+        <span class="ops-info" id="opsCoreLearnInfo">4/8 Claude 3m</span>
+      </div>
+      <div class="ops-entry" id="opsSecDomain" data-id="SEC-DOMAIN-1">
+        <div class="ops-dot" style="background:#3b82f6"></div>
+        <span class="ops-code">SEC-DOMAIN-1</span>
+        <div class="ops-blocks">
+          <div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div>
+          <div class="ops-block pending"></div><div class="ops-block pending"></div><div class="ops-block pending"></div><div class="ops-block pending"></div>
+        </div>
+        <span class="ops-info">6/10 Codex 12m</span>
+      </div>
+      <div class="ops-entry" id="opsDistAdopt" data-id="DIST-ADOPT-1">
+        <div class="ops-dot" style="background:#f59e0b" id="opsDistAdoptDot"></div>
+        <span class="ops-code">DIST-ADOPT-1</span>
+        <span class="ops-info">gate</span>
+        <button class="ops-action" id="opsApproveBtn">Approve</button>
+      </div>
+      <div class="ops-entry" id="opsMayaExec" data-id="MAYA-EXEC-1">
+        <div class="ops-dot" style="background:#ef4444"></div>
+        <span class="ops-code">MAYA-EXEC-1</span>
+        <span class="ops-info" style="color:#ef4444">error</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<!-- Progress bar -->
+<div class="demo-progress"><div class="demo-progress-fill" id="progressFill"></div></div>
+
+<script>
+// ===== DATA =====
+const ITEMS = {
+  'ONTO-PUB-2': { name: 'Entity Benchmark', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Entity extraction benchmark suite for evaluating SmartMemory accuracy against standard corpora.' },
+  'ONTO-PUB-4': { name: 'Relation Benchmark', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Relation extraction benchmark for measuring link prediction quality.' },
+  'ONTO-PUB-5': { name: 'Service Enhancements', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 1, description: 'SmartMemory service API enhancements for query flexibility and batch operations.', blocksTo: ['CORE-LEARN-1', 'ONTO-PROV-1'] },
+  'CORE-LEARN-1': { name: 'Self-Correction', track: 'knowledge', status: 'building', type: 'feature', phase: 'Implementation', confidence: 2, agent: 'Claude', step: 4, totalSteps: 8, pipePhase: 'blueprint', elapsed: '3m', description: 'Self-Correction + Negative Feedback Learning. User corrections and HITL rejections as training signals. Ruler downweighting for false positive reduction.', blocksTo: ['ONTO-PROV-1'], blocksFrom: ['ONTO-PUB-5'] },
+  'CORE-EXT-1b': { name: 'Tiered EntityRuler', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Tiered EntityRuler with priority-based rule selection.', blocksFrom: ['ONTO-PUB-5'] },
+  'CORE-CONF-1': { name: 'Calibration', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Uncertainty calibration module for confidence score accuracy.' },
+  'ONTO-PROV-1': { name: 'Provenance Trust', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Provenance-aware trust scoring with source lineage tracking.', blocksFrom: ['CORE-LEARN-1', 'ONTO-PUB-5'] },
+  'ONTO-CONF-1': { name: 'Ontology Confidence', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Ontology-level confidence aggregation across entity types.' },
+  'ONTO-DRIFT-1': { name: 'Ontology Drift Adaptation', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Automatic ontology drift detection and adaptation.' },
+  'NEURO-1a': { name: 'Progressive Memory Compression', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Vision', confidence: 0, description: 'Progressive memory compression using importance-weighted summarization.' },
+  'CORE-BG-2': { name: 'Pipeline Enrichment Offload', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Background pipeline enrichment offloading for async processing.' },
+  'RLM-1e': { name: 'Batched Concurrent Extraction', track: 'knowledge', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Batched concurrent entity/relation extraction for throughput.' },
+  'DIST-BENCH-1': { name: 'Benchmark Suite', track: 'distribution', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Public benchmark suite for SmartMemory evaluation.' },
+  'DIST-PUB-1': { name: 'Technical Publication', track: 'distribution', status: 'parked', type: 'feature', phase: 'Planning', confidence: 0, description: 'Technical publication describing SmartMemory architecture.', blocksFrom: ['DIST-BENCH-1'] },
+  'DIST-ADOPT-1': { name: 'OSS Adoption', track: 'distribution', status: 'gate', type: 'feature', phase: 'Planning', confidence: 2, gatePhase: 'plan \u2192 implement', artifacts: '85%', words: '2,400', description: 'OSS adoption pipeline: documentation, example projects, integration guides.' },
+  'DIST-INTEGRATIONS-1': { name: 'Integrations', track: 'distribution', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Integration targets for popular frameworks and tools.', blocksFrom: ['DIST-ADOPT-1'] },
+  'DIST-AGENT-HOOKS-1': { name: 'Agent Lifecycle', track: 'distribution', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Agent lifecycle hooks for session management.' },
+  'DIST-RELEASE-1': { name: 'PyPI Publish', track: 'distribution', status: 'complete', type: 'feature', phase: 'Complete', confidence: 4, elapsed: '28m', description: 'Automated release pipeline with semantic versioning and PyPI publishing.' },
+  'SEC-DOMAIN-1': { name: 'Declarative Security Policies', track: 'governance', status: 'building', type: 'feature', phase: 'Implementation', confidence: 3, agent: 'Codex', step: 6, totalSteps: 10, pipePhase: 'implement', elapsed: '12m', description: 'Declarative security policy engine for fine-grained access control with domain boundaries.' },
+  'HITL-1': { name: 'HITL Directive System', track: 'governance', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Human-in-the-loop directive system for guided agent behavior.' },
+  'SEC-GUARDRAIL-1': { name: 'Memory-Layer Guardrails', track: 'governance', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Guardrail policies at the memory layer preventing unsafe operations.' },
+  'GOV-ROLES-1': { name: 'Workspace Roles', track: 'governance', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Workspace role definitions with permission inheritance.' },
+  'OBS-COVERAGE-1': { name: 'Memory Coverage Analytics', track: 'governance', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Analytics dashboard for memory coverage and gap analysis.' },
+  'CORE-AGENT-1': { name: 'Agent Entity Node', track: 'agent', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Agent entity node type for representing agents in the knowledge graph.' },
+  'MAYA-EXEC-1': { name: 'Executive Context Layer', track: 'agent', status: 'error', type: 'feature', phase: 'Implementation', confidence: 1, agent: 'Codex', step: 3, totalSteps: 8, pipePhase: 'implement', errorMsg: "TypeError: context_layer.py line 142: NoneType has no attribute 'merge_context'", description: 'Executive context layer for high-level reasoning state management.' },
+  'MAYA-MCP-2': { name: 'fastmcp 3.0 Migration', track: 'agent', status: 'planned', type: 'feature', phase: 'Planning', confidence: 0, description: 'Migration to fastmcp 3.0 for improved MCP server performance.', blocksFrom: ['MAYA-EXEC-1'] },
+  'PRE-ASYNC-REF-1': { name: 'Pre-Async Refactor', track: 'async', status: 'parked', type: 'feature', phase: 'Planning', confidence: 0, description: 'Preparatory refactor for async migration: identify sync boundaries.' },
+  'CORE-ASYNC-1': { name: 'Full Async Migration', track: 'async', status: 'parked', type: 'feature', phase: 'Planning', confidence: 0, description: 'Full async migration of core SmartMemory operations.' },
+};
+
+const EDGES = [
+  ['ONTO-PUB-5', 'CORE-LEARN-1'],
+  ['ONTO-PUB-2', 'CORE-CONF-1'],
+  ['ONTO-PUB-4', 'CORE-CONF-1'],
+  ['CORE-LEARN-1', 'ONTO-PROV-1'],
+  ['ONTO-PUB-5', 'ONTO-PROV-1'],
+  ['ONTO-PROV-1', 'ONTO-CONF-1'],
+  ['SEC-DOMAIN-1', 'SEC-GUARDRAIL-1'],
+  ['HITL-1', 'SEC-GUARDRAIL-1'],
+  ['HITL-1', 'GOV-ROLES-1'],
+  ['DIST-BENCH-1', 'DIST-PUB-1'],
+  ['DIST-ADOPT-1', 'DIST-INTEGRATIONS-1'],
+  ['PRE-ASYNC-REF-1', 'CORE-ASYNC-1'],
+  ['MAYA-EXEC-1', 'MAYA-MCP-2'],
+  ['ONTO-PUB-5', 'CORE-EXT-1b'],
+];
+
+const TRACK_COLORS = {
+  knowledge: '#8b5cf6',
+  distribution: '#f59e0b',
+  governance: '#06b6d4',
+  worker: '#10b981',
+  agent: '#f97316',
+  async: '#ef4444',
+};
+
+const STATUS_COLORS = {
+  building: '#3b82f6',
+  gate: '#f59e0b',
+  error: '#ef4444',
+  complete: '#22c55e',
+  planned: '#475569',
+  parked: '#334155',
+};
+
+const PIPELINE_STEPS = ['design', 'prd', 'arch', 'blueprint', 'plan', 'implement', 'test', 'ship'];
+
+const CONFIDENCE_LABELS = ['None', 'Low', 'Moderate', 'High', 'Very High'];
+
+const STATUS_OPTIONS = ['planned', 'ready', 'in_progress', 'review', 'complete', 'blocked', 'parked', 'killed'];
+
+const SESSIONS = {
+  'CORE-LEARN-1': [
+    { agent: 'Claude', agentClass: 'claude', duration: '12m', stats: '3r 4w 0e', summary: 'Wrote design.md with problem statement and feedback architecture.' },
+    { agent: 'Claude', agentClass: 'claude', duration: '3m', stats: '2r 1w 0e', summary: 'Architecture options doc for correction pipeline.' },
+  ],
+  'SEC-DOMAIN-1': [
+    { agent: 'Codex', agentClass: 'codex', duration: '12m', stats: '18r 14w 0e', summary: 'Implement step 6: policy evaluation engine.' },
+    { agent: 'Codex', agentClass: 'codex', duration: '6m', stats: '9r 7w 1e', summary: 'Implement step 5: domain boundary enforcement.' },
+    { agent: 'Claude', agentClass: 'claude', duration: '10m', stats: '15r 8w 0e', summary: 'Blueprint: security policy DSL specification.' },
+  ],
+  'MAYA-EXEC-1': [
+    { agent: 'Codex', agentClass: 'codex', duration: '4m', stats: '6r 3w 1e', summary: 'Implement step 3: context merge failed.' },
+    { agent: 'Claude', agentClass: 'claude', duration: '7m', stats: '11r 5w 0e', summary: 'Blueprint: executive context architecture.' },
+  ],
+  'DIST-ADOPT-1': [
+    { agent: 'Claude', agentClass: 'claude', duration: '15m', stats: '22r 12w 0e', summary: 'Plan: adoption funnel and documentation strategy.' },
+  ],
+};
+
+const FILES = {
+  'CORE-LEARN-1': ['design.md', 'plan.md'],
+  'SEC-DOMAIN-1': ['design.md', 'plan.md', 'contract.json'],
+  'DIST-ADOPT-1': ['plan.md'],
+  'MAYA-EXEC-1': ['design.md'],
+  'DIST-RELEASE-1': ['plan.md', 'report.md'],
+};
+
+// ===== CYTOSCAPE GRAPH =====
+let cy = null;
+function initGraph() {
+  const nodes = [];
+  const edges = [];
+
+  for (const [id, item] of Object.entries(ITEMS)) {
+    let borderColor = STATUS_COLORS[item.status] || '#475569';
+    let bgColor = '#1e293b';
+    let fontColor = '#94a3b8';
+
+    if (item.status === 'building') { bgColor = '#1e3a5f'; fontColor = '#93c5fd'; }
+    else if (item.status === 'gate') { bgColor = '#3d2e0a'; fontColor = '#fcd34d'; }
+    else if (item.status === 'error') { bgColor = '#2e0a0a'; fontColor = '#fca5a5'; }
+    else if (item.status === 'complete') { bgColor = '#0a2e1a'; fontColor = '#86efac'; }
+
+    const hasBlocksFrom = item.blocksFrom && item.blocksFrom.length > 0;
+    let opacity = (hasBlocksFrom && item.status === 'planned') ? 0.35 : 1;
+
+    nodes.push({
+      data: {
+        id: id,
+        label: id + '\n' + item.name.substring(0, 22),
+        parent: 'track-' + item.track,
+        borderColor: borderColor,
+        bgColor: bgColor,
+        fontColor: fontColor,
+        status: item.status,
+        opacity: opacity,
+      }
+    });
+  }
+
+  for (const track of Object.keys(TRACK_COLORS)) {
+    nodes.push({
+      data: {
+        id: 'track-' + track,
+        label: track.charAt(0).toUpperCase() + track.slice(1),
+        trackColor: TRACK_COLORS[track],
+      }
+    });
+  }
+
+  for (const [source, target] of EDGES) {
+    const targetItem = ITEMS[target];
+    let edgeOpacity = (targetItem && targetItem.blocksFrom && targetItem.status === 'planned') ? 0.25 : 0.6;
+    edges.push({
+      data: { source, target, edgeOpacity: edgeOpacity }
+    });
+  }
+
+  cy = cytoscape({
+    container: document.getElementById('cyGraph'),
+    elements: { nodes, edges },
+    style: [
+      {
+        selector: 'node[trackColor]',
+        style: {
+          'background-color': '#0f172a',
+          'background-opacity': 0.3,
+          'border-width': 1,
+          'border-style': 'dashed',
+          'border-color': 'data(trackColor)',
+          'border-opacity': 0.4,
+          'label': 'data(label)',
+          'font-size': '10px',
+          'color': 'data(trackColor)',
+          'text-valign': 'top',
+          'text-halign': 'center',
+          'text-margin-y': -4,
+          'font-weight': 700,
+          'text-transform': 'uppercase',
+          'padding': '16px',
+          'shape': 'roundrectangle',
+          'corner-radius': 12,
+        }
+      },
+      {
+        selector: 'node[borderColor]',
+        style: {
+          'background-color': 'data(bgColor)',
+          'border-width': 2,
+          'border-color': 'data(borderColor)',
+          'label': 'data(label)',
+          'font-size': '9px',
+          'color': 'data(fontColor)',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'text-wrap': 'wrap',
+          'text-max-width': '100px',
+          'width': 120,
+          'height': 44,
+          'shape': 'roundrectangle',
+          'corner-radius': 8,
+          'font-weight': 600,
+          'opacity': 'data(opacity)',
+          'overlay-opacity': 0,
+        }
+      },
+      {
+        selector: 'node[status = "building"]',
+        style: { 'border-width': 2.5 }
+      },
+      {
+        selector: 'node:selected',
+        style: {
+          'border-width': 3,
+          'border-color': '#3b82f6',
+          'overlay-color': '#3b82f6',
+          'overlay-opacity': 0.08,
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width': 1.5,
+          'line-color': '#334155',
+          'target-arrow-color': '#334155',
+          'target-arrow-shape': 'triangle',
+          'arrow-scale': 0.7,
+          'curve-style': 'bezier',
+          'opacity': 'data(edgeOpacity)',
+        }
+      },
+    ],
+    layout: {
+      name: 'dagre',
+      rankDir: 'LR',
+      nodeSep: 30,
+      rankSep: 60,
+      padding: 30,
+    },
+    userZoomingEnabled: true,
+    userPanningEnabled: true,
+    boxSelectionEnabled: false,
+  });
+
+  function pulseBuilding() {
+    cy.nodes('[status = "building"]').forEach(n => {
+      n.animate({
+        style: { 'border-width': 4, 'border-opacity': 1 },
+        duration: 1000,
+        complete: () => {
+          n.animate({
+            style: { 'border-width': 2, 'border-opacity': 0.7 },
+            duration: 1000,
+          });
+        }
+      });
+    });
+  }
+  setInterval(pulseBuilding, 2200);
+
+  cy.on('tap', 'node[borderColor]', function(evt) {
+    selectItem(evt.target.id());
+  });
+
+  updateGraphBadges();
+  const cl = cy.getElementById('CORE-LEARN-1');
+  if (cl) cl.select();
+}
+
+function updateGraphBadges() {
+  const container = document.getElementById('graphContent');
+  container.querySelectorAll('.cy-badge').forEach(b => b.remove());
+  cy.nodes('[borderColor]').forEach(node => {
+    const item = ITEMS[node.id()];
+    if (!item) return;
+    if (item.status !== 'gate' && item.status !== 'error') return;
+    const pos = node.renderedPosition();
+    const w = node.renderedWidth();
+    const badge = document.createElement('div');
+    badge.className = 'cy-badge ' + (item.status === 'gate' ? 'gate-badge' : 'error-badge');
+    badge.textContent = '!';
+    badge.style.left = (pos.x + w/2 - 4) + 'px';
+    badge.style.top = (pos.y - node.renderedHeight()/2 - 6) + 'px';
+    badge.dataset.nodeId = node.id();
+    container.appendChild(badge);
+  });
+}
+
+cy && cy.on('pan zoom resize', updateGraphBadges);
+
+// ===== CONTEXT PANEL =====
+function renderContextPanel(itemId, panelWidth) {
+  const item = ITEMS[itemId];
+  if (!item) return;
+
+  const panel = document.getElementById('contextPanel');
+  panel.className = 'context-panel ' + (panelWidth || 'open-40');
+
+  const statusMap = {
+    building: 'in_progress', gate: 'gate', error: 'error',
+    complete: 'complete', parked: 'parked', planned: 'planned',
+  };
+  const displayStatus = statusMap[item.status] || item.status;
+
+  const confDots = Array.from({length: 4}, (_, i) =>
+    `<div class="cp-conf-dot ${i < item.confidence ? 'filled' : ''}"></div>`
+  ).join('');
+  const confLabel = CONFIDENCE_LABELS[item.confidence] || 'None';
+  const confBarWidth = (item.confidence / 4 * 100);
+
+  // Build connections HTML
+  let connectionsHtml = '';
+  if (item.blocksTo && item.blocksTo.length) {
+    item.blocksTo.forEach(t => {
+      connectionsHtml += `<div class="cp-conn-item"><span class="cp-conn-type">blocks to:</span><span class="cp-conn-link" onclick="selectItem('${t}')">${t}</span><button class="cp-conn-delete">&times;</button></div>`;
+    });
+  }
+  if (item.blocksFrom && item.blocksFrom.length) {
+    item.blocksFrom.forEach(f => {
+      connectionsHtml += `<div class="cp-conn-item"><span class="cp-conn-type">blocks from:</span><span class="cp-conn-link" onclick="selectItem('${f}')">${f}</span><button class="cp-conn-delete">&times;</button></div>`;
+    });
+  }
+
+  // Connection sub-graph
+  let connGraphHtml = '';
+  if (item.blocksFrom || item.blocksTo) {
+    const froms = (item.blocksFrom || []).map(f => `<span class="conn-node">${f}</span><span class="conn-arrow">&rarr;</span>`).join('');
+    const tos = (item.blocksTo || []).map(t => `<span class="conn-arrow">&rarr;</span><span class="conn-node">${t}</span>`).join('');
+    connGraphHtml = `<div class="cp-conn-graph">${froms}<span class="conn-node active">${itemId}</span>${tos}</div>`;
+  }
+
+  // Lifecycle dots
+  const lcPhases = ['Vision', 'Requirements', 'Design', 'Planning', 'Implementation', 'Testing', 'Deployment', 'Complete'];
+  const lcIndex = lcPhases.indexOf(item.phase);
+  const lcDotsHtml = lcPhases.map((p, i) => {
+    let cls = '';
+    if (i < lcIndex) cls = 'done';
+    else if (i === lcIndex) cls = 'current';
+    const dot = `<div class="cp-lc-dot ${cls}" title="${p}"></div>`;
+    return i > 0 ? `<div class="cp-lc-line ${i <= lcIndex ? 'done' : ''}"></div>${dot}` : dot;
+  }).join('');
+
+  // Status options
+  const statusOpts = STATUS_OPTIONS.map(s =>
+    `<option value="${s}" ${s === displayStatus ? 'selected' : ''}>${s}</option>`
+  ).join('');
+
+  // Phase options
+  const phaseOpts = lcPhases.map(p =>
+    `<option value="${p}" ${p === item.phase ? 'selected' : ''}>${p}</option>`
+  ).join('');
+
+  let html = '';
+
+  // === HEADER: Type badge + Phase badge + Title + Close ===
+  html += `
+    <div class="cp-header">
+      <div class="cp-header-left">
+        <div class="cp-badges">
+          <span class="cp-badge type-feature">${item.type || 'feature'}</span>
+          <span class="cp-badge phase-badge">${item.phase || 'Planning'}</span>
+        </div>
+        <div class="cp-title">${itemId}</div>
+        <div class="cp-title-hint">(double-click to edit)</div>
+      </div>
+      <button class="cp-close" onclick="closeContextPanel()">&times;</button>
+    </div>`;
+
+  // === STATUS + CONFIDENCE ROW ===
+  html += `
+    <div class="cp-section">
+      <div class="cp-label">Status + Confidence</div>
+      <div class="cp-status-row">
+        <select class="cp-select">${statusOpts}</select>
+        <div class="cp-confidence">${confDots}<span class="cp-conf-label">${confLabel}</span></div>
+        <div class="cp-conf-bar"><div class="cp-conf-bar-fill" style="width:${confBarWidth}%"></div></div>
+      </div>
+    </div>`;
+
+  // === PHASE SELECTOR ===
+  html += `
+    <div class="cp-section">
+      <div class="cp-label">Phase</div>
+      <select class="cp-select">${phaseOpts}</select>
+    </div>`;
+
+  // === DESCRIPTION ===
+  html += `
+    <div class="cp-section">
+      <div class="cp-label">Description</div>
+      <div class="cp-desc">${item.description || 'No description'}</div>
+      <div class="cp-desc-hint">(click to edit)</div>
+    </div>`;
+
+  // === CONNECTIONS ===
+  html += `
+    <div class="cp-section">
+      <div class="cp-label">Connections</div>
+      ${connectionsHtml || '<div style="font-size:10px;color:#475569;">No connections</div>'}
+      <button class="cp-add-conn">+ Add Connection</button>
+      ${connGraphHtml}
+    </div>`;
+
+  // === LIFECYCLE ===
+  html += `
+    <div class="cp-section">
+      <div class="cp-label">Lifecycle</div>
+      <div class="cp-lifecycle">
+        <div class="cp-lifecycle-label">Phase: ${item.phase || 'Planning'}  &middot;  Feature: ${itemId}</div>
+        <div class="cp-lifecycle-dots">${lcDotsHtml}</div>
+      </div>
+    </div>`;
+
+  // === NEW OPS DIVIDER ===
+  const hasOps = (item.status === 'building' || item.status === 'error' || item.status === 'complete' || item.status === 'gate' || SESSIONS[itemId] || FILES[itemId]);
+  if (hasOps) {
+    html += `<div class="cp-ops-divider"><span class="cp-ops-divider-text">&darr; ops &darr;</span></div>`;
+  }
+
+  // === PIPELINE (only when build active) ===
+  if (item.status === 'building' || item.status === 'error' || item.status === 'complete' || item.status === 'gate') {
+    const activeStep = item.pipePhase ? PIPELINE_STEPS.indexOf(item.pipePhase) : -1;
+    const completedTo = item.status === 'complete' ? PIPELINE_STEPS.length : (item.status === 'gate' ? Math.max(0, activeStep) : activeStep);
+
+    html += `<div class="cp-section" id="cpPipeline"><div class="cp-label">Pipeline${item.status === 'building' ? ' (active build)' : ''}</div><div class="pipeline" id="pipelineViz">`;
+    PIPELINE_STEPS.forEach((step, i) => {
+      if (i > 0) {
+        const lineClass = i <= completedTo ? 'done' : '';
+        html += `<div class="pipe-line ${lineClass}"></div>`;
+      }
+      let dotClass = '';
+      let labelClass = '';
+      if (item.status === 'complete' || i < completedTo) {
+        dotClass = 'done'; labelClass = 'done';
+      } else if (i === completedTo && item.status === 'building') {
+        dotClass = 'active'; labelClass = 'active';
+      } else if (i === completedTo && item.status === 'gate') {
+        dotClass = 'gate-dot'; labelClass = 'active';
+      } else if (i === completedTo && item.status === 'error') {
+        dotClass = 'error-dot'; labelClass = 'active';
+      }
+      html += `<div class="pipe-step"><div class="pipe-dot ${dotClass}" id="pipeDot${i}"></div><div class="pipe-label ${labelClass}">${step}</div></div>`;
+    });
+    html += `</div>`;
+    if (item.status === 'building') {
+      html += `<div class="pipe-summary">step ${item.step || '?'}/${item.totalSteps || '?'} &middot; ${item.pipePhase || '?'}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // === GATE CARD ===
+  if (item.status === 'gate') {
+    html += `<div class="cp-section" id="cpGate"><div class="cp-label">Gate Approval</div>
+      <div class="gate-card">
+        <div class="gate-title">Phase Transition: ${item.gatePhase || 'plan \u2192 implement'}</div>
+        <div class="gate-meta">Artifacts: ${item.artifacts || '85%'} complete &middot; ${item.words || '2,400'} words</div>
+        <div class="gate-actions">
+          <button class="gate-btn approve" id="cpApproveBtn" onclick="approveGate('${itemId}')">Approve</button>
+          <button class="gate-btn revise">Revise</button>
+          <button class="gate-btn kill">Kill</button>
+        </div>
+      </div></div>`;
+  }
+
+  // === SESSIONS ===
+  html += `<div class="cp-section" id="cpSessions"><div class="cp-label">Sessions</div>`;
+  if (SESSIONS[itemId]) {
+    SESSIONS[itemId].forEach(s => {
+      html += `<div class="session-row">
+        <span class="session-agent ${s.agentClass}">${s.agent}</span>
+        <span class="session-duration">${s.duration}</span>
+        <span class="session-stats">${s.stats}</span>
+        <span class="session-summary">${s.summary}</span>
+      </div>`;
+    });
+  } else {
+    html += `<div style="font-size:10px;color:#475569;">(no sessions)</div>`;
+  }
+  html += `</div>`;
+
+  // === ERRORS ===
+  html += `<div class="cp-section" id="cpErrors"><div class="cp-label">Errors</div>`;
+  if (item.status === 'error') {
+    html += `<div class="error-card">
+      <div class="error-title">Step ${item.step}/${item.totalSteps}: ${item.pipePhase}</div>
+      <div class="error-msg">${item.errorMsg || 'Unknown error'}</div>
+      <div class="error-meta">Agent: ${item.agent || 'unknown'} &middot; Step ${item.step} of ${item.totalSteps}</div>
+    </div>`;
+  } else {
+    html += `<div style="font-size:10px;color:#475569;">(none)</div>`;
+  }
+  html += `</div>`;
+
+  // === FILES ===
+  html += `<div class="cp-section" id="cpFiles"><div class="cp-label">Files</div>`;
+  if (FILES[itemId]) {
+    FILES[itemId].forEach(f => {
+      html += `<div class="cp-file-item" onclick="navigateToDoc('${itemId}', '${f}')"><span class="icon">&#128196;</span> ${f}</div>`;
+    });
+  } else {
+    html += `<div style="font-size:10px;color:#475569;">(no files)</div>`;
+  }
+  html += `</div>`;
+
+  // === CROSS-VIEW LINKS ===
+  const currentTab = document.querySelector('.tab-item.active').dataset.tab;
+  html += `<div class="cp-section">`;
+  if (currentTab !== 'graph') {
+    html += `<div class="cp-link" onclick="switchToGraph('${itemId}')">View in Graph &uarr;</div>&nbsp;&nbsp;`;
+  }
+  if (currentTab !== 'items') {
+    html += `<div class="cp-link" onclick="switchToTree('${itemId}')">View in Tree &darr;</div>`;
+  }
+  html += `</div>`;
+
+  // === DELETE BUTTON ===
+  html += `<button class="cp-delete-btn">&#128465; Delete Item</button>`;
+
+  document.getElementById('cpContent').innerHTML = html;
+}
+
+function closeContextPanel() {
+  document.getElementById('contextPanel').className = 'context-panel';
+}
+
+// ===== SELECTION =====
+let selectedItem = 'CORE-LEARN-1';
+
+function selectItem(itemId) {
+  selectedItem = itemId;
+  const currentTab = document.querySelector('.tab-item.active').dataset.tab;
+  renderContextPanel(itemId, currentTab === 'items' ? 'open-50' : 'open-40');
+  if (cy) {
+    cy.nodes().unselect();
+    const node = cy.getElementById(itemId);
+    if (node && node.length) node.select();
+  }
+  document.querySelectorAll('.items-item').forEach(el => el.classList.remove('selected'));
+  const treeItem = document.querySelector(`.items-item[data-id="${itemId}"]`);
+  if (treeItem) treeItem.classList.add('selected');
+  document.querySelectorAll('.ops-entry').forEach(el => el.classList.remove('selected'));
+  const opsEntry = document.querySelector(`.ops-entry[data-id="${itemId}"]`);
+  if (opsEntry) opsEntry.classList.add('selected');
+}
+
+// ===== TAB SWITCHING =====
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+  const contentMap = { graph: 'graphContent', items: 'itemsContent', docs: 'docsContent' };
+  document.getElementById(contentMap[tabName]).classList.add('active');
+  const panel = document.getElementById('contextPanel');
+  const divider = document.getElementById('panelDivider');
+  const opsStrip = document.getElementById('opsStrip');
+  if (tabName === 'docs') {
+    panel.className = 'context-panel';
+    divider.classList.add('hidden');
+    opsStrip.classList.add('hidden');
+  } else {
+    divider.classList.remove('hidden');
+    opsStrip.classList.remove('hidden');
+    if (selectedItem) {
+      renderContextPanel(selectedItem, tabName === 'items' ? 'open-50' : 'open-40');
+    }
+  }
+  if (tabName === 'graph' && cy) {
+    setTimeout(() => {
+      cy.resize();
+      cy.fit(undefined, 30);
+      updateGraphBadges();
+    }, 200);
+  }
+}
+
+function switchToGraph(itemId) {
+  switchTab('graph');
+  selectItem(itemId || selectedItem);
+}
+
+function switchToTree(itemId) {
+  switchTab('items');
+  selectItem(itemId || selectedItem);
+}
+
+function navigateToDoc(itemId, fileName) {
+  switchTab('docs');
+}
+
+document.querySelectorAll('.tab-item').forEach(tab => {
+  tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+});
+
+document.querySelectorAll('.items-group-header').forEach(header => {
+  header.addEventListener('click', () => {
+    header.parentElement.classList.toggle('expanded');
+  });
+});
+
+document.querySelectorAll('.items-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const id = item.dataset.id;
+    if (id) selectItem(id);
+  });
+});
+
+document.querySelectorAll('.ops-entry').forEach(entry => {
+  entry.addEventListener('click', () => {
+    const id = entry.dataset.id;
+    if (id) selectItem(id);
+  });
+});
+
+document.getElementById('docsBackBtn').addEventListener('click', () => {
+  switchToTree(selectedItem);
+});
+
+// ===== GATE APPROVAL =====
+function approveGate(itemId) {
+  if (itemId === 'DIST-ADOPT-1') {
+    ITEMS['DIST-ADOPT-1'].status = 'building';
+    ITEMS['DIST-ADOPT-1'].agent = 'Claude';
+    ITEMS['DIST-ADOPT-1'].step = 1;
+    ITEMS['DIST-ADOPT-1'].totalSteps = 8;
+    ITEMS['DIST-ADOPT-1'].pipePhase = 'implement';
+    ITEMS['DIST-ADOPT-1'].elapsed = '0m';
+    delete ITEMS['DIST-ADOPT-1'].gatePhase;
+    delete ITEMS['DIST-ADOPT-1'].artifacts;
+    delete ITEMS['DIST-ADOPT-1'].words;
+
+    if (cy) {
+      const node = cy.getElementById('DIST-ADOPT-1');
+      node.data({ borderColor: '#3b82f6', bgColor: '#1e3a5f', fontColor: '#93c5fd', status: 'building', opacity: 1 });
+      const intNode = cy.getElementById('DIST-INTEGRATIONS-1');
+      intNode.data({ opacity: 1 });
+      cy.edges('[target = "DIST-INTEGRATIONS-1"]').forEach(e => e.data({ edgeOpacity: 0.6 }));
+      updateGraphBadges();
+    }
+
+    const adoptDot = document.getElementById('itemDistAdoptDot');
+    const adoptBadge = document.getElementById('itemDistAdoptBadge');
+    if (adoptDot) adoptDot.style.background = '#3b82f6';
+    if (adoptBadge) { adoptBadge.style.background = '#3b82f620'; adoptBadge.style.color = '#3b82f6'; adoptBadge.textContent = '1/8'; }
+    const intBlockNote = document.getElementById('distIntBlockedNote');
+    if (intBlockNote) intBlockNote.style.display = 'none';
+    const distGateBadge = document.getElementById('distGateBadge');
+    if (distGateBadge) { distGateBadge.style.background = '#3b82f620'; distGateBadge.style.color = '#3b82f6'; distGateBadge.innerHTML = '&#9679;1 building'; }
+
+    const opsAdopt = document.getElementById('opsDistAdopt');
+    if (opsAdopt) {
+      opsAdopt.querySelector('.ops-dot').style.background = '#3b82f6';
+      opsAdopt.querySelector('.ops-info').textContent = '1/8 Claude 0m';
+      const approveBtn = opsAdopt.querySelector('.ops-action');
+      if (approveBtn) { approveBtn.textContent = 'Approved'; approveBtn.className = 'ops-action approved'; }
+      opsAdopt.classList.add('flash-green');
+      setTimeout(() => opsAdopt.classList.remove('flash-green'), 1000);
+    }
+
+    document.getElementById('statBuilding').innerHTML = '&#9679; 3 building';
+    document.getElementById('statGate').innerHTML = '&#9888; 0 gate';
+
+    renderContextPanel(selectedItem, document.querySelector('.tab-item.active').dataset.tab === 'items' ? 'open-50' : 'open-40');
+  }
+}
+
+document.getElementById('graphApproveBtn').addEventListener('click', () => {
+  approveGate('DIST-ADOPT-1');
+  document.getElementById('gatePopover').classList.remove('visible');
+});
+
+document.getElementById('opsApproveBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  approveGate('DIST-ADOPT-1');
+});
+
+// ===== RESIZE DIVIDER =====
+const divider = document.getElementById('panelDivider');
+let isDragging = false;
+divider.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  divider.classList.add('dragging');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const panel = document.getElementById('contextPanel');
+  const container = document.querySelector('.content-main');
+  const containerRect = container.getBoundingClientRect();
+  const newWidth = containerRect.right - e.clientX;
+  const pct = Math.max(25, Math.min(65, (newWidth / containerRect.width) * 100));
+  panel.style.width = pct + '%';
+  panel.className = 'context-panel';
+  panel.style.width = pct + '%';
+});
+document.addEventListener('mouseup', () => {
+  if (isDragging) {
+    isDragging = false;
+    divider.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+});
+
+// ===== ANNOTATION =====
+function showAnnotation(text) {
+  const el = document.getElementById('annotation');
+  el.textContent = text;
+  el.classList.add('visible');
+}
+function hideAnnotation() {
+  document.getElementById('annotation').classList.remove('visible');
+}
+
+// ===== DEMO ANIMATION =====
+let demoTimeouts = [];
+
+function clearAllTimeouts() {
+  demoTimeouts.forEach(t => clearTimeout(t));
+  demoTimeouts = [];
+}
+
+function demoAt(ms, fn) {
+  demoTimeouts.push(setTimeout(fn, ms));
+}
+
+function scrollCpTo(sectionId) {
+  const panel = document.getElementById('contextPanel');
+  const section = document.getElementById(sectionId);
+  if (panel && section) {
+    setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+  }
+}
+
+function startDemo() {
+  clearAllTimeouts();
+  hideAnnotation();
+
+  document.getElementById('preamble').classList.add('hidden');
+  document.getElementById('replayBtn').classList.remove('visible');
+
+  // Reset ITEMS state
+  ITEMS['DIST-ADOPT-1'].status = 'gate';
+  ITEMS['DIST-ADOPT-1'].gatePhase = 'plan \u2192 implement';
+  ITEMS['DIST-ADOPT-1'].artifacts = '85%';
+  ITEMS['DIST-ADOPT-1'].words = '2,400';
+  delete ITEMS['DIST-ADOPT-1'].agent;
+  delete ITEMS['DIST-ADOPT-1'].step;
+  delete ITEMS['DIST-ADOPT-1'].totalSteps;
+  ITEMS['CORE-LEARN-1'].status = 'building';
+  ITEMS['CORE-LEARN-1'].step = 4;
+  ITEMS['CORE-LEARN-1'].pipePhase = 'blueprint';
+
+  document.getElementById('statBuilding').innerHTML = '&#9679; 2 building';
+  document.getElementById('statGate').innerHTML = '&#9888; 1 gate';
+  document.getElementById('statError').innerHTML = '&#10005; 1 error';
+  document.getElementById('statComplete').innerHTML = '&#10003; 2 complete';
+
+  if (cy) {
+    const adoptNode = cy.getElementById('DIST-ADOPT-1');
+    adoptNode.data({ borderColor: '#f59e0b', bgColor: '#3d2e0a', fontColor: '#fcd34d', status: 'gate', opacity: 1 });
+    const intNode = cy.getElementById('DIST-INTEGRATIONS-1');
+    intNode.data({ opacity: 0.35 });
+    cy.edges('[target = "DIST-INTEGRATIONS-1"]').forEach(e => e.data({ edgeOpacity: 0.25 }));
+    const clNode = cy.getElementById('CORE-LEARN-1');
+    clNode.data({ borderColor: '#3b82f6', bgColor: '#1e3a5f', fontColor: '#93c5fd', status: 'building', opacity: 1 });
+    updateGraphBadges();
+  }
+
+  const opsAdopt = document.getElementById('opsDistAdopt');
+  if (opsAdopt) {
+    opsAdopt.querySelector('.ops-dot').style.background = '#f59e0b';
+    opsAdopt.querySelector('.ops-info').textContent = 'gate';
+    const btn = opsAdopt.querySelector('.ops-action');
+    if (btn) { btn.textContent = 'Approve'; btn.className = 'ops-action'; }
+  }
+
+  const distGateBadge = document.getElementById('distGateBadge');
+  if (distGateBadge) { distGateBadge.style.background = '#f59e0b20'; distGateBadge.style.color = '#f59e0b'; distGateBadge.innerHTML = '&#9888;1 gate'; }
+  const adoptDot = document.getElementById('itemDistAdoptDot');
+  if (adoptDot) adoptDot.style.background = '#f59e0b';
+  const adoptBadge = document.getElementById('itemDistAdoptBadge');
+  if (adoptBadge) { adoptBadge.style.background = '#f59e0b20'; adoptBadge.style.color = '#f59e0b'; adoptBadge.innerHTML = '&#9888; gate: plan&rarr;implement'; }
+  const distIntBlockedNote = document.getElementById('distIntBlockedNote');
+  if (distIntBlockedNote) distIntBlockedNote.style.display = '';
+  const provBlockedNote = document.getElementById('provBlockedNote');
+  if (provBlockedNote) provBlockedNote.style.display = '';
+
+  const clDot = document.getElementById('itemCoreLearnDot');
+  if (clDot) clDot.style.background = '#3b82f6';
+  const clBar = document.getElementById('coreLearnBar');
+  if (clBar) clBar.style.width = '50%';
+  const clStep = document.getElementById('coreLearnStep');
+  if (clStep) clStep.textContent = '4/8';
+  // Reset CORE-LEARN-1 inline back to progress bar
+  const clItem = document.getElementById('itemCoreLearn');
+  if (clItem) {
+    const inlineEl = clItem.querySelector('.item-inline');
+    if (inlineEl) {
+      inlineEl.innerHTML = '<div class="inline-bar"><div class="inline-bar-fill" style="width:50%" id="coreLearnBar"></div></div><span class="inline-step" id="coreLearnStep">4/8</span><span class="inline-agent claude">Claude</span><span class="inline-time">3m</span>';
+    }
+  }
+
+  // Reset ops CORE-LEARN-1
+  const opsCL = document.getElementById('opsCoreLearn');
+  if (opsCL) {
+    opsCL.querySelector('.ops-dot').style.background = '#3b82f6';
+    opsCL.querySelector('.ops-code').style.color = '#cbd5e1';
+    opsCL.querySelector('.ops-info').textContent = '4/8 Claude 3m';
+    const blocks = opsCL.querySelector('.ops-blocks');
+    if (blocks) blocks.innerHTML = '<div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block pending"></div><div class="ops-block pending"></div><div class="ops-block pending"></div><div class="ops-block pending"></div>';
+    opsCL.style.opacity = '1';
+  }
+
+  const knowBadge = document.getElementById('knowBuildBadge');
+  if (knowBadge) { knowBadge.style.background = '#3b82f620'; knowBadge.style.color = '#3b82f6'; knowBadge.innerHTML = '&#9679;1 building'; }
+
+  const totalDuration = 50000;
+  const progressFill = document.getElementById('progressFill');
+  const startTime = Date.now();
+  const progressInterval = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const pct = Math.min(100, (elapsed / totalDuration) * 100);
+    progressFill.style.width = pct + '%';
+    if (pct >= 100) clearInterval(progressInterval);
+  }, 100);
+  demoTimeouts.push(progressInterval);
+
+  // ===== ACT 1: GRAPH (0-16s) =====
+
+  demoAt(0, () => {
+    switchTab('graph');
+    selectItem('CORE-LEARN-1');
+    showAnnotation('High level \u2014 full dependency graph with live ops status on nodes');
+  });
+
+  demoAt(4000, () => {
+    hideAnnotation();
+    selectItem('DIST-ADOPT-1');
+    const popover = document.getElementById('gatePopover');
+    if (cy) {
+      const node = cy.getElementById('DIST-ADOPT-1');
+      const pos = node.renderedPosition();
+      popover.style.left = (pos.x + 70) + 'px';
+      popover.style.top = (pos.y - 20) + 'px';
+    } else {
+      popover.style.left = '400px';
+      popover.style.top = '100px';
+    }
+    popover.classList.add('visible');
+    scrollCpTo('cpGate');
+    showAnnotation('Gate approval on graph \u2014 plan \u2192 implement transition');
+  });
+
+  demoAt(7000, () => {
+    hideAnnotation();
+    document.getElementById('gatePopover').classList.remove('visible');
+    approveGate('DIST-ADOPT-1');
+    showAnnotation('Approved \u2014 node turns blue, downstream unblocked, ops strip updates');
+  });
+
+  demoAt(10000, () => {
+    hideAnnotation();
+    selectItem('CORE-LEARN-1');
+    ITEMS['CORE-LEARN-1'].step = 5;
+    ITEMS['CORE-LEARN-1'].pipePhase = 'plan';
+    renderContextPanel('CORE-LEARN-1', 'open-40');
+    scrollCpTo('cpPipeline');
+    document.getElementById('opsCoreLearnInfo').textContent = '5/8 Claude 4m';
+    const opsBlocks = document.querySelector('#opsCoreLearn .ops-blocks');
+    if (opsBlocks) {
+      opsBlocks.innerHTML = '<div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block done"></div><div class="ops-block pending"></div><div class="ops-block pending"></div><div class="ops-block pending"></div>';
+    }
+    const clBarEl = document.getElementById('coreLearnBar');
+    if (clBarEl) clBarEl.style.width = '62.5%';
+    const clStepEl = document.getElementById('coreLearnStep');
+    if (clStepEl) clStepEl.textContent = '5/8';
+    showAnnotation('Pipeline dots advance step-by-step with agent attribution');
+  });
+
+  demoAt(13000, () => {
+    hideAnnotation();
+    showAnnotation('Cross-view navigation \u2014 context follows between zoom levels');
+  });
+
+  // ===== ACT 2: TREE (16-32s) =====
+
+  demoAt(16000, () => {
+    hideAnnotation();
+    switchToTree('CORE-LEARN-1');
+    showAnnotation('Mid level \u2014 flat items per track, blocked-by shown as inline notes');
+  });
+
+  demoAt(20000, () => {
+    hideAnnotation();
+    document.getElementById('trackAgent').classList.add('expanded');
+    selectItem('MAYA-EXEC-1');
+    scrollCpTo('cpErrors');
+    showAnnotation('Error investigation \u2014 see exactly what failed, which step, which agent');
+  });
+
+  demoAt(24000, () => {
+    hideAnnotation();
+    selectItem('SEC-DOMAIN-1');
+    scrollCpTo('cpSessions');
+    showAnnotation('Sessions show agent work history with read/write/error stats');
+  });
+
+  demoAt(27000, () => {
+    hideAnnotation();
+    showAnnotation('Building continues \u2014 pipeline tracks every step');
+  });
+
+  demoAt(30000, () => {
+    hideAnnotation();
+    scrollCpTo('cpFiles');
+    showAnnotation('Click a linked doc to jump to full preview');
+  });
+
+  // ===== ACT 3: DOCS (32-38s) =====
+
+  demoAt(32000, () => {
+    hideAnnotation();
+    switchTab('docs');
+    showAnnotation('Docs \u2014 full-width preview, back button returns to tree');
+  });
+
+  demoAt(35000, () => {
+    hideAnnotation();
+    showAnnotation('Back to tree \u2014 selection state preserved');
+  });
+
+  // ===== ACT 4: RESOLUTION (38-50s) =====
+
+  demoAt(38000, () => {
+    hideAnnotation();
+    switchToTree('CORE-LEARN-1');
+
+    ITEMS['CORE-LEARN-1'].status = 'complete';
+    ITEMS['CORE-LEARN-1'].elapsed = '14m';
+    ITEMS['CORE-LEARN-1'].phase = 'Complete';
+    ITEMS['CORE-LEARN-1'].confidence = 4;
+
+    const clDotEl = document.getElementById('itemCoreLearnDot');
+    if (clDotEl) clDotEl.style.background = '#22c55e';
+    const clItemEl = document.getElementById('itemCoreLearn');
+    if (clItemEl) {
+      clItemEl.classList.add('flash-green');
+      setTimeout(() => clItemEl.classList.remove('flash-green'), 800);
+      const inlineEl = clItemEl.querySelector('.item-inline');
+      if (inlineEl) inlineEl.innerHTML = '<span class="item-badge" style="background:#22c55e20;color:#22c55e">&#10003; 14m</span>';
+    }
+
+    const knowBadgeEl = document.getElementById('knowBuildBadge');
+    if (knowBadgeEl) { knowBadgeEl.style.background = '#22c55e20'; knowBadgeEl.style.color = '#22c55e'; knowBadgeEl.innerHTML = '&#10003;1 complete'; }
+
+    const provNote = document.getElementById('provBlockedNote');
+    if (provNote) provNote.style.display = 'none';
+
+    document.getElementById('statBuilding').innerHTML = '&#9679; 2 building';
+    document.getElementById('statComplete').innerHTML = '&#10003; 3 complete';
+
+    const opsCLEl = document.getElementById('opsCoreLearn');
+    if (opsCLEl) {
+      opsCLEl.querySelector('.ops-dot').style.background = '#22c55e';
+      opsCLEl.querySelector('.ops-code').style.color = '#86efac';
+      opsCLEl.querySelector('.ops-info').textContent = 'complete 14m';
+      const blocks = opsCLEl.querySelector('.ops-blocks');
+      if (blocks) blocks.innerHTML = Array(8).fill('<div class="ops-block" style="background:#22c55e"></div>').join('');
+      opsCLEl.classList.add('flash-green');
+      setTimeout(() => opsCLEl.classList.remove('flash-green'), 1000);
+    }
+
+    renderContextPanel('CORE-LEARN-1', 'open-50');
+    showAnnotation('Build completed \u2014 tree updates, downstream unblocked');
+  });
+
+  demoAt(42000, () => {
+    hideAnnotation();
+    switchToGraph('CORE-LEARN-1');
+    if (cy) {
+      const clNode = cy.getElementById('CORE-LEARN-1');
+      clNode.data({ borderColor: '#22c55e', bgColor: '#0a2e1a', fontColor: '#86efac', status: 'complete', opacity: 1 });
+      const provNode = cy.getElementById('ONTO-PROV-1');
+      provNode.data({ opacity: 1 });
+      cy.edges('[target = "ONTO-PROV-1"]').forEach(e => e.data({ edgeOpacity: 0.6 }));
+      updateGraphBadges();
+    }
+    showAnnotation('Graph reflects all accumulated state changes');
+  });
+
+  demoAt(46000, () => {
+    hideAnnotation();
+    const opsCLEl = document.getElementById('opsCoreLearn');
+    if (opsCLEl) opsCLEl.style.opacity = '0.4';
+    showAnnotation('Ops strip \u2014 only what needs attention');
+  });
+
+  demoAt(50000, () => {
+    hideAnnotation();
+    document.getElementById('replayBtn').classList.add('visible');
+    progressFill.style.width = '100%';
+  });
+}
+
+// ===== INIT =====
+window.addEventListener('DOMContentLoaded', () => {
+  initGraph();
+  renderContextPanel('CORE-LEARN-1', 'open-40');
+});
+</script>
+</body>
+</html>

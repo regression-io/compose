@@ -8,12 +8,12 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { ArtifactManager } from './artifact-manager.js';
-import { TARGET_ROOT, DATA_DIR, resolveProjectPath } from './project-root.js';
+import { ArtifactManager, ARTIFACT_SCHEMAS } from './artifact-manager.js';
+import { getTargetRoot, getDataDir, resolveProjectPath } from './project-root.js';
 
-export const PROJECT_ROOT = TARGET_ROOT;
-export const VISION_FILE = path.join(DATA_DIR, 'vision-state.json');
-export const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+export const PROJECT_ROOT = getTargetRoot();
+export const VISION_FILE = path.join(getDataDir(), 'vision-state.json');
+export const SESSIONS_FILE = path.join(getDataDir(), 'sessions.json');
 
 // ---------------------------------------------------------------------------
 // Data access
@@ -301,6 +301,14 @@ export async function toolCompleteFeature({ id }) {
 
 export function toolAssessFeatureArtifacts({ featureCode }) {
   const featureRoot = resolveProjectPath('features');
+  if (!fs.existsSync(featureRoot)) {
+    // Return empty assessments — feature root hasn't been created yet
+    const empty = {};
+    for (const filename of Object.keys(ARTIFACT_SCHEMAS)) {
+      empty[filename] = { exists: false, wordCount: 0, meetsMinWordCount: false, sections: { found: [], missing: [], optional: [] }, completeness: 0, lastModified: null };
+    }
+    return { artifacts: empty };
+  }
   const manager = new ArtifactManager(featureRoot);
   return manager.assess(featureCode);
 }

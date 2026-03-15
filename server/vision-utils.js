@@ -10,9 +10,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { TARGET_ROOT, loadProjectConfig } from './project-root.js';
+import { getTargetRoot, loadProjectConfig } from './project-root.js';
 
-const PROJECT_ROOT = TARGET_ROOT;
+const PROJECT_ROOT = getTargetRoot();
 
 // ---------------------------------------------------------------------------
 // Error detection

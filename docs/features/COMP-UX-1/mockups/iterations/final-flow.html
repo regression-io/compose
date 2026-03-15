@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Zoom Levels: High - Mid - Low - Docs</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 600px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.7; margin-bottom: 24px; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Header bar */
+.header-bar { display: flex; align-items: center; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; padding: 0 16px; gap: 0; }
+.header-logo { font-size: 13px; font-weight: 700; color: #3b82f6; margin-right: 12px; }
+.header-project { font-size: 11px; color: #64748b; font-weight: 500; margin-right: 20px; padding-right: 20px; border-right: 1px solid #334155; }
+.tab-item { position: relative; padding: 0 16px; height: 40px; display: flex; align-items: center; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; transition: color 0.2s; user-select: none; }
+.tab-item.active { color: #e2e8f0; }
+.tab-item::after { content: ''; position: absolute; bottom: 0; left: 6px; right: 6px; height: 2px; background: transparent; border-radius: 1px; transition: background 0.2s; }
+.tab-item.active::after { background: #3b82f6; }
+.header-spacer { flex: 1; }
+.header-stats { display: flex; align-items: center; gap: 12px; font-size: 11px; font-weight: 600; margin-right: 16px; }
+.stat-building { color: #3b82f6; }
+.stat-gate { color: #f59e0b; }
+.stat-error { color: #ef4444; }
+
+/* Main layout */
+.app-body { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+/* Sidebar */
+.sidebar { width: 180px; background: #0f172a; border-right: 1px solid #334155; flex-shrink: 0; padding: 14px 12px; overflow-y: auto; transition: opacity 0.2s; }
+.sidebar.hidden { opacity: 0; pointer-events: none; width: 0; padding: 0; border: none; overflow: hidden; }
+.sb-heading { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 8px; margin-top: 14px; }
+.sb-heading:first-child { margin-top: 0; }
+.sb-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; padding: 4px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
+.sb-item:hover { background: #1e293b; color: #e2e8f0; }
+.sb-item.active { background: #1e293b; color: #e2e8f0; }
+.sb-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.sb-check { font-size: 10px; color: #64748b; }
+
+/* Content + context wrapper */
+.content-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.content-main { flex: 1; display: flex; overflow: hidden; }
+
+/* Tab content wrapper — takes remaining space left of context panel */
+.tab-content-wrap { flex: 1; min-width: 0; position: relative; overflow: hidden; }
+
+/* Tab content */
+.tab-content { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.15s ease; overflow: hidden; }
+.tab-content.active { opacity: 1; pointer-events: auto; }
+
+/* Context panel (shared) */
+.context-panel { width: 0; background: #1e293b; border-left: 1px solid #334155; flex-shrink: 0; overflow-y: auto; overflow-x: hidden; transition: width 0.25s ease; }
+.context-panel.open-40 { width: 40%; }
+.context-panel.open-50 { width: 50%; }
+.cp-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #334155; min-width: 280px; }
+.cp-header h3 { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.cp-close { width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: #64748b; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+.cp-close:hover { background: #334155; color: #e2e8f0; }
+.cp-section { padding: 10px 14px; border-bottom: 1px solid #334155; min-width: 280px; }
+.cp-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 6px; }
+.cp-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-bottom: 6px; }
+.cp-status.building { background: #3b82f620; color: #3b82f6; }
+.cp-status.gate { background: #f59e0b20; color: #f59e0b; }
+.cp-status.complete { background: #22c55e20; color: #22c55e; }
+.cp-status.error { background: #ef444420; color: #ef4444; }
+.cp-status.planned { background: #64748b20; color: #94a3b8; }
+.cp-detail { font-size: 11px; color: #94a3b8; line-height: 1.6; }
+.cp-progress { width: 100%; height: 4px; background: #334155; border-radius: 2px; margin: 6px 0; overflow: hidden; }
+.cp-progress-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease, background 0.4s ease; }
+.cp-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #3b82f6; cursor: pointer; padding: 4px 0; transition: color 0.2s; }
+.cp-link:hover { color: #60a5fa; }
+.cp-link.glow { animation: linkGlow 1s ease-in-out infinite; }
+@keyframes linkGlow { 0%,100% { color: #3b82f6; } 50% { color: #93c5fd; text-shadow: 0 0 8px #3b82f640; } }
+.cp-file-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; padding: 3px 0; cursor: pointer; transition: color 0.15s; }
+.cp-file-item:hover { color: #e2e8f0; }
+.cp-file-item .icon { font-size: 10px; opacity: 0.6; }
+.cp-session { padding: 4px 0; }
+.cp-session-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; }
+.cp-session-dot { width: 6px; height: 6px; border-radius: 50%; }
+.cp-gate-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.cp-gate-label { font-size: 11px; color: #fcd34d; font-weight: 600; flex: 1; }
+.cp-gate-btn { padding: 3px 12px; border-radius: 4px; border: none; background: #22c55e; color: #000; font-size: 10px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+.cp-gate-btn:hover { background: #16a34a; }
+.cp-gate-btn.approved { background: #334155; color: #22c55e; cursor: default; }
+
+/* Resize divider */
+.resize-divider { width: 4px; background: #334155; cursor: col-resize; flex-shrink: 0; transition: background 0.15s; }
+.resize-divider:hover, .resize-divider.dragging { background: #3b82f6; }
+.resize-divider.hidden { display: none; }
+
+/* Ops strip */
+.ops-strip { display: flex; align-items: center; height: 36px; background: #1e293b; border-top: 1px solid #334155; flex-shrink: 0; padding: 0 16px; gap: 16px; font-size: 11px; overflow-x: auto; transition: height 0.2s ease, opacity 0.2s ease, border-width 0.2s ease; }
+.ops-strip.hidden { height: 0; opacity: 0; border-top-width: 0; overflow: hidden; padding: 0; }
+.ops-entry { display: flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; padding: 2px 8px; border-radius: 4px; transition: all 0.2s; }
+.ops-entry:hover { background: #334155; }
+.ops-entry.selected { background: #33415580; }
+.ops-entry .ops-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ops-entry .ops-code { font-weight: 700; color: #cbd5e1; }
+.ops-entry .ops-info { color: #64748b; }
+.ops-entry .ops-action { padding: 1px 8px; border-radius: 3px; border: 1px solid #f59e0b40; color: #f59e0b; font-size: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s; background: transparent; }
+.ops-entry .ops-action:hover { background: #f59e0b20; }
+.ops-entry .ops-action.approved { border-color: #22c55e40; color: #22c55e; }
+.ops-entry.flash-green { animation: opsFlashGreen 1s ease; }
+@keyframes opsFlashGreen { 0% { background: #22c55e30; } 100% { background: transparent; } }
+
+/* ===== GRAPH VIEW ===== */
+.graph-canvas { position: relative; width: 100%; height: 100%; }
+
+/* Track compound boxes */
+.track-box { position: absolute; border: 1px dashed; border-radius: 12px; opacity: 0.25; pointer-events: none; }
+.track-box.core { border-color: #8b5cf6; background: #8b5cf608; }
+.track-box.dist { border-color: #f59e0b; background: #f59e0b08; }
+.track-box.sec { border-color: #06b6d4; background: #06b6d408; }
+.track-box.pre { border-color: #ef4444; background: #ef444408; }
+.track-box-label { position: absolute; top: -10px; left: 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 0 6px; }
+.track-box.core .track-box-label { color: #8b5cf6; background: #0f172a; }
+.track-box.dist .track-box-label { color: #f59e0b; background: #0f172a; }
+.track-box.sec .track-box-label { color: #06b6d4; background: #0f172a; }
+.track-box.pre .track-box-label { color: #ef4444; background: #0f172a; }
+
+/* Graph nodes */
+.graph-node { position: absolute; padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; border: 1px solid; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 120px; text-align: center; user-select: none; }
+.graph-node .node-label { font-size: 11px; font-weight: 700; }
+.graph-node .node-sub { font-size: 9px; font-weight: 400; opacity: 0.7; }
+.graph-node.building { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
+.graph-node.building.pulse { animation: nodePulse 2s ease-in-out infinite; }
+@keyframes nodePulse { 0%,100% { box-shadow: 0 0 0 0 #3b82f640; } 50% { box-shadow: 0 0 12px 4px #3b82f640; } }
+.graph-node.gate { background: #3d2e0a; border-color: #f59e0b; color: #fcd34d; }
+.graph-node.gate .node-badge { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: #f59e0b; color: #000; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.graph-node.complete { background: #0a2e1a; border-color: #22c55e; color: #86efac; }
+.graph-node.error { background: #2e0a0a; border-color: #ef4444; color: #fca5a5; }
+.graph-node.error .node-badge { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: #ef4444; color: #fff; font-size: 9px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.graph-node.planned { background: #1e293b; border-color: #475569; color: #94a3b8; }
+.graph-node.planned.dimmed { opacity: 0.4; }
+.graph-node.selected { box-shadow: 0 0 0 2px #3b82f6, 0 0 16px #3b82f630; }
+
+/* Graph edges (SVG) */
+.graph-edges { position: absolute; inset: 0; pointer-events: none; }
+.graph-edges line { stroke: #334155; stroke-width: 1.5; transition: stroke 0.3s, opacity 0.3s; }
+.graph-edges line.dimmed { opacity: 0.2; }
+.graph-edges line.active { stroke: #3b82f6; stroke-width: 2; }
+
+/* ===== ITEMS VIEW ===== */
+.items-view { padding: 16px 20px; overflow-y: auto; height: 100%; }
+.items-search { width: 100%; padding: 6px 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 12px; margin-bottom: 14px; outline: none; }
+.items-search:focus { border-color: #3b82f6; }
+.items-search::placeholder { color: #475569; }
+.items-group { margin-bottom: 12px; }
+.items-group-header { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #cbd5e1; padding: 6px 8px; cursor: pointer; border-radius: 4px; transition: background 0.15s; }
+.items-group-header:hover { background: #1e293b; }
+.items-group-arrow { font-size: 10px; color: #64748b; transition: transform 0.2s; display: inline-block; }
+.items-group.expanded .items-group-arrow { transform: rotate(90deg); }
+.items-group-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-left: auto; }
+.items-group-children { display: none; padding-left: 20px; }
+.items-group.expanded .items-group-children { display: block; }
+.items-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #94a3b8; padding: 5px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+.items-item:hover { background: #1e293b; color: #e2e8f0; }
+.items-item.selected { background: #1e293b; color: #e2e8f0; border-left: 2px solid #3b82f6; }
+.items-item .item-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.items-item .item-code { font-weight: 600; color: #cbd5e1; }
+.items-item .item-badge { font-size: 9px; padding: 1px 6px; border-radius: 3px; margin-left: auto; font-weight: 600; }
+.items-item.flash-green { animation: itemFlashGreen 0.8s ease; }
+@keyframes itemFlashGreen { 0% { background: #22c55e20; } 100% { background: transparent; } }
+
+/* ===== DOCS VIEW ===== */
+.docs-view { display: flex; height: 100%; }
+.docs-tree { width: 250px; background: #0f172a; border-right: 1px solid #1e293b; padding: 12px; overflow-y: auto; flex-shrink: 0; }
+.docs-tree-heading { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin-bottom: 6px; margin-top: 10px; }
+.docs-tree-heading:first-child { margin-top: 0; }
+.docs-tree-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; margin-bottom: 1px; }
+.docs-tree-item:hover { background: #1e293b; color: #94a3b8; }
+.docs-tree-item.active { background: #1e293b; color: #e2e8f0; }
+.docs-tree-item .icon { font-size: 10px; }
+.docs-tree-indent { padding-left: 16px; }
+.docs-preview { flex: 1; padding: 20px 28px; overflow-y: auto; }
+.docs-preview .doc-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.docs-preview .doc-meta { font-size: 11px; color: #64748b; margin-bottom: 16px; }
+.docs-preview .doc-body { font-size: 13px; color: #cbd5e1; line-height: 1.8; }
+.docs-preview .doc-body h2 { font-size: 15px; font-weight: 700; color: #e2e8f0; margin: 16px 0 8px; }
+.docs-preview .doc-body p { margin-bottom: 10px; }
+.docs-preview .doc-body code { background: #334155; padding: 1px 5px; border-radius: 3px; font-size: 12px; color: #93c5fd; }
+.docs-back-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #3b82f6; cursor: pointer; padding: 4px 10px; border-radius: 4px; border: 1px solid #3b82f640; background: transparent; transition: all 0.2s; margin-bottom: 12px; }
+.docs-back-btn:hover { background: #3b82f620; }
+.docs-edit-area { display: none; width: 100%; min-height: 100px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; padding: 12px; resize: none; margin-bottom: 10px; outline: none; line-height: 1.6; }
+.docs-edit-area:focus { border-color: #3b82f6; }
+.docs-edit-area.visible { display: block; }
+.docs-edit-actions { display: none; gap: 6px; margin-bottom: 12px; }
+.docs-edit-actions.visible { display: flex; }
+.docs-edit-btn { padding: 4px 14px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.docs-edit-btn:hover { background: #475569; }
+.docs-save-btn { padding: 4px 14px; border-radius: 4px; border: 1px solid #22c55e; background: #22c55e; color: #000; font-size: 11px; font-weight: 600; cursor: pointer; }
+.docs-saved-flash { display: none; font-size: 11px; color: #22c55e; font-weight: 600; align-items: center; gap: 4px; }
+.docs-saved-flash.visible { display: inline-flex; }
+
+/* Annotation */
+.annotation { position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 8px 20px; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.4s ease; pointer-events: none; white-space: nowrap; max-width: 90vw; }
+.annotation.visible { opacity: 1; }
+
+/* Progress bar */
+.demo-progress { position: fixed; bottom: 0; left: 0; right: 0; height: 3px; background: #1e293b; z-index: 50; }
+.demo-progress-fill { height: 100%; background: #3b82f6; width: 0%; transition: width 0.3s linear; }
+</style>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1>Zoom Levels: <span>High &rarr; Mid &rarr; Low &rarr; Docs</span></h1>
+    <p>Three zoom levels, one system. High level (Graph) shows the full dependency network with ops status on nodes. Mid level (Tree) shows features by track with rollup badges. Low level (Detail Panel) shows pipeline, gates, sessions, errors for one feature. Docs is a destination for file content. Navigate smoothly between levels &mdash; state persists, actions sync everywhere.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="startDemo()">Replay</button>
+
+<!-- Header bar -->
+<div class="header-bar">
+  <div class="header-logo">Compose</div>
+  <div class="header-project">my-project</div>
+  <div class="tab-item active" data-tab="graph" id="tabGraph">Graph</div>
+  <div class="tab-item" data-tab="items" id="tabItems">Tree</div>
+  <div class="tab-item" data-tab="docs" id="tabDocs">Docs</div>
+  <div class="header-spacer"></div>
+  <div class="header-stats">
+    <span class="stat-building" id="statBuilding">&#9679; 2</span>
+    <span class="stat-gate" id="statGate">&#9888; 1</span>
+    <span class="stat-error" id="statError">&#10005; 1</span>
+  </div>
+</div>
+
+<!-- App body -->
+<div class="app-body">
+
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sb-heading">Tracks</div>
+    <div class="sb-item active"><span class="sb-check">&#9745;</span> All Tracks</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#8b5cf6"></div> Knowledge</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#f59e0b"></div> Distribution</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#06b6d4"></div> Security</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#ef4444"></div> Prelude</div>
+    <div class="sb-heading">Phases</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#22c55e"></div> Design</div>
+    <div class="sb-item active"><div class="sb-dot" style="background:#3b82f6"></div> Build</div>
+    <div class="sb-item"><div class="sb-dot" style="background:#94a3b8"></div> Ship</div>
+  </div>
+
+  <!-- Content wrap -->
+  <div class="content-wrap">
+    <div class="content-main">
+      <div class="tab-content-wrap">
+
+      <!-- ===== GRAPH TAB ===== -->
+      <div class="tab-content active" id="graphContent">
+        <div class="graph-canvas" id="graphCanvas">
+          <svg class="graph-edges" id="graphEdges"></svg>
+
+          <!-- Track compound boxes -->
+          <div class="track-box core" style="left:30px;top:20px;width:260px;height:210px">
+            <div class="track-box-label">Knowledge</div>
+          </div>
+          <div class="track-box dist" style="left:320px;top:20px;width:260px;height:210px">
+            <div class="track-box-label">Distribution</div>
+          </div>
+          <div class="track-box sec" style="left:30px;top:260px;width:260px;height:120px">
+            <div class="track-box-label">Security</div>
+          </div>
+          <div class="track-box pre" style="left:320px;top:260px;width:260px;height:120px">
+            <div class="track-box-label">Prelude</div>
+          </div>
+
+          <!-- Nodes -->
+          <div class="graph-node building pulse selected" id="nodeCoreLearn" style="left:55px;top:50px" data-id="CORE-LEARN-1">
+            <div class="node-label">CORE-LEARN-1</div>
+            <div class="node-sub">Learning Engine</div>
+          </div>
+          <div class="graph-node complete" id="nodeCoreBase" style="left:55px;top:140px" data-id="CORE-BASE-1">
+            <div class="node-label">CORE-BASE-1</div>
+            <div class="node-sub">Base Runtime</div>
+          </div>
+          <div class="graph-node gate" id="nodeDistAdopt" style="left:345px;top:50px" data-id="DIST-ADOPT-1">
+            <div class="node-badge">!</div>
+            <div class="node-label">DIST-ADOPT-1</div>
+            <div class="node-sub">Adoption Pipeline</div>
+          </div>
+          <div class="graph-node planned dimmed" id="nodeDistPkg" style="left:345px;top:140px" data-id="DIST-PKG-1">
+            <div class="node-label">DIST-PKG-1</div>
+            <div class="node-sub">Packaging</div>
+          </div>
+          <div class="graph-node building pulse" id="nodeSecDomain" style="left:55px;top:290px" data-id="SEC-DOMAIN-1">
+            <div class="node-label">SEC-DOMAIN-1</div>
+            <div class="node-sub">Domain Security</div>
+          </div>
+          <div class="graph-node complete" id="nodeSecAuth" style="left:185px;top:290px" data-id="SEC-AUTH-1">
+            <div class="node-label">SEC-AUTH-1</div>
+            <div class="node-sub">Auth Layer</div>
+          </div>
+          <div class="graph-node error" id="nodePreAsync" style="left:345px;top:290px" data-id="PRE-ASYNC-1">
+            <div class="node-badge">!</div>
+            <div class="node-label">PRE-ASYNC-1</div>
+            <div class="node-sub">Async Runtime</div>
+          </div>
+          <div class="graph-node planned dimmed" id="nodePreStream" style="left:475px;top:290px" data-id="PRE-STREAM-1">
+            <div class="node-label">PRE-STREAM-1</div>
+            <div class="node-sub">Streaming</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ITEMS TAB ===== -->
+      <div class="tab-content" id="itemsContent">
+        <div class="items-view" id="itemsView">
+          <input class="items-search" placeholder="Search features..." readonly>
+
+          <!-- Knowledge Track -->
+          <div class="items-group expanded">
+            <div class="items-group-header">
+              <span class="items-group-arrow">&#9654;</span>
+              <div class="sb-dot" style="background:#8b5cf6"></div> Knowledge Track
+              <span class="items-group-badge" style="background:#3b82f620;color:#3b82f6" id="knowBadge">1 building</span>
+            </div>
+            <div class="items-group-children">
+              <div class="items-item" data-id="CORE-LEARN-1" id="itemCoreLearn">
+                <div class="item-dot" style="background:#3b82f6" id="itemCoreLearnDot"></div>
+                <span class="item-code">CORE-LEARN-1</span> Learning Engine
+                <span class="item-badge" style="background:#3b82f620;color:#3b82f6" id="itemCoreLearnBadge">5/8</span>
+              </div>
+              <div class="items-item" data-id="CORE-BASE-1">
+                <div class="item-dot" style="background:#22c55e"></div>
+                <span class="item-code">CORE-BASE-1</span> Base Runtime
+                <span class="item-badge" style="background:#22c55e20;color:#22c55e">done</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Distribution Track -->
+          <div class="items-group expanded">
+            <div class="items-group-header">
+              <span class="items-group-arrow">&#9654;</span>
+              <div class="sb-dot" style="background:#f59e0b"></div> Distribution Track
+              <span class="items-group-badge" style="background:#f59e0b20;color:#f59e0b" id="distBadge">1 gate</span>
+            </div>
+            <div class="items-group-children">
+              <div class="items-item" data-id="DIST-ADOPT-1" id="itemDistAdopt">
+                <div class="item-dot" style="background:#f59e0b" id="itemDistAdoptDot"></div>
+                <span class="item-code">DIST-ADOPT-1</span> Adoption Pipeline
+                <span class="item-badge" style="background:#f59e0b20;color:#f59e0b" id="itemDistAdoptBadge">gate</span>
+              </div>
+              <div class="items-item" data-id="DIST-PKG-1">
+                <div class="item-dot" style="background:#64748b"></div>
+                <span class="item-code">DIST-PKG-1</span> Packaging
+                <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Security Track -->
+          <div class="items-group expanded">
+            <div class="items-group-header">
+              <span class="items-group-arrow">&#9654;</span>
+              <div class="sb-dot" style="background:#06b6d4"></div> Security Track
+              <span class="items-group-badge" style="background:#3b82f620;color:#3b82f6" id="secBadge">1 building</span>
+            </div>
+            <div class="items-group-children">
+              <div class="items-item" data-id="SEC-DOMAIN-1" id="itemSecDomain">
+                <div class="item-dot" style="background:#3b82f6" id="itemSecDomainDot"></div>
+                <span class="item-code">SEC-DOMAIN-1</span> Domain Security
+                <span class="item-badge" style="background:#3b82f620;color:#3b82f6" id="itemSecDomainBadge">7/10</span>
+              </div>
+              <div class="items-item" data-id="SEC-AUTH-1">
+                <div class="item-dot" style="background:#22c55e"></div>
+                <span class="item-code">SEC-AUTH-1</span> Auth Layer
+                <span class="item-badge" style="background:#22c55e20;color:#22c55e">done</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prelude Track -->
+          <div class="items-group expanded">
+            <div class="items-group-header">
+              <span class="items-group-arrow">&#9654;</span>
+              <div class="sb-dot" style="background:#ef4444"></div> Prelude Track
+              <span class="items-group-badge" style="background:#ef444420;color:#ef4444" id="preBadge">1 error</span>
+            </div>
+            <div class="items-group-children">
+              <div class="items-item" data-id="PRE-ASYNC-1" id="itemPreAsync">
+                <div class="item-dot" style="background:#ef4444"></div>
+                <span class="item-code">PRE-ASYNC-1</span> Async Runtime
+                <span class="item-badge" style="background:#ef444420;color:#ef4444">error</span>
+              </div>
+              <div class="items-item" data-id="PRE-STREAM-1">
+                <div class="item-dot" style="background:#64748b"></div>
+                <span class="item-code">PRE-STREAM-1</span> Streaming
+                <span class="item-badge" style="background:#64748b20;color:#94a3b8">planned</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== DOCS TAB ===== -->
+      <div class="tab-content" id="docsContent">
+        <div class="docs-view">
+          <div class="docs-tree" id="docsTree">
+            <div class="docs-tree-heading">SEC-DOMAIN-1</div>
+            <div class="docs-tree-item active" id="docDesign" data-file="design.md">
+              <span class="icon">&#128196;</span> design.md
+            </div>
+            <div class="docs-tree-item" data-file="spec.md">
+              <span class="icon">&#128196;</span> spec.md
+            </div>
+            <div class="docs-tree-item" data-file="contract.json">
+              <span class="icon">&#128196;</span> contract.json
+            </div>
+            <div class="docs-tree-heading">CORE-LEARN-1</div>
+            <div class="docs-tree-item" data-file="learn-design.md">
+              <span class="icon">&#128196;</span> design.md
+            </div>
+            <div class="docs-tree-item" data-file="learn-plan.md">
+              <span class="icon">&#128196;</span> plan.md
+            </div>
+            <div class="docs-tree-heading">Project</div>
+            <div class="docs-tree-item" data-file="roadmap.md">
+              <span class="icon">&#128196;</span> roadmap.md
+            </div>
+            <div class="docs-tree-item" data-file="changelog.md">
+              <span class="icon">&#128196;</span> CHANGELOG.md
+            </div>
+          </div>
+          <div class="docs-preview" id="docsPreview">
+            <button class="docs-back-btn" id="docsBackBtn">&larr; Back to Tree</button>
+            <div class="doc-title" id="docTitle">SEC-DOMAIN-1 / design.md</div>
+            <div class="doc-meta" id="docMeta">Last modified: 2 hours ago &middot; 3 sessions</div>
+            <div class="doc-body" id="docBody">
+              <h2>Domain Security Architecture</h2>
+              <p>The domain security module provides fine-grained access control for all feature operations. It integrates with the existing <code>SEC-AUTH-1</code> auth layer.</p>
+              <h2>Threat Model</h2>
+              <p>Primary attack vectors include unauthorized feature mutations, cross-track information leakage, and privilege escalation through gate approvals.</p>
+              <h2>Implementation</h2>
+              <p>Each domain boundary is enforced at the API gateway level. Track-level permissions are inherited from the project role matrix.</p>
+            </div>
+            <button class="docs-edit-btn" id="editBtn">Edit</button>
+            <textarea class="docs-edit-area" id="editArea">## Domain Security Architecture
+
+The domain security module provides fine-grained access control for all feature operations. It integrates with the existing `SEC-AUTH-1` auth layer.
+
+## Threat Model
+
+Primary attack vectors include unauthorized feature mutations, cross-track information leakage, and privilege escalation through gate approvals.
+
+## Implementation
+
+Each domain boundary is enforced at the API gateway level. Track-level permissions are inherited from the project role matrix.</textarea>
+            <div class="docs-edit-actions" id="editActions">
+              <button class="docs-save-btn" id="saveBtn">Save</button>
+              <button class="docs-edit-btn" id="cancelBtn">Cancel</button>
+              <span class="docs-saved-flash" id="savedFlash">&#10003; Saved</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      </div><!-- /tab-content-wrap -->
+
+      <!-- Resizable divider -->
+      <div class="resize-divider" id="panelDivider"></div>
+
+      <!-- Context panel (shared between Graph and Tree) -->
+      <div class="context-panel open-40" id="contextPanel">
+        <div id="cpContent">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Ops strip -->
+    <div class="ops-strip" id="opsStrip">
+      <div class="ops-entry selected" id="opsCoreLearn" data-id="CORE-LEARN-1">
+        <div class="ops-dot" style="background:#3b82f6"></div>
+        <span class="ops-code">CORE-LEARN-1</span>
+        <span class="ops-info">5/8 Claude</span>
+      </div>
+      <div class="ops-entry" id="opsSecDomain" data-id="SEC-DOMAIN-1">
+        <div class="ops-dot" style="background:#3b82f6" id="opsSecDomainDot"></div>
+        <span class="ops-code">SEC-DOMAIN-1</span>
+        <span class="ops-info" id="opsSecDomainInfo">7/10 Codex</span>
+      </div>
+      <div class="ops-entry" id="opsDistAdopt" data-id="DIST-ADOPT-1">
+        <div class="ops-dot" style="background:#f59e0b" id="opsDistAdoptDot"></div>
+        <span class="ops-code">DIST-ADOPT-1</span>
+        <span class="ops-info" id="opsDistAdoptInfo">gate</span>
+        <button class="ops-action" id="opsApproveBtn">[Approve]</button>
+      </div>
+      <div class="ops-entry" id="opsPreAsync" data-id="PRE-ASYNC-1">
+        <div class="ops-dot" style="background:#ef4444"></div>
+        <span class="ops-code">PRE-ASYNC-1</span>
+        <span class="ops-info">error</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<!-- Progress -->
+<div class="demo-progress"><div class="demo-progress-fill" id="progressFill"></div></div>
+
+<script>
+// ===== STATE =====
+let demoTimer = null;
+let stepTimers = [];
+const TOTAL_DURATION = 55000;
+
+// ===== HELPERS =====
+function $(id) { return document.getElementById(id); }
+function show(el) { el.style.display = ''; }
+function hide(el) { el.style.display = 'none'; }
+
+function annotate(text) {
+  const a = $('annotation');
+  a.textContent = text;
+  a.classList.add('visible');
+}
+function clearAnnotation() {
+  $('annotation').classList.remove('visible');
+}
+
+function setProgress(pct) {
+  $('progressFill').style.width = pct + '%';
+}
+
+// ===== RESIZABLE DIVIDER =====
+(function() {
+  const divider = document.getElementById('panelDivider');
+  const contentMain = document.querySelector('.content-main');
+  let dragging = false;
+
+  divider.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    divider.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const rect = contentMain.getBoundingClientRect();
+    const cp = document.getElementById('contextPanel');
+    const panelWidth = rect.right - e.clientX;
+    const minPanel = 200;
+    const maxPanel = rect.width * 0.7;
+    const clamped = Math.max(minPanel, Math.min(maxPanel, panelWidth));
+    // Override the percentage-based width with pixel width
+    cp.style.width = clamped + 'px';
+    cp.className = cp.className.replace(/open-\d+/g, '').trim();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    divider.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+})();
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  $(tab + 'Content').classList.add('active');
+
+  const cp = $('contextPanel');
+  const sb = $('sidebar');
+  const ops = $('opsStrip');
+
+  const divider = $('panelDivider');
+  if (tab === 'docs') {
+    cp.className = 'context-panel';
+    sb.classList.add('hidden');
+    ops.classList.add('hidden');
+    divider.classList.add('hidden');
+  } else {
+    sb.classList.remove('hidden');
+    ops.classList.remove('hidden');
+    divider.classList.remove('hidden');
+    if (tab === 'graph') {
+      cp.className = 'context-panel open-40';
+    } else {
+      cp.className = 'context-panel open-50';
+    }
+  }
+}
+
+function selectOpsEntry(id) {
+  document.querySelectorAll('.ops-entry').forEach(e => e.classList.toggle('selected', e.dataset.id === id));
+}
+
+function selectItemRow(id) {
+  document.querySelectorAll('.items-item').forEach(i => {
+    i.classList.toggle('selected', i.dataset.id === id);
+  });
+}
+
+function selectGraphNode(id) {
+  document.querySelectorAll('.graph-node').forEach(n => {
+    n.classList.toggle('selected', n.dataset.id === id);
+  });
+}
+
+function renderContextPanel(config) {
+  const cp = $('cpContent');
+  let html = `<div class="cp-header"><h3>${config.code}</h3></div>`;
+  html += `<div class="cp-section"><div class="cp-label">Status</div>`;
+  html += `<div class="cp-status ${config.statusClass}">${config.statusText}</div>`;
+  if (config.detail) html += `<div class="cp-detail">${config.detail}</div>`;
+  if (config.progress !== undefined) {
+    html += `<div class="cp-progress"><div class="cp-progress-fill" style="width:${config.progress}%;background:${config.progressColor || '#3b82f6'}"></div></div>`;
+  }
+  html += `</div>`;
+
+  if (config.pipeline) {
+    html += `<div class="cp-section"><div class="cp-label">Pipeline</div>`;
+    config.pipeline.forEach(s => {
+      const color = s.done ? '#22c55e' : (s.active ? '#3b82f6' : '#475569');
+      const icon = s.done ? '&#10003;' : (s.active ? '&#9654;' : '&#9675;');
+      html += `<div class="cp-detail" style="color:${color}">${icon} ${s.name}</div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (config.gate) {
+    html += `<div class="cp-section"><div class="cp-label">Gate</div>`;
+    html += `<div class="cp-gate-row"><span class="cp-gate-label">${config.gate.name}</span>`;
+    if (config.gate.approved) {
+      html += `<button class="cp-gate-btn approved">&#10003; Approved</button>`;
+    } else {
+      html += `<button class="cp-gate-btn" id="cpGateBtn">Approve</button>`;
+    }
+    html += `</div></div>`;
+  }
+
+  if (config.sessions) {
+    html += `<div class="cp-section"><div class="cp-label">Sessions</div>`;
+    config.sessions.forEach(s => {
+      html += `<div class="cp-session"><div class="cp-session-row"><div class="cp-session-dot" style="background:${s.color}"></div>${s.label}</div></div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (config.files) {
+    html += `<div class="cp-section"><div class="cp-label">Files</div>`;
+    config.files.forEach(f => {
+      html += `<div class="cp-file-item" data-file="${f.name}"><span class="icon">&#128196;</span>${f.name}</div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (config.error) {
+    html += `<div class="cp-section"><div class="cp-label">Error</div>`;
+    html += `<div class="cp-detail" style="color:#fca5a5">${config.error}</div>`;
+    html += `</div>`;
+  }
+
+  if (config.link) {
+    html += `<div class="cp-section">`;
+    html += `<div class="cp-link${config.linkGlow ? ' glow' : ''}" id="cpLink">${config.link}</div>`;
+    html += `</div>`;
+  }
+
+  cp.innerHTML = html;
+}
+
+// ===== CONTEXT PANEL CONFIGS =====
+const cpCoreLearnBuilding = {
+  code: 'CORE-LEARN-1',
+  statusClass: 'building',
+  statusText: 'Building',
+  detail: 'Step 5 of 8 &middot; Claude session active',
+  progress: 62.5,
+  pipeline: [
+    { name: 'Scaffold', done: true },
+    { name: 'Contracts', done: true },
+    { name: 'Core logic', done: true },
+    { name: 'Integration', done: true },
+    { name: 'Tests', active: true },
+    { name: 'Docs', done: false },
+    { name: 'Review', done: false },
+    { name: 'Ship', done: false },
+  ],
+  sessions: [
+    { color: '#3b82f6', label: 'Claude #4 &mdash; writing tests (2m)' },
+    { color: '#22c55e', label: 'Claude #3 &mdash; completed (12m ago)' },
+  ],
+  files: [
+    { name: 'design.md' },
+    { name: 'plan.md' },
+    { name: 'contract.json' },
+  ],
+};
+
+const cpCoreLearnAdvancing = {
+  ...cpCoreLearnBuilding,
+  detail: 'Step 6 of 8 &middot; Pipeline advancing',
+  progress: 75,
+  pipeline: [
+    { name: 'Scaffold', done: true },
+    { name: 'Contracts', done: true },
+    { name: 'Core logic', done: true },
+    { name: 'Integration', done: true },
+    { name: 'Tests', done: true },
+    { name: 'Docs', active: true },
+    { name: 'Review', done: false },
+    { name: 'Ship', done: false },
+  ],
+  sessions: [
+    { color: '#3b82f6', label: 'Claude #5 &mdash; writing docs (1m)' },
+    { color: '#22c55e', label: 'Claude #4 &mdash; completed (30s ago)' },
+    { color: '#22c55e', label: 'Claude #3 &mdash; completed (12m ago)' },
+  ],
+};
+
+const cpCoreLearnComplete = {
+  code: 'CORE-LEARN-1',
+  statusClass: 'complete',
+  statusText: 'Complete',
+  detail: '8/8 steps done &middot; All gates passed',
+  progress: 100,
+  progressColor: '#22c55e',
+  pipeline: [
+    { name: 'Scaffold', done: true },
+    { name: 'Contracts', done: true },
+    { name: 'Core logic', done: true },
+    { name: 'Integration', done: true },
+    { name: 'Tests', done: true },
+    { name: 'Docs', done: true },
+    { name: 'Review', done: true },
+    { name: 'Ship', done: true },
+  ],
+  sessions: [
+    { color: '#22c55e', label: 'Claude #5 &mdash; completed (just now)' },
+    { color: '#22c55e', label: 'Claude #4 &mdash; completed (2m ago)' },
+  ],
+  link: 'View in Tree &#8595;',
+  linkGlow: true,
+};
+
+const cpPreAsyncError = {
+  code: 'PRE-ASYNC-1',
+  statusClass: 'error',
+  statusText: 'Error',
+  detail: 'Build failed at step 3/6',
+  progress: 50,
+  progressColor: '#ef4444',
+  error: 'TypeError: Cannot read properties of undefined (reading \'subscribe\')<br><br>at AsyncRuntime.init (src/async/runtime.ts:42)<br>at Pipeline.execute (src/pipeline/exec.ts:118)',
+  pipeline: [
+    { name: 'Scaffold', done: true },
+    { name: 'Contracts', done: true },
+    { name: 'Core logic', active: true },
+    { name: 'Integration', done: false },
+    { name: 'Tests', done: false },
+    { name: 'Ship', done: false },
+  ],
+  sessions: [
+    { color: '#ef4444', label: 'Codex #2 &mdash; failed (5m ago)' },
+    { color: '#22c55e', label: 'Codex #1 &mdash; completed (1h ago)' },
+  ],
+};
+
+const cpSecDomainBuilding = {
+  code: 'SEC-DOMAIN-1',
+  statusClass: 'building',
+  statusText: 'Building',
+  detail: 'Step 7 of 10 &middot; Codex session active',
+  progress: 70,
+  pipeline: [
+    { name: 'Scaffold', done: true },
+    { name: 'Contracts', done: true },
+    { name: 'Core logic', done: true },
+    { name: 'Threat model', done: true },
+    { name: 'Policies', done: true },
+    { name: 'Integration', done: true },
+    { name: 'Tests', active: true },
+    { name: 'Review gate', done: false },
+    { name: 'Docs', done: false },
+    { name: 'Ship', done: false },
+  ],
+  sessions: [
+    { color: '#3b82f6', label: 'Codex #3 &mdash; running tests (4m)' },
+    { color: '#22c55e', label: 'Codex #2 &mdash; completed (20m ago)' },
+  ],
+  files: [
+    { name: 'design.md' },
+    { name: 'spec.md' },
+    { name: 'contract.json' },
+    { name: 'threat-model.md' },
+  ],
+};
+
+const cpSecDomainGate = {
+  ...cpSecDomainBuilding,
+  detail: 'Step 8 of 10 &middot; Gate pending',
+  progress: 80,
+  pipeline: [
+    { name: 'Scaffold', done: true },
+    { name: 'Contracts', done: true },
+    { name: 'Core logic', done: true },
+    { name: 'Threat model', done: true },
+    { name: 'Policies', done: true },
+    { name: 'Integration', done: true },
+    { name: 'Tests', done: true },
+    { name: 'Review gate', active: true },
+    { name: 'Docs', done: false },
+    { name: 'Ship', done: false },
+  ],
+  gate: { name: 'Security Review', approved: false },
+  sessions: [
+    { color: '#f59e0b', label: 'Codex #3 &mdash; waiting on gate' },
+    { color: '#22c55e', label: 'Codex #2 &mdash; completed (20m ago)' },
+  ],
+};
+
+const cpSecDomainGateApproved = {
+  ...cpSecDomainGate,
+  detail: 'Step 9 of 10 &middot; Pipeline advancing',
+  progress: 90,
+  pipeline: [
+    { name: 'Scaffold', done: true },
+    { name: 'Contracts', done: true },
+    { name: 'Core logic', done: true },
+    { name: 'Threat model', done: true },
+    { name: 'Policies', done: true },
+    { name: 'Integration', done: true },
+    { name: 'Tests', done: true },
+    { name: 'Review gate', done: true },
+    { name: 'Docs', active: true },
+    { name: 'Ship', done: false },
+  ],
+  gate: { name: 'Security Review', approved: true },
+};
+
+const cpSecDomainComplete = {
+  code: 'SEC-DOMAIN-1',
+  statusClass: 'complete',
+  statusText: 'Build Complete',
+  detail: '10/10 steps done',
+  progress: 100,
+  progressColor: '#22c55e',
+  pipeline: [
+    { name: 'Scaffold', done: true },
+    { name: 'Contracts', done: true },
+    { name: 'Core logic', done: true },
+    { name: 'Threat model', done: true },
+    { name: 'Policies', done: true },
+    { name: 'Integration', done: true },
+    { name: 'Tests', done: true },
+    { name: 'Review gate', done: true },
+    { name: 'Docs', done: true },
+    { name: 'Ship', done: true },
+  ],
+  gate: { name: 'Security Review', approved: true },
+  link: 'View in Graph &#8593;',
+  linkGlow: true,
+};
+
+const cpSecDomainUpdated = {
+  ...cpSecDomainBuilding,
+  detail: 'Step 9 of 10 &middot; Build progressed while away',
+  progress: 90,
+  pipeline: [
+    { name: 'Scaffold', done: true },
+    { name: 'Contracts', done: true },
+    { name: 'Core logic', done: true },
+    { name: 'Threat model', done: true },
+    { name: 'Policies', done: true },
+    { name: 'Integration', done: true },
+    { name: 'Tests', done: true },
+    { name: 'Review gate', done: true },
+    { name: 'Docs', active: true },
+    { name: 'Ship', done: false },
+  ],
+  gate: { name: 'Security Review', approved: true },
+};
+
+// ===== SVG EDGES =====
+function drawEdges() {
+  const svg = $('graphEdges');
+  const canvas = $('graphCanvas');
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+
+  const edges = [
+    ['nodeCoreBase', 'nodeCoreLearn'],
+    ['nodeCoreLearn', 'nodeDistAdopt'],
+    ['nodeDistAdopt', 'nodeDistPkg'],
+    ['nodeSecAuth', 'nodeSecDomain'],
+    ['nodePreAsync', 'nodePreStream'],
+    ['nodeCoreBase', 'nodeSecAuth'],
+  ];
+
+  let linesHtml = '';
+  edges.forEach(([fromId, toId]) => {
+    const from = $(fromId);
+    const to = $(toId);
+    if (!from || !to) return;
+    const fRect = from.getBoundingClientRect();
+    const tRect = to.getBoundingClientRect();
+    const x1 = fRect.left - rect.left + fRect.width / 2;
+    const y1 = fRect.top - rect.top + fRect.height / 2;
+    const x2 = tRect.left - rect.left + tRect.width / 2;
+    const y2 = tRect.top - rect.top + tRect.height / 2;
+    linesHtml += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" data-from="${fromId}" data-to="${toId}"/>`;
+  });
+  svg.innerHTML = linesHtml;
+}
+
+// ===== DEMO SEQUENCE =====
+function clearTimers() {
+  stepTimers.forEach(t => clearTimeout(t));
+  stepTimers = [];
+  if (demoTimer) clearTimeout(demoTimer);
+}
+
+function at(ms, fn) {
+  stepTimers.push(setTimeout(fn, ms));
+}
+
+function resetState() {
+  // Reset tabs
+  switchTab('graph');
+
+  // Reset graph nodes
+  const nodeCL = $('nodeCoreLearn');
+  nodeCL.className = 'graph-node building pulse selected';
+  $('nodeCoreBase').className = 'graph-node complete';
+  const nodeDA = $('nodeDistAdopt');
+  nodeDA.className = 'graph-node gate';
+  nodeDA.innerHTML = '<div class="node-badge">!</div><div class="node-label">DIST-ADOPT-1</div><div class="node-sub">Adoption Pipeline</div>';
+  $('nodeDistPkg').className = 'graph-node planned dimmed';
+  $('nodeSecDomain').className = 'graph-node building pulse';
+  $('nodeSecAuth').className = 'graph-node complete';
+  const nodePA = $('nodePreAsync');
+  nodePA.className = 'graph-node error';
+  nodePA.innerHTML = '<div class="node-badge">!</div><div class="node-label">PRE-ASYNC-1</div><div class="node-sub">Async Runtime</div>';
+  $('nodePreStream').className = 'graph-node planned dimmed';
+
+  // Reset ops strip
+  $('opsStrip').classList.remove('hidden');
+  const opsDA = $('opsDistAdopt');
+  opsDA.querySelector('.ops-dot').style.background = '#f59e0b';
+  $('opsDistAdoptInfo').textContent = 'gate';
+  const opsBtn = $('opsApproveBtn');
+  opsBtn.textContent = '[Approve]';
+  opsBtn.className = 'ops-action';
+  opsBtn.style.display = '';
+
+  $('opsSecDomainDot').style.background = '#3b82f6';
+  $('opsSecDomainInfo').textContent = '7/10 Codex';
+
+  const opsCL = $('opsCoreLearn');
+  opsCL.querySelector('.ops-dot').style.background = '#3b82f6';
+  opsCL.querySelector('.ops-info').textContent = '5/8 Claude';
+  opsCL.style.display = '';
+  selectOpsEntry('CORE-LEARN-1');
+
+  // Reset items
+  $('itemCoreLearnDot').style.background = '#3b82f6';
+  $('itemCoreLearnBadge').textContent = '5/8';
+  $('itemCoreLearnBadge').style.background = '#3b82f620';
+  $('itemCoreLearnBadge').style.color = '#3b82f6';
+  $('itemDistAdoptDot').style.background = '#f59e0b';
+  $('itemDistAdoptBadge').textContent = 'gate';
+  $('itemDistAdoptBadge').style.background = '#f59e0b20';
+  $('itemDistAdoptBadge').style.color = '#f59e0b';
+  $('itemSecDomainDot').style.background = '#3b82f6';
+  $('itemSecDomainBadge').textContent = '7/10';
+  $('knowBadge').textContent = '1 building';
+  $('knowBadge').style.background = '#3b82f620';
+  $('knowBadge').style.color = '#3b82f6';
+  $('distBadge').textContent = '1 gate';
+  $('distBadge').style.background = '#f59e0b20';
+  $('distBadge').style.color = '#f59e0b';
+  $('secBadge').textContent = '1 building';
+  selectItemRow('');
+
+  // Reset header stats
+  $('statBuilding').innerHTML = '&#9679; 2';
+  $('statGate').innerHTML = '&#9888; 1';
+  $('statError').innerHTML = '&#10005; 1';
+
+  // Reset docs
+  $('editArea').classList.remove('visible');
+  $('editActions').classList.remove('visible');
+  $('savedFlash').classList.remove('visible');
+  $('editBtn').style.display = '';
+  $('docBody').style.display = '';
+
+  // Reset context panel
+  renderContextPanel(cpCoreLearnBuilding);
+
+  clearAnnotation();
+  setProgress(0);
+  drawEdges();
+}
+
+function startDemo() {
+  clearTimers();
+  $('preamble').classList.add('hidden');
+  $('replayBtn').classList.add('visible');
+  resetState();
+
+  // ===== ACT 1: GRAPH VIEW (0-18s) =====
+
+  at(500, () => {
+    annotate('High level (Graph) -- dependency network with live build status on nodes');
+    setProgress(0);
+  });
+
+  // Step 2 (4s): Approve from ops strip
+  at(4000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      annotate('Approve from the ops strip -- no need to find the node');
+
+      // Flash the approve button, then approve
+      const btn = $('opsApproveBtn');
+      btn.style.background = '#f59e0b20';
+      setTimeout(() => {
+        btn.textContent = '\\u2713';
+        btn.className = 'ops-action approved';
+        btn.style.background = '';
+
+        // Update graph node
+        const nodeDA = $('nodeDistAdopt');
+        nodeDA.className = 'graph-node building pulse';
+        nodeDA.innerHTML = '<div class="node-label">DIST-ADOPT-1</div><div class="node-sub">Adoption Pipeline</div>';
+
+        // Undim downstream
+        $('nodeDistPkg').classList.remove('dimmed');
+
+        // Update ops strip
+        $('opsDistAdoptDot').style.background = '#3b82f6';
+        $('opsDistAdoptInfo').textContent = 'building';
+
+        // Update header
+        $('statBuilding').innerHTML = '&#9679; 3';
+        $('statGate').innerHTML = '&#9888; 0';
+        $('statGate').style.opacity = '0.3';
+
+        setProgress(7);
+      }, 600);
+    }, 200);
+  });
+
+  // Step 3 (8s): Click CORE-LEARN-1 node, context panel shows pipeline
+  at(8000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      annotate('Low level (Detail Panel) at 40% -- pipeline, sessions, gates');
+      selectGraphNode('CORE-LEARN-1');
+      selectOpsEntry('CORE-LEARN-1');
+      renderContextPanel(cpCoreLearnAdvancing);
+      setProgress(15);
+    }, 200);
+  });
+
+  // Step 4 (12s): CORE-LEARN-1 completes
+  at(12000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      annotate('Build complete -- visible at high, low, and ops strip simultaneously');
+
+      // Graph node turns green
+      $('nodeCoreLearn').className = 'graph-node complete selected';
+
+      // Ops strip flash
+      const opsCL = $('opsCoreLearn');
+      opsCL.classList.add('flash-green');
+      opsCL.querySelector('.ops-dot').style.background = '#22c55e';
+      opsCL.querySelector('.ops-info').textContent = 'complete';
+
+      // Header stats
+      $('statBuilding').innerHTML = '&#9679; 2';
+
+      // Context panel
+      renderContextPanel(cpCoreLearnComplete);
+
+      setProgress(22);
+    }, 200);
+  });
+
+  // Step 5 (15s): Click "View in Items"
+  at(15500, () => {
+    clearAnnotation();
+    setProgress(27);
+  });
+
+  // ===== ACT 2: ITEMS VIEW (18s-35s) =====
+
+  // Step 6 (18s): Switch to Items
+  at(18000, () => {
+    switchTab('items');
+    selectItemRow('CORE-LEARN-1');
+    selectOpsEntry('CORE-LEARN-1');
+
+    // Update items to reflect CORE-LEARN-1 complete
+    $('itemCoreLearnDot').style.background = '#22c55e';
+    $('itemCoreLearnBadge').textContent = 'done';
+    $('itemCoreLearnBadge').style.background = '#22c55e20';
+    $('itemCoreLearnBadge').style.color = '#22c55e';
+    $('knowBadge').textContent = 'all done';
+    $('knowBadge').style.background = '#22c55e20';
+    $('knowBadge').style.color = '#22c55e';
+
+    // Update DIST-ADOPT-1 to building
+    $('itemDistAdoptDot').style.background = '#3b82f6';
+    $('itemDistAdoptBadge').textContent = 'building';
+    $('itemDistAdoptBadge').style.background = '#3b82f620';
+    $('itemDistAdoptBadge').style.color = '#3b82f6';
+    $('distBadge').textContent = '1 building';
+    $('distBadge').style.background = '#3b82f620';
+    $('distBadge').style.color = '#3b82f6';
+
+    renderContextPanel(cpCoreLearnComplete);
+    annotate('Mid level (Tree) -- same item selected, detail panel widens to 50%');
+    setProgress(33);
+  });
+
+  // Step 7 (22s): Click PRE-ASYNC-1
+  at(22000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      selectItemRow('PRE-ASYNC-1');
+      selectOpsEntry('PRE-ASYNC-1');
+      selectGraphNode('PRE-ASYNC-1');
+      renderContextPanel(cpPreAsyncError);
+      annotate('Error investigation -- low level detail in the wide panel');
+      setProgress(40);
+    }, 200);
+  });
+
+  // Step 8 (26s): Click SEC-DOMAIN-1
+  at(26000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      selectItemRow('SEC-DOMAIN-1');
+      selectOpsEntry('SEC-DOMAIN-1');
+      selectGraphNode('SEC-DOMAIN-1');
+      renderContextPanel(cpSecDomainBuilding);
+      annotate('Switch features at mid level -- low level panel is the workhorse');
+      setProgress(47);
+    }, 200);
+  });
+
+  // Step 9 (29s): Gate appears for SEC-DOMAIN-1
+  at(29000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      renderContextPanel(cpSecDomainGate);
+      annotate('Gate approved at low level -- mid level tree and ops strip sync');
+
+      // Simulate clicking approve after a beat
+      setTimeout(() => {
+        renderContextPanel(cpSecDomainGateApproved);
+
+        // Update items
+        $('itemSecDomainBadge').textContent = '9/10';
+
+        // Update ops strip
+        $('opsSecDomainInfo').textContent = '9/10 Codex';
+      }, 1200);
+
+      setProgress(53);
+    }, 200);
+  });
+
+  // Step 10 (32s): Click design.md in Files
+  at(32500, () => {
+    clearAnnotation();
+    renderContextPanel({
+      ...cpSecDomainGateApproved,
+      files: [
+        { name: 'design.md' },
+        { name: 'spec.md' },
+        { name: 'contract.json' },
+        { name: 'threat-model.md' },
+      ],
+    });
+    setProgress(58);
+  });
+
+  // ===== ACT 3: DOCS VIEW (35s-42s) =====
+
+  // Step 11 (35s): Switch to Docs
+  at(35000, () => {
+    switchTab('docs');
+    annotate('Docs -- orthogonal destination, full-width preview, no ops clutter');
+    setProgress(64);
+  });
+
+  // Step 12 (38s): Edit
+  at(38000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      $('editBtn').style.display = 'none';
+      $('docBody').style.display = 'none';
+      $('editArea').classList.add('visible');
+      $('editActions').classList.add('visible');
+
+      // Simulate typing
+      const area = $('editArea');
+      const original = area.value;
+      setTimeout(() => {
+        area.value = original + '\n\n## Audit Trail\n\nAll gate approvals are logged with timestamp, actor, and rationale.';
+        area.scrollTop = area.scrollHeight;
+
+        // Save
+        setTimeout(() => {
+          $('savedFlash').classList.add('visible');
+          annotate('Edit inline -- saved to disk');
+          setProgress(73);
+        }, 800);
+      }, 600);
+    }, 200);
+  });
+
+  // Step 13 (41s): Click Back to Items
+  at(41000, () => {
+    clearAnnotation();
+    setProgress(75);
+  });
+
+  // ===== ACT 4: RETURN (42s-55s) =====
+
+  // Step 14 (42s): Back to Items
+  at(42000, () => {
+    switchTab('items');
+    selectItemRow('SEC-DOMAIN-1');
+    selectOpsEntry('SEC-DOMAIN-1');
+    renderContextPanel(cpSecDomainUpdated);
+    annotate('Back to mid level -- state preserved, builds kept running');
+    setProgress(76);
+
+    // Reset docs edit state for potential replay
+    $('editArea').classList.remove('visible');
+    $('editActions').classList.remove('visible');
+    $('savedFlash').classList.remove('visible');
+    $('editBtn').style.display = '';
+    $('docBody').style.display = '';
+  });
+
+  // Step 15 (45s): SEC-DOMAIN-1 completes
+  at(45000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      // Update items
+      $('itemSecDomainDot').style.background = '#22c55e';
+      $('itemSecDomainBadge').textContent = 'done';
+      $('itemSecDomainBadge').style.background = '#22c55e20';
+      $('itemSecDomainBadge').style.color = '#22c55e';
+      $('secBadge').textContent = 'all done';
+      $('secBadge').style.background = '#22c55e20';
+      $('secBadge').style.color = '#22c55e';
+      $('itemSecDomain').classList.add('flash-green');
+
+      // Update ops strip
+      $('opsSecDomainDot').style.background = '#22c55e';
+      $('opsSecDomainInfo').textContent = 'complete';
+      $('opsSecDomain').classList.add('flash-green');
+
+      // Update header
+      $('statBuilding').innerHTML = '&#9679; 1';
+
+      // Update graph node (for when we switch back)
+      $('nodeSecDomain').className = 'graph-node complete';
+
+      renderContextPanel(cpSecDomainComplete);
+      annotate('Build completed while in Docs -- all zoom levels synced');
+      setProgress(82);
+    }, 200);
+  });
+
+  // Step 16 (48s): Switch to Graph
+  at(48000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      switchTab('graph');
+      selectGraphNode('SEC-DOMAIN-1');
+
+      // DIST-ADOPT-1 also completed while we were away
+      $('nodeDistAdopt').className = 'graph-node complete';
+      $('nodeDistAdopt').innerHTML = '<div class="node-label">DIST-ADOPT-1</div><div class="node-sub">Adoption Pipeline</div>';
+      $('opsDistAdoptDot').style.background = '#22c55e';
+      $('opsDistAdoptInfo').textContent = 'complete';
+      $('opsApproveBtn').style.display = 'none';
+
+      // DistPkg now building
+      $('nodeDistPkg').className = 'graph-node building pulse';
+
+      renderContextPanel(cpSecDomainComplete);
+      annotate('High level reflects ALL accumulated state -- gates, completions, errors');
+      setProgress(87);
+      drawEdges();
+    }, 200);
+  });
+
+  // Step 17 (52s): Ops strip shows only what needs attention
+  at(52000, () => {
+    clearAnnotation();
+    setTimeout(() => {
+      // Hide completed items from ops strip (fade concept)
+      $('opsCoreLearn').style.display = 'none';
+      $('opsDistAdopt').style.display = 'none';
+      $('opsSecDomain').style.display = 'none';
+
+      // Show remaining
+      $('opsPreAsync').classList.add('selected');
+
+      // Add DIST-PKG-1 to ops
+      const strip = $('opsStrip');
+      const existingPkg = document.querySelector('[data-id="DIST-PKG-1"]');
+      if (!existingPkg) {
+        const newEntry = document.createElement('div');
+        newEntry.className = 'ops-entry';
+        newEntry.dataset.id = 'DIST-PKG-1';
+        newEntry.innerHTML = '<div class="ops-dot" style="background:#3b82f6"></div><span class="ops-code">DIST-PKG-1</span><span class="ops-info">building 3m</span>';
+        strip.appendChild(newEntry);
+      }
+
+      annotate('Ops strip -- only what needs attention remains');
+      setProgress(95);
+    }, 200);
+  });
+
+  // Step 18 (55s): Done — show replay
+  at(55000, () => {
+    clearAnnotation();
+    setProgress(100);
+    $('replayBtn').classList.add('visible');
+  });
+}
+
+// Initial edge draw
+window.addEventListener('load', () => {
+  drawEdges();
+  window.addEventListener('resize', drawEdges);
+});
+</script>
+</body>
+</html>

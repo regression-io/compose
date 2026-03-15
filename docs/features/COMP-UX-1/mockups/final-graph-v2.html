@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>High Level: SmartMemory Dependency Graph</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Preamble overlay */
+.preamble { position: fixed; inset: 0; z-index: 200; background: #0f172aee; display: flex; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+.preamble.hidden { opacity: 0; pointer-events: none; }
+.preamble-card { max-width: 580px; padding: 40px; text-align: center; }
+.preamble-card h1 { font-size: 22px; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+.preamble-card h1 span { color: #3b82f6; }
+.preamble-card p { font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 24px; text-align: left; }
+.preamble-card button { padding: 10px 28px; border-radius: 8px; background: #3b82f6; border: none; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.preamble-card button:hover { background: #2563eb; }
+
+/* Replay */
+.replay-btn { position: fixed; top: 10px; right: 16px; z-index: 100; font-size: 11px; padding: 5px 14px; border-radius: 6px; background: #1e293b; border: 1px solid #334155; color: #94a3b8; cursor: pointer; font-weight: 600; transition: all 0.3s ease; opacity: 0; pointer-events: none; }
+.replay-btn:hover { background: #334155; color: #e2e8f0; }
+.replay-btn.visible { opacity: 1; pointer-events: auto; }
+
+/* Tab bar + status pills */
+.tab-strip { display: flex; align-items: center; padding: 0 16px; height: 40px; background: #1e293b; border-bottom: 1px solid #334155; flex-shrink: 0; gap: 2px; }
+.tab-btn { padding: 6px 14px; border-radius: 6px 6px 0 0; background: none; border: 1px solid transparent; border-bottom: none; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.tab-btn:hover { color: #94a3b8; background: #334155; }
+.tab-btn.active { background: #0f172a; color: #3b82f6; border-color: #334155; }
+.tab-spacer { flex: 1; }
+.stat-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 10px; border-radius: 4px; cursor: pointer; transition: all 0.25s ease; user-select: none; font-weight: 500; }
+.stat-pill:hover { filter: brightness(1.2); }
+.stat-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.stat-pill.blue { color: #3b82f6; }
+.stat-pill.blue .dot { background: #3b82f6; }
+.stat-pill.amber { color: #f59e0b; }
+.stat-pill.amber .dot { background: #f59e0b; }
+.stat-pill.red { color: #ef4444; }
+.stat-pill.red .dot { background: #ef4444; }
+.stat-pill.green { color: #22c55e; }
+.stat-pill.green .dot { background: #22c55e; }
+.stat-pill.active-filter { outline: 1px solid currentColor; outline-offset: 1px; }
+
+/* Main layout */
+.main-wrap { display: flex; flex: 1; overflow: hidden; position: relative; }
+.graph-wrap { position: relative; flex: 1; overflow: hidden; }
+#cy { width: 100%; height: 100%; }
+
+/* Resizable divider */
+.divider { width: 4px; background: #334155; cursor: col-resize; flex-shrink: 0; transition: background 0.2s; z-index: 25; }
+.divider:hover, .divider.dragging { background: #3b82f6; }
+
+/* Context panel */
+.context-panel { width: 40%; max-width: 520px; min-width: 320px; background: #1e293b; border-left: 1px solid #334155; flex-shrink: 0; overflow-y: auto; display: none; }
+.context-panel.open { display: block; }
+.cp-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #334155; }
+.cp-header h3 { font-size: 14px; font-weight: 700; }
+.cp-subtitle { font-size: 11px; color: #94a3b8; font-weight: 400; margin-left: 8px; }
+.cp-close { width: 24px; height: 24px; border-radius: 4px; background: none; border: 1px solid #475569; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: all 0.2s; }
+.cp-close:hover { background: #334155; color: #e2e8f0; }
+.cp-section { padding: 14px 16px; border-bottom: 1px solid #0f172a80; }
+.cp-section-title { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+
+/* Pipeline dots */
+.pipeline { display: flex; align-items: center; gap: 0; padding: 4px 0; }
+.pip-dot { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: #0f172a; flex-shrink: 0; transition: background 0.4s ease; }
+.pip-dot.done { background: #22c55e; }
+.pip-dot.active { background: #3b82f6; animation: pulseBlue 2s ease-in-out infinite; }
+.pip-dot.error { background: #ef4444; color: #fff; }
+.pip-dot.gate { background: #f59e0b; }
+.pip-dot.pending { background: #334155; color: #64748b; }
+.pip-line { width: 12px; height: 2px; flex-shrink: 0; transition: background 0.4s ease; }
+.pip-line.done { background: #22c55e60; }
+.pip-line.pending { background: #334155; }
+.pip-labels { display: flex; gap: 0; margin-top: 2px; }
+.pip-label { width: 18px; text-align: center; font-size: 6px; color: #64748b; flex-shrink: 0; }
+.pip-spacer { width: 12px; flex-shrink: 0; }
+
+/* Session rows */
+.session-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 11px; }
+.session-agent { font-weight: 600; min-width: 50px; }
+.session-agent.claude { color: #f97316; }
+.session-agent.codex { color: #22c55e; }
+.session-dur { color: #64748b; min-width: 30px; }
+.session-stats { color: #475569; font-size: 10px; }
+
+/* Error item */
+.error-item { background: #ef444410; border: 1px solid #ef444430; border-radius: 6px; padding: 8px 10px; font-size: 11px; color: #fca5a5; margin-bottom: 6px; }
+
+/* Gate actions */
+.gate-actions { display: flex; gap: 6px; margin-top: 8px; }
+.gate-actions button { padding: 4px 12px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.gate-actions button:hover { background: #475569; }
+.gate-actions button.primary { background: #22c55e; border-color: #22c55e; color: #000; }
+.gate-actions button.primary:hover { background: #16a34a; }
+.gate-actions button.danger { background: #ef4444; border-color: #ef4444; color: #fff; }
+.gate-actions button.danger:hover { background: #dc2626; }
+
+/* File list */
+.file-link { display: block; font-size: 11px; color: #3b82f6; padding: 3px 0; cursor: pointer; text-decoration: none; transition: color 0.2s; }
+.file-link:hover { color: #60a5fa; text-decoration: underline; }
+
+/* Cross-view links */
+.cross-link { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #3b82f6; cursor: pointer; transition: all 0.2s; padding: 4px 8px; border-radius: 4px; border: 1px solid transparent; }
+.cross-link:hover { background: #3b82f610; }
+.cross-link.glow { background: #3b82f620; border-color: #3b82f640; box-shadow: 0 0 12px rgba(59,130,246,0.2); animation: glowPulse 1.5s ease-in-out infinite; }
+
+/* Ops strip */
+.ops-strip { height: 36px; background: #1e293b; border-top: 1px solid #334155; display: flex; align-items: center; padding: 0 16px; gap: 6px; flex-shrink: 0; overflow-x: auto; font-size: 11px; }
+.ops-item { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 4px; white-space: nowrap; flex-shrink: 0; transition: all 0.3s; }
+.ops-item .indicator { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.ops-item.building .indicator { background: #3b82f6; animation: pulse 2s ease-in-out infinite; }
+.ops-item.gate .indicator { background: #f59e0b; }
+.ops-item.error .indicator { background: #ef4444; }
+.ops-item.complete .indicator { background: #22c55e; }
+.ops-item .progress-blocks { display: inline-flex; gap: 1px; margin-left: 2px; }
+.ops-item .block { width: 8px; height: 10px; border-radius: 1px; }
+.ops-item .block.filled { background: currentColor; opacity: 0.7; }
+.ops-item .block.empty { background: #334155; }
+.ops-item .label { color: #94a3b8; font-weight: 500; }
+.ops-item .meta { color: #64748b; font-size: 10px; }
+.ops-item .approve-btn { padding: 1px 8px; border-radius: 3px; background: #22c55e; color: #000; border: none; font-size: 10px; font-weight: 600; cursor: pointer; }
+.ops-item .approve-btn:hover { background: #16a34a; }
+.ops-sep { width: 1px; height: 16px; background: #334155; flex-shrink: 0; }
+.ops-item.flash { animation: flashComplete 0.6s ease; }
+
+/* Gate popover */
+.gate-popover { position: fixed; z-index: 150; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 14px; width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: none; }
+.gate-popover.visible { display: block; }
+.gate-popover h4 { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+.gate-popover .phase-label { font-size: 11px; color: #f59e0b; margin-bottom: 4px; }
+.gate-popover .artifact-pct { font-size: 11px; color: #94a3b8; margin-bottom: 10px; }
+.gate-popover .gate-btns { display: flex; gap: 6px; }
+.gate-popover .gate-btns button { padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid #475569; background: #334155; color: #e2e8f0; transition: all 0.2s; }
+.gate-popover .gate-btns button:hover { background: #475569; }
+.gate-popover .gate-btns .approve { background: #22c55e; border-color: #22c55e; color: #000; }
+.gate-popover .gate-btns .approve:hover { background: #16a34a; }
+.gate-popover .gate-btns .kill { background: #ef4444; border-color: #ef4444; color: #fff; }
+
+/* Error popover */
+.error-popover { position: fixed; z-index: 150; background: #1e293b; border: 1px solid #ef444440; border-radius: 8px; padding: 14px; width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: none; }
+.error-popover.visible { display: block; }
+.error-popover h4 { font-size: 12px; font-weight: 700; color: #ef4444; margin-bottom: 4px; }
+.error-popover .err-type { font-size: 11px; color: #fca5a5; margin-bottom: 2px; }
+.error-popover .err-detail { font-size: 10px; color: #94a3b8; margin-bottom: 8px; font-family: 'SF Mono', monospace; }
+.error-popover .err-meta { font-size: 10px; color: #64748b; }
+
+/* Annotation overlay */
+.annotation { position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%); z-index: 100; background: #0f172af0; border: 1px solid #334155; border-radius: 8px; padding: 8px 18px; font-size: 12px; color: #94a3b8; pointer-events: none; opacity: 0; transition: opacity 0.4s ease; white-space: nowrap; }
+.annotation.visible { opacity: 1; }
+
+/* Tooltip */
+.cy-tooltip { position: fixed; z-index: 60; background: #1e293b; border: 1px solid #475569; border-radius: 6px; padding: 8px 12px; font-size: 11px; color: #e2e8f0; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; max-width: 240px; }
+.cy-tooltip.visible { display: block; }
+.cy-tooltip .tt-label { font-weight: 600; margin-bottom: 2px; }
+.cy-tooltip .tt-meta { color: #94a3b8; font-size: 10px; }
+
+/* Node badges rendered as HTML overlay */
+.node-badge { position: absolute; z-index: 40; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; cursor: pointer; transition: transform 0.15s ease; pointer-events: auto; }
+.node-badge:hover { transform: scale(1.2); }
+.node-badge.gate-badge { background: #f59e0b; color: #000; }
+.node-badge.error-badge { background: #ef4444; color: #fff; }
+
+@keyframes pulseBlue { 0%, 100% { box-shadow: 0 0 4px rgba(59,130,246,0.3); } 50% { box-shadow: 0 0 12px rgba(59,130,246,0.6); } }
+@keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+@keyframes flashComplete { 0% { background: #22c55e30; } 100% { background: transparent; } }
+@keyframes glowPulse { 0%, 100% { box-shadow: 0 0 8px rgba(59,130,246,0.15); } 50% { box-shadow: 0 0 16px rgba(59,130,246,0.35); } }
+</style>
+<script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+</head>
+<body>
+
+<!-- Preamble -->
+<div class="preamble" id="preamble">
+  <div class="preamble-card">
+    <h1>High Level: <span>SmartMemory Dependency Graph</span></h1>
+    <p>SmartMemory's full feature roadmap as a dependency graph with live ops status. 30 features across 6 tracks. Blue pulsing nodes = agents building. Amber = gate needs approval. Red = error. Green = complete. Click nodes for detail panel, click badges for quick actions. Ops strip at bottom shows all active work.</p>
+    <button onclick="startDemo()">Start Demo &rarr;</button>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replayBtn" onclick="startDemo()">Replay</button>
+
+<!-- Tab strip -->
+<div class="tab-strip">
+  <button class="tab-btn active">Graph</button>
+  <button class="tab-btn">Tree</button>
+  <button class="tab-btn">Docs</button>
+  <div class="tab-spacer"></div>
+  <span class="stat-pill blue" id="pill-building" onclick="filterByStatus('building')"><span class="dot"></span>2 building</span>
+  <span class="stat-pill amber" id="pill-gate" onclick="filterByStatus('gate')"><span class="dot"></span>1 gate</span>
+  <span class="stat-pill red" id="pill-error" onclick="filterByStatus('error')"><span class="dot"></span>1 error</span>
+  <span class="stat-pill green" id="pill-complete" onclick="filterByStatus('complete')"><span class="dot"></span>2 complete</span>
+</div>
+
+<!-- Main area -->
+<div class="main-wrap">
+  <div class="graph-wrap">
+    <div id="cy"></div>
+    <div id="badges"></div>
+  </div>
+  <div class="divider" id="divider"></div>
+  <div class="context-panel" id="contextPanel">
+    <div id="cpContent"></div>
+  </div>
+</div>
+
+<!-- Ops strip -->
+<div class="ops-strip" id="opsStrip"></div>
+
+<!-- Popovers -->
+<div class="gate-popover" id="gatePopover">
+  <h4 id="gpTitle"></h4>
+  <div class="phase-label" id="gpPhase"></div>
+  <div class="artifact-pct" id="gpArtifact"></div>
+  <div class="gate-btns">
+    <button class="approve" id="gpApprove">Approve</button>
+    <button id="gpRevise">Revise</button>
+    <button class="kill" id="gpKill">Kill</button>
+  </div>
+</div>
+
+<div class="error-popover" id="errorPopover">
+  <h4 id="epTitle"></h4>
+  <div class="err-type" id="epType"></div>
+  <div class="err-detail" id="epDetail"></div>
+  <div class="err-meta" id="epMeta"></div>
+</div>
+
+<!-- Tooltip -->
+<div class="cy-tooltip" id="tooltip">
+  <div class="tt-label" id="ttLabel"></div>
+  <div class="tt-meta" id="ttMeta"></div>
+</div>
+
+<!-- Annotation -->
+<div class="annotation" id="annotation"></div>
+
+<script>
+// ── Data ────────────────────────────────────────────────────────────────
+const tracks = {
+  knowledge: { label: 'Knowledge', color: '#8b5cf6' },
+  distribution: { label: 'Distribution', color: '#06b6d4' },
+  governance: { label: 'Governance', color: '#f59e0b' },
+  worker: { label: 'Worker', color: '#10b981' },
+  agent: { label: 'Agent', color: '#f97316' },
+  async: { label: 'Async', color: '#6366f1' }
+};
+
+const features = [
+  // Knowledge
+  { id: 'ONTO-PUB-2', label: 'Entity Benchmark', track: 'knowledge', status: 'planned' },
+  { id: 'ONTO-PUB-4', label: 'Relation Benchmark', track: 'knowledge', status: 'planned' },
+  { id: 'ONTO-PUB-5', label: 'Service Enhancements', track: 'knowledge', status: 'planned' },
+  { id: 'CORE-EXT-1b', label: 'Tiered EntityRuler', track: 'knowledge', status: 'planned' },
+  { id: 'CORE-LEARN-1', label: 'Self-Correction', track: 'knowledge', status: 'building', agent: 'Claude', step: 4, total: 8, time: '3m' },
+  { id: 'CORE-CONF-1', label: 'Calibration', track: 'knowledge', status: 'planned' },
+  { id: 'ONTO-PROV-1', label: 'Provenance Trust', track: 'knowledge', status: 'blocked' },
+  { id: 'ONTO-DRIFT-1', label: 'Drift Adaptation', track: 'knowledge', status: 'planned' },
+  { id: 'ONTO-CONF-1', label: 'Conflict Arbitration', track: 'knowledge', status: 'blocked' },
+  { id: 'NEURO-1a', label: 'Progressive Compression', track: 'knowledge', status: 'planned' },
+  { id: 'NEURO-1c', label: 'Novelty Gate', track: 'knowledge', status: 'planned' },
+  { id: 'NEURO-1g', label: 'Causal Discovery', track: 'knowledge', status: 'planned' },
+  // Distribution
+  { id: 'DIST-BENCH-1', label: 'Benchmark Suite', track: 'distribution', status: 'planned' },
+  { id: 'DIST-PUB-1', label: 'Technical Publication', track: 'distribution', status: 'parked' },
+  { id: 'DIST-ADOPT-1', label: 'OSS Adoption', track: 'distribution', status: 'gate', gatePhase: 'plan \u2192 implement', artifactPct: '87%' },
+  { id: 'DIST-INTEGRATIONS-1', label: 'Integration Targets', track: 'distribution', status: 'blocked' },
+  { id: 'DIST-AGENT-HOOKS-1', label: 'Agent Lifecycle', track: 'distribution', status: 'planned' },
+  { id: 'DIST-RELEASE-1', label: 'PyPI Publish', track: 'distribution', status: 'complete' },
+  // Governance
+  { id: 'SEC-DOMAIN-1', label: 'Security Policies', track: 'governance', status: 'building', agent: 'Codex', step: 6, total: 10, time: '12m' },
+  { id: 'HITL-1', label: 'HITL Directives', track: 'governance', status: 'planned' },
+  { id: 'SEC-GUARDRAIL-1', label: 'Guardrails', track: 'governance', status: 'blocked' },
+  { id: 'GOV-ROLES-1', label: 'Workspace Roles', track: 'governance', status: 'blocked' },
+  { id: 'OBS-COVERAGE-1', label: 'Coverage Analytics', track: 'governance', status: 'planned' },
+  // Worker
+  { id: 'CORE-BG-2', label: 'Enrichment Offload', track: 'worker', status: 'planned' },
+  { id: 'CORE-BG-4', label: 'Worker Dashboard', track: 'worker', status: 'complete' },
+  { id: 'RLM-1e', label: 'Batched Extraction', track: 'worker', status: 'planned' },
+  // Agent
+  { id: 'CORE-AGENT-1', label: 'Agent Entity Node', track: 'agent', status: 'planned' },
+  { id: 'MAYA-EXEC-1', label: 'Executive Context', track: 'agent', status: 'error', errorType: 'TypeError', agent: 'Codex', errorStep: 3 },
+  { id: 'MAYA-MCP-2', label: 'fastmcp 3.0', track: 'agent', status: 'planned' },
+  // Async
+  { id: 'PRE-ASYNC-REF-1', label: 'Pre-Async Refactor', track: 'async', status: 'parked' },
+  { id: 'CORE-ASYNC-1', label: 'Full Async Migration', track: 'async', status: 'parked' }
+];
+
+const edges = [
+  ['ONTO-PUB-5', 'CORE-EXT-1b'],
+  ['ONTO-PUB-5', 'CORE-LEARN-1'],
+  ['ONTO-PUB-2', 'CORE-CONF-1'],
+  ['ONTO-PUB-4', 'CORE-CONF-1'],
+  ['CORE-LEARN-1', 'ONTO-PROV-1'],
+  ['ONTO-PUB-5', 'ONTO-PROV-1'],
+  ['ONTO-PROV-1', 'ONTO-CONF-1'],
+  ['SEC-DOMAIN-1', 'SEC-GUARDRAIL-1'],
+  ['HITL-1', 'SEC-GUARDRAIL-1'],
+  ['HITL-1', 'GOV-ROLES-1'],
+  ['DIST-BENCH-1', 'DIST-PUB-1'],
+  ['DIST-ADOPT-1', 'DIST-INTEGRATIONS-1'],
+  ['DIST-INTEGRATIONS-1', 'DIST-AGENT-HOOKS-1'],
+  ['PRE-ASYNC-REF-1', 'CORE-ASYNC-1'],
+  ['NEURO-1g', 'NEURO-1c'],
+  ['MAYA-EXEC-1', 'MAYA-MCP-2']
+];
+
+// ── Status → style mapping ─────────────────────────────────────────────
+function nodeStyle(status) {
+  switch(status) {
+    case 'building': return { borderColor: '#3b82f6', borderWidth: 3, opacity: 1, borderStyle: 'solid' };
+    case 'gate':     return { borderColor: '#f59e0b', borderWidth: 2, opacity: 1, borderStyle: 'solid' };
+    case 'error':    return { borderColor: '#ef4444', borderWidth: 2, opacity: 1, borderStyle: 'solid' };
+    case 'complete': return { borderColor: '#22c55e', borderWidth: 2, opacity: 0.7, borderStyle: 'solid' };
+    case 'parked':   return { borderColor: '#64748b', borderWidth: 1, opacity: 0.6, borderStyle: 'solid' };
+    case 'blocked':  return { borderColor: '#64748b', borderWidth: 2, opacity: 0.4, borderStyle: 'dashed' };
+    default:         return { borderColor: '#475569', borderWidth: 1, opacity: 1, borderStyle: 'solid' };
+  }
+}
+
+// ── Build Cytoscape elements ────────────────────────────────────────────
+function buildElements() {
+  const els = [];
+  // Track compound parents
+  for (const [tid, t] of Object.entries(tracks)) {
+    els.push({ data: { id: 'track-' + tid, label: t.label }, classes: 'track' });
+  }
+  // Feature nodes
+  for (const f of features) {
+    const s = nodeStyle(f.status);
+    let lbl = f.id + '\n' + f.label;
+    if (f.status === 'building') lbl += '\n' + f.agent + ' \u00b7 ' + f.step + '/' + f.total + ' \u00b7 ' + f.time;
+    els.push({
+      data: {
+        id: f.id, label: lbl, parent: 'track-' + f.track,
+        status: f.status, track: f.track,
+        borderColor: s.borderColor, borderWidth: s.borderWidth,
+        nodeOpacity: s.opacity, borderStyle: s.borderStyle,
+        nodeW: f.status === 'building' ? 150 : 140,
+        nodeH: f.status === 'building' ? 60 : 48
+      },
+      classes: f.status
+    });
+  }
+  // Edges
+  for (const [src, tgt] of edges) {
+    els.push({ data: { source: src, target: tgt, label: 'blocks' } });
+  }
+  return els;
+}
+
+// ── Cytoscape init ──────────────────────────────────────────────────────
+let cy;
+function initCy() {
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: buildElements(),
+    style: [
+      { selector: 'node.track', style: {
+        'background-color': '#1e293b',
+        'border-color': '#334155',
+        'border-width': 1,
+        'border-opacity': 0.5,
+        'text-valign': 'top',
+        'text-halign': 'center',
+        'font-size': '11px',
+        'color': '#64748b',
+        'font-weight': 700,
+        'padding': '24px',
+        'label': 'data(label)',
+        'text-margin-y': -4,
+        'shape': 'round-rectangle',
+        'corner-radius': 8
+      }},
+      { selector: 'node[status]', style: {
+        'background-color': '#1e293b',
+        'border-color': 'data(borderColor)',
+        'border-width': 'data(borderWidth)',
+        'border-style': 'data(borderStyle)',
+        'opacity': 'data(nodeOpacity)',
+        'label': 'data(label)',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'font-size': '9px',
+        'color': '#e2e8f0',
+        'text-wrap': 'wrap',
+        'text-max-width': '120px',
+        'width': 'data(nodeW)',
+        'height': 'data(nodeH)',
+        'shape': 'round-rectangle',
+        'corner-radius': 6,
+        'font-weight': 500
+      }},
+      { selector: 'node.building', style: {
+        'border-color': '#3b82f6',
+        'shadow-blur': 12,
+        'shadow-color': '#3b82f640',
+        'shadow-opacity': 1
+      }},
+      { selector: 'edge', style: {
+        'width': 1.5,
+        'line-color': '#47556980',
+        'target-arrow-color': '#47556980',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'arrow-scale': 0.8
+      }},
+      { selector: '.dimmed', style: { 'opacity': 0.12 }},
+      { selector: '.highlighted', style: { 'opacity': 1 }},
+      { selector: 'edge.dimmed', style: { 'opacity': 0.06 }}
+    ],
+    layout: { name: 'dagre', rankDir: 'LR', nodeSep: 30, rankSep: 60, edgeSep: 10 },
+    minZoom: 0.3, maxZoom: 2.5,
+    wheelSensitivity: 0.3
+  });
+
+  // Node click → context panel
+  cy.on('tap', 'node[status]', function(e) {
+    const id = e.target.id();
+    selectNode(id);
+  });
+
+  // Hover tooltip
+  cy.on('mouseover', 'node[status]', function(e) {
+    const f = features.find(x => x.id === e.target.id());
+    if (!f) return;
+    const tt = document.getElementById('tooltip');
+    const lbl = document.getElementById('ttLabel');
+    const meta = document.getElementById('ttMeta');
+    lbl.textContent = f.id + ' - ' + f.label;
+    let m = f.status;
+    if (f.agent) m += ' \u00b7 ' + f.agent;
+    if (f.step) m += ' \u00b7 step ' + f.step + '/' + f.total;
+    if (f.gatePhase) m += ' \u00b7 ' + f.gatePhase;
+    if (f.errorType) m += ' \u00b7 ' + f.errorType;
+    meta.textContent = m;
+    const pos = e.renderedPosition || e.target.renderedPosition();
+    tt.style.left = (pos.x + 20) + 'px';
+    tt.style.top = (pos.y - 10) + 'px';
+    tt.classList.add('visible');
+  });
+  cy.on('mouseout', 'node[status]', function() {
+    document.getElementById('tooltip').classList.remove('visible');
+  });
+
+  // Background click → close panel
+  cy.on('tap', function(e) {
+    if (e.target === cy) {
+      closePanel();
+      closePopovers();
+    }
+  });
+
+  updateBadges();
+  cy.on('pan zoom resize', updateBadges);
+}
+
+// ── Badge overlay ───────────────────────────────────────────────────────
+function updateBadges() {
+  const container = document.getElementById('badges');
+  container.innerHTML = '';
+  const gw = document.querySelector('.graph-wrap').getBoundingClientRect();
+  for (const f of features) {
+    if (f.status !== 'gate' && f.status !== 'error') continue;
+    const node = cy.$('#' + f.id);
+    if (!node.length) continue;
+    const pos = node.renderedPosition();
+    const w = node.renderedWidth();
+    const badge = document.createElement('div');
+    badge.className = 'node-badge ' + (f.status === 'gate' ? 'gate-badge' : 'error-badge');
+    badge.textContent = f.status === 'gate' ? '\u26a0' : '\u2715';
+    badge.style.left = (pos.x + w/2 - 4) + 'px';
+    badge.style.top = (pos.y - node.renderedHeight()/2 - 6) + 'px';
+    badge.dataset.id = f.id;
+    badge.onclick = function(ev) {
+      ev.stopPropagation();
+      if (f.status === 'gate') showGatePopover(f, ev);
+      else showErrorPopover(f, ev);
+    };
+    container.appendChild(badge);
+  }
+}
+
+// ── Popovers ────────────────────────────────────────────────────────────
+function showGatePopover(f, ev) {
+  closePopovers();
+  const pop = document.getElementById('gatePopover');
+  document.getElementById('gpTitle').textContent = f.id + ' - ' + f.label;
+  document.getElementById('gpPhase').textContent = 'Gate: ' + (f.gatePhase || 'plan \u2192 implement');
+  document.getElementById('gpArtifact').textContent = 'Artifacts: ' + (f.artifactPct || '87%') + ' complete';
+  pop.style.left = (ev.clientX - 130) + 'px';
+  pop.style.top = (ev.clientY + 12) + 'px';
+  pop.classList.add('visible');
+}
+
+function showErrorPopover(f, ev) {
+  closePopovers();
+  const pop = document.getElementById('errorPopover');
+  document.getElementById('epTitle').textContent = f.id + ' - ' + f.label;
+  document.getElementById('epType').textContent = f.errorType || 'TypeError';
+  document.getElementById('epDetail').textContent = 'Cannot read properties of undefined (reading \'context\')';
+  document.getElementById('epMeta').textContent = (f.agent || 'Codex') + ' \u00b7 step ' + (f.errorStep || 3) + ' \u00b7 crashed 2m ago';
+  pop.style.left = (ev.clientX - 140) + 'px';
+  pop.style.top = (ev.clientY + 12) + 'px';
+  pop.classList.add('visible');
+}
+
+function closePopovers() {
+  document.getElementById('gatePopover').classList.remove('visible');
+  document.getElementById('errorPopover').classList.remove('visible');
+}
+
+// ── Context panel ───────────────────────────────────────────────────────
+let selectedNode = null;
+
+function selectNode(id) {
+  selectedNode = id;
+  const f = features.find(x => x.id === id);
+  if (!f) return;
+  const panel = document.getElementById('contextPanel');
+  const content = document.getElementById('cpContent');
+
+  // Pipeline phases
+  const phases = ['design','prd','arch','blueprint','plan','implement','test','ship'];
+  let pipelinePhase = 0;
+  if (f.status === 'complete') pipelinePhase = 8;
+  else if (f.status === 'building') pipelinePhase = 5;
+  else if (f.status === 'gate') pipelinePhase = 4;
+  else if (f.status === 'error') pipelinePhase = 5;
+  else if (f.status === 'blocked') pipelinePhase = 1;
+  else pipelinePhase = 0;
+
+  let pipHTML = '<div class="pipeline">';
+  for (let i = 0; i < phases.length; i++) {
+    let cls = 'pending';
+    if (i < pipelinePhase) cls = 'done';
+    else if (i === pipelinePhase && f.status === 'building') cls = 'active';
+    else if (i === pipelinePhase && f.status === 'gate') cls = 'gate';
+    else if (i === pipelinePhase && f.status === 'error') cls = 'error';
+    pipHTML += '<div class="pip-dot ' + cls + '">' + (i+1) + '</div>';
+    if (i < phases.length - 1) pipHTML += '<div class="pip-line ' + (i < pipelinePhase ? 'done' : 'pending') + '"></div>';
+  }
+  pipHTML += '</div><div class="pip-labels">';
+  for (let i = 0; i < phases.length; i++) {
+    pipHTML += '<div class="pip-label">' + phases[i].slice(0,4) + '</div>';
+    if (i < phases.length - 1) pipHTML += '<div class="pip-spacer"></div>';
+  }
+  pipHTML += '</div>';
+
+  // Gate card
+  let gateHTML = '';
+  if (f.status === 'gate') {
+    gateHTML = '<div class="cp-section"><div class="cp-section-title">Gate</div>' +
+      '<div style="font-size:12px;color:#f59e0b;margin-bottom:4px">' + (f.gatePhase || 'plan \u2192 implement') + '</div>' +
+      '<div style="font-size:11px;color:#94a3b8;margin-bottom:8px">Artifacts: ' + (f.artifactPct || '87%') + ' complete</div>' +
+      '<div class="gate-actions"><button class="primary" onclick="approveGate(\'' + f.id + '\')">Approve</button><button>Revise</button><button>Kill</button></div></div>';
+  }
+
+  // Error section
+  let errHTML = '';
+  if (f.status === 'error') {
+    errHTML = '<div class="cp-section"><div class="cp-section-title">Error</div>' +
+      '<div class="error-item"><strong>' + (f.errorType || 'TypeError') + '</strong><br>' +
+      'Cannot read properties of undefined (reading \'context\')<br>' +
+      '<span style="color:#64748b;font-size:10px">' + (f.agent || 'Codex') + ' \u00b7 step ' + (f.errorStep || 3) + ' \u00b7 crashed 2m ago</span></div></div>';
+  }
+
+  // Sessions
+  let sessHTML = '<div class="cp-section"><div class="cp-section-title">Sessions</div>';
+  if (f.status === 'building') {
+    sessHTML += '<div class="session-row"><span class="session-agent ' + (f.agent||'').toLowerCase() + '">' + (f.agent||'Claude') + '</span>' +
+      '<span class="session-dur">' + (f.time||'3m') + '</span><span class="session-stats">step ' + f.step + '/' + f.total + ' \u00b7 active</span></div>';
+  } else if (f.status === 'complete') {
+    sessHTML += '<div class="session-row"><span class="session-agent claude">Claude</span><span class="session-dur">8m</span><span class="session-stats">8/8 steps \u00b7 complete</span></div>';
+  } else if (f.status === 'error') {
+    sessHTML += '<div class="session-row"><span class="session-agent codex">Codex</span><span class="session-dur">5m</span><span class="session-stats">step ' + (f.errorStep||3) + ' \u00b7 error</span></div>';
+  } else {
+    sessHTML += '<div style="font-size:11px;color:#64748b">No sessions yet</div>';
+  }
+  sessHTML += '</div>';
+
+  // Files
+  let filesHTML = '<div class="cp-section"><div class="cp-section-title">Files</div>';
+  if (f.status === 'building' || f.status === 'complete' || f.status === 'error') {
+    const slug = f.id.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    filesHTML += '<a class="file-link">docs/features/' + f.id + '/spec.md</a>';
+    filesHTML += '<a class="file-link">docs/features/' + f.id + '/plan.md</a>';
+    if (f.status !== 'planned') filesHTML += '<a class="file-link">src/' + slug + '/index.py</a>';
+  } else {
+    filesHTML += '<div style="font-size:11px;color:#64748b">No files yet</div>';
+  }
+  filesHTML += '</div>';
+
+  // Cross-view link
+  let crossHTML = '<div class="cp-section">' +
+    '<a class="cross-link" id="viewInTree">View in Tree \u2193</a></div>';
+
+  content.innerHTML =
+    '<div class="cp-header"><h3>' + f.id + '<span class="cp-subtitle">' + f.label + '</span></h3>' +
+    '<button class="cp-close" onclick="closePanel()">\u2715</button></div>' +
+    '<div class="cp-section"><div class="cp-section-title">Pipeline</div>' + pipHTML + '</div>' +
+    gateHTML + errHTML + sessHTML + filesHTML + crossHTML;
+
+  panel.classList.add('open');
+  document.getElementById('divider').style.display = 'block';
+}
+
+function closePanel() {
+  document.getElementById('contextPanel').classList.remove('open');
+  document.getElementById('divider').style.display = 'none';
+  selectedNode = null;
+}
+
+// ── Resizable divider ───────────────────────────────────────────────────
+(function() {
+  const divider = document.getElementById('divider');
+  divider.style.display = 'none';
+  let dragging = false;
+  divider.addEventListener('mousedown', function(e) {
+    dragging = true;
+    divider.classList.add('dragging');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    const mainWrap = document.querySelector('.main-wrap');
+    const rect = mainWrap.getBoundingClientRect();
+    const panelWidth = rect.right - e.clientX;
+    const panel = document.getElementById('contextPanel');
+    const clamped = Math.max(320, Math.min(rect.width * 0.6, panelWidth));
+    panel.style.width = clamped + 'px';
+    if (cy) cy.resize();
+  });
+  document.addEventListener('mouseup', function() {
+    dragging = false;
+    divider.classList.remove('dragging');
+  });
+})();
+
+// ── Ops strip ───────────────────────────────────────────────────────────
+function renderOpsStrip() {
+  const strip = document.getElementById('opsStrip');
+  let html = '';
+
+  // Building items
+  const builders = features.filter(f => f.status === 'building');
+  for (const b of builders) {
+    let blocks = '';
+    for (let i = 0; i < b.total; i++) {
+      blocks += '<span class="block ' + (i < b.step ? 'filled' : 'empty') + '"></span>';
+    }
+    html += '<div class="ops-item building" data-id="' + b.id + '">' +
+      '<span class="indicator"></span>' +
+      '<span class="label">' + b.id + '</span>' +
+      '<span class="progress-blocks">' + blocks + '</span>' +
+      '<span class="meta">' + b.step + '/' + b.total + ' ' + b.agent + ' ' + b.time + '</span></div>';
+    html += '<div class="ops-sep"></div>';
+  }
+
+  // Gate items
+  const gates = features.filter(f => f.status === 'gate');
+  for (const g of gates) {
+    html += '<div class="ops-item gate" data-id="' + g.id + '">' +
+      '<span class="indicator"></span>' +
+      '<span class="label">\u26a0 ' + g.id + ' gate</span>' +
+      '<button class="approve-btn" onclick="approveGate(\'' + g.id + '\')">Approve</button></div>';
+    html += '<div class="ops-sep"></div>';
+  }
+
+  // Error items
+  const errors = features.filter(f => f.status === 'error');
+  for (const e of errors) {
+    html += '<div class="ops-item error" data-id="' + e.id + '">' +
+      '<span class="indicator"></span>' +
+      '<span class="label">\u2715 ' + e.id + ' error</span></div>';
+  }
+
+  strip.innerHTML = html;
+}
+
+// ── Gate approval ───────────────────────────────────────────────────────
+function approveGate(id) {
+  const f = features.find(x => x.id === id);
+  if (!f || f.status !== 'gate') return;
+  f.status = 'building';
+  f.agent = 'Claude';
+  f.step = 1;
+  f.total = 8;
+  f.time = '0m';
+
+  // Update node
+  const node = cy.$('#' + id);
+  const s = nodeStyle('building');
+  node.data('borderColor', s.borderColor);
+  node.data('borderWidth', s.borderWidth);
+  node.data('nodeOpacity', s.opacity);
+  node.data('borderStyle', s.borderStyle);
+  node.data('nodeH', 60);
+  node.data('status', 'building');
+  node.data('label', f.id + '\n' + f.label + '\n' + f.agent + ' \u00b7 1/8 \u00b7 0m');
+  node.removeClass('gate blocked').addClass('building');
+
+  // Undim downstream
+  const downstream = ['DIST-INTEGRATIONS-1', 'DIST-AGENT-HOOKS-1'];
+  for (const did of downstream) {
+    const df = features.find(x => x.id === did);
+    if (df && df.status === 'blocked') {
+      df.status = 'planned';
+      const dn = cy.$('#' + did);
+      const ds = nodeStyle('planned');
+      dn.data('borderColor', ds.borderColor);
+      dn.data('borderWidth', ds.borderWidth);
+      dn.data('nodeOpacity', ds.opacity);
+      dn.data('borderStyle', ds.borderStyle);
+      dn.data('status', 'planned');
+      dn.removeClass('blocked');
+    }
+  }
+
+  closePopovers();
+  updateBadges();
+  renderOpsStrip();
+  updatePills();
+  if (selectedNode === id) selectNode(id);
+}
+
+// ── Complete a feature ──────────────────────────────────────────────────
+function completeFeature(id) {
+  const f = features.find(x => x.id === id);
+  if (!f) return;
+  f.status = 'complete';
+  delete f.agent; delete f.step; delete f.total; delete f.time;
+
+  const node = cy.$('#' + id);
+  const s = nodeStyle('complete');
+  node.data('borderColor', s.borderColor);
+  node.data('borderWidth', s.borderWidth);
+  node.data('nodeOpacity', s.opacity);
+  node.data('borderStyle', s.borderStyle);
+  node.data('nodeH', 48);
+  node.data('status', 'complete');
+  node.data('label', f.id + '\n' + f.label);
+  node.removeClass('building gate error').addClass('complete');
+
+  updateBadges();
+  renderOpsStrip();
+  updatePills();
+
+  // Flash in ops strip
+  const opsItems = document.querySelectorAll('.ops-item');
+  opsItems.forEach(i => { if (i.dataset.id === id) i.classList.add('flash'); });
+
+  if (selectedNode === id) selectNode(id);
+}
+
+// ── Status filter ───────────────────────────────────────────────────────
+let activeFilter = null;
+
+function filterByStatus(status) {
+  if (activeFilter === status) {
+    clearFilter();
+    return;
+  }
+  activeFilter = status;
+
+  // Update pill highlights
+  document.querySelectorAll('.stat-pill').forEach(p => p.classList.remove('active-filter'));
+  const pillId = 'pill-' + status;
+  const pill = document.getElementById(pillId);
+  if (pill) pill.classList.add('active-filter');
+
+  // Dim everything
+  cy.elements().addClass('dimmed');
+
+  // Highlight matching nodes and their edges
+  const matching = cy.nodes().filter(n => n.data('status') === status);
+  matching.removeClass('dimmed').addClass('highlighted');
+
+  // Also highlight connected edges and neighbors for context
+  matching.connectedEdges().removeClass('dimmed');
+  matching.neighborhood('node[status]').removeClass('dimmed');
+}
+
+function clearFilter() {
+  activeFilter = null;
+  cy.elements().removeClass('dimmed highlighted');
+  document.querySelectorAll('.stat-pill').forEach(p => p.classList.remove('active-filter'));
+}
+
+function updatePills() {
+  const counts = { building: 0, gate: 0, error: 0, complete: 0 };
+  for (const f of features) {
+    if (counts[f.status] !== undefined) counts[f.status]++;
+  }
+  document.getElementById('pill-building').querySelector('.dot').nextSibling.textContent = counts.building + ' building';
+  document.getElementById('pill-gate').querySelector('.dot').nextSibling.textContent = counts.gate + ' gate';
+  document.getElementById('pill-error').querySelector('.dot').nextSibling.textContent = counts.error + ' error';
+  document.getElementById('pill-complete').querySelector('.dot').nextSibling.textContent = counts.complete + ' complete';
+}
+
+// ── Annotation ──────────────────────────────────────────────────────────
+function showAnnotation(text) {
+  const el = document.getElementById('annotation');
+  el.textContent = text;
+  el.classList.add('visible');
+}
+function hideAnnotation() {
+  document.getElementById('annotation').classList.remove('visible');
+}
+
+// ── Animation sequence (~40s) ───────────────────────────────────────────
+let demoTimeout = [];
+function clearDemoTimeouts() { demoTimeout.forEach(t => clearTimeout(t)); demoTimeout = []; }
+
+function startDemo() {
+  clearDemoTimeouts();
+  closePanel();
+  closePopovers();
+  clearFilter();
+  hideAnnotation();
+
+  // Reset data to original state
+  resetData();
+  if (cy) cy.destroy();
+  initCy();
+  renderOpsStrip();
+  updatePills();
+
+  // Hide preamble
+  document.getElementById('preamble').classList.add('hidden');
+  document.getElementById('replayBtn').classList.add('visible');
+
+  const t = (ms, fn) => { demoTimeout.push(setTimeout(fn, ms)); };
+
+  // 1. (0s) Select CORE-LEARN-1, show context panel
+  t(500, () => {
+    selectNode('CORE-LEARN-1');
+    showAnnotation('High level \u2014 SmartMemory\'s full roadmap with live ops');
+  });
+
+  // 2. (4s) Hover DIST-ADOPT-1
+  t(4000, () => {
+    hideAnnotation();
+    const node = cy.$('#DIST-ADOPT-1');
+    const pos = node.renderedPosition();
+    const tt = document.getElementById('tooltip');
+    document.getElementById('ttLabel').textContent = 'DIST-ADOPT-1 - OSS Adoption';
+    document.getElementById('ttMeta').textContent = 'gate \u00b7 plan \u2192 implement';
+    tt.style.left = (pos.x + 20) + 'px';
+    tt.style.top = (pos.y - 10) + 'px';
+    tt.classList.add('visible');
+  });
+
+  // 3. (7s) Click gate badge → popover
+  t(7000, () => {
+    document.getElementById('tooltip').classList.remove('visible');
+    showAnnotation('Click \u26a0 for quick gate approval');
+    const f = features.find(x => x.id === 'DIST-ADOPT-1');
+    const node = cy.$('#DIST-ADOPT-1');
+    const pos = node.renderedPosition();
+    const gw = document.querySelector('.graph-wrap').getBoundingClientRect();
+    showGatePopover(f, { clientX: gw.left + pos.x + 40, clientY: gw.top + pos.y - 10 });
+  });
+
+  // 4. (10s) Approve → node turns blue, downstream undims
+  t(10000, () => {
+    hideAnnotation();
+    approveGate('DIST-ADOPT-1');
+  });
+
+  // 5. (14s) Context panel pipeline advances
+  t(14000, () => {
+    selectNode('DIST-ADOPT-1');
+    showAnnotation('Pipeline dots in detail panel');
+  });
+
+  // 6. (18s) Click error badge on MAYA-EXEC-1
+  t(18000, () => {
+    hideAnnotation();
+    showAnnotation('Error details without leaving graph');
+    const f = features.find(x => x.id === 'MAYA-EXEC-1');
+    const node = cy.$('#MAYA-EXEC-1');
+    const pos = node.renderedPosition();
+    const gw = document.querySelector('.graph-wrap').getBoundingClientRect();
+    showErrorPopover(f, { clientX: gw.left + pos.x + 40, clientY: gw.top + pos.y - 10 });
+  });
+
+  // 7. (21s) Close popover, click MAYA-EXEC-1 node → context panel
+  t(21000, () => {
+    hideAnnotation();
+    closePopovers();
+    selectNode('MAYA-EXEC-1');
+  });
+
+  // 8. (25s) CORE-LEARN-1 completes
+  t(25000, () => {
+    completeFeature('CORE-LEARN-1');
+  });
+
+  // 9. (29s) Click error pill → filter
+  t(29000, () => {
+    showAnnotation('Filter by status \u2014 see error impact');
+    filterByStatus('error');
+  });
+
+  // 10. (33s) Clear filter, SEC-DOMAIN-1 completes
+  t(33000, () => {
+    hideAnnotation();
+    clearFilter();
+    completeFeature('SEC-DOMAIN-1');
+  });
+
+  // 11. (36s) View in Tree link glows
+  t(36000, () => {
+    selectNode('SEC-DOMAIN-1');
+    showAnnotation('Navigate to mid-level tree');
+    const link = document.getElementById('viewInTree');
+    if (link) link.classList.add('glow');
+  });
+
+  // 12. (40s) End → show replay
+  t(40000, () => {
+    hideAnnotation();
+    const link = document.getElementById('viewInTree');
+    if (link) link.classList.remove('glow');
+  });
+}
+
+function resetData() {
+  // Reset all features to original status
+  const originals = {
+    'CORE-LEARN-1': { status: 'building', agent: 'Claude', step: 4, total: 8, time: '3m' },
+    'SEC-DOMAIN-1': { status: 'building', agent: 'Codex', step: 6, total: 10, time: '12m' },
+    'DIST-ADOPT-1': { status: 'gate', gatePhase: 'plan \u2192 implement', artifactPct: '87%' },
+    'MAYA-EXEC-1': { status: 'error', errorType: 'TypeError', agent: 'Codex', errorStep: 3 },
+    'DIST-RELEASE-1': { status: 'complete' },
+    'CORE-BG-4': { status: 'complete' },
+    'DIST-PUB-1': { status: 'parked' },
+    'PRE-ASYNC-REF-1': { status: 'parked' },
+    'CORE-ASYNC-1': { status: 'parked' },
+    'ONTO-PROV-1': { status: 'blocked' },
+    'ONTO-CONF-1': { status: 'blocked' },
+    'DIST-INTEGRATIONS-1': { status: 'blocked' },
+    'SEC-GUARDRAIL-1': { status: 'blocked' },
+    'GOV-ROLES-1': { status: 'blocked' }
+  };
+  for (const f of features) {
+    const o = originals[f.id];
+    if (o) {
+      Object.assign(f, { status: 'planned', agent: undefined, step: undefined, total: undefined, time: undefined, gatePhase: undefined, artifactPct: undefined, errorType: undefined, errorStep: undefined }, o);
+    } else {
+      f.status = 'planned';
+      delete f.agent; delete f.step; delete f.total; delete f.time;
+      delete f.gatePhase; delete f.artifactPct; delete f.errorType; delete f.errorStep;
+    }
+  }
+}
+
+// Close popovers on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.gate-popover') && !e.target.closest('.error-popover') && !e.target.closest('.node-badge')) {
+    closePopovers();
+  }
+});
+
+// Approve button in gate popover
+document.getElementById('gpApprove').addEventListener('click', function() {
+  // Find which gate is currently shown
+  const title = document.getElementById('gpTitle').textContent;
+  const id = title.split(' - ')[0];
+  approveGate(id);
+});
+
+// ── Pulse animation for building nodes ──────────────────────────────────
+let pulsePhase = 0;
+function animatePulse() {
+  pulsePhase += 0.05;
+  const glow = 8 + Math.sin(pulsePhase) * 6;
+  cy.nodes('.building').forEach(n => {
+    n.style('shadow-blur', glow);
+  });
+  requestAnimationFrame(animatePulse);
+}
+
+// ── Init ────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function() {
+  initCy();
+  renderOpsStrip();
+  animatePulse();
+});
+</script>
+</body>
+</html>

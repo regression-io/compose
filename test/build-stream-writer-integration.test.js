@@ -313,12 +313,15 @@ describe('JSONL writer not created before plan succeeds', { skip: !stratumAvaila
       // Pre-populate JSONL with a sentinel
       writeFileSync(jsonlPath, '{"type":"build_start","_seq":0}\n');
 
-      // Create an active build for a DIFFERENT feature to trigger rejection
+      // Create an active build for the SAME feature with a live pid to trigger rejection.
+      // Since v0.3, different-feature builds are allowed (last-writer-wins).
+      // Same-feature + live-pid is the only rejection path.
       const dataDir = join(tmpDir, '.compose', 'data');
       writeFileSync(join(dataDir, 'active-build.json'), JSON.stringify({
-        featureCode: 'OTHER-1',
+        featureCode: 'NOTRUNC-1',
         flowId: 'fake-flow-id',
         status: 'running',
+        pid: process.ppid,  // parent process is guaranteed alive
       }));
 
       try {
@@ -329,7 +332,7 @@ describe('JSONL writer not created before plan succeeds', { skip: !stratumAvaila
         });
         assert.fail('Should have thrown due to active build conflict');
       } catch (err) {
-        assert.ok(err.message.includes('Another build is active'),
+        assert.ok(err.message.includes('Build already running'),
           'should throw active-build conflict error');
       }
 

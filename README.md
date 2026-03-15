@@ -9,6 +9,7 @@ Compose coordinates multiple AI agents (Claude, Codex) through YAML-defined work
 - [How It Works](#how-it-works)
 - [Installation and Setup](#installation-and-setup)
 - [CLI Commands](#cli-commands)
+- [Web UI — Cockpit Shell](#web-ui--cockpit-shell)
 - [The Kickoff Pipeline (new)](#the-kickoff-pipeline)
 - [The Build Pipeline (build)](#the-build-pipeline)
 - [Agent Connectors](#agent-connectors)
@@ -226,6 +227,80 @@ Start the Compose app (supervisor with web UI, terminal, and API server).
 compose start
 COMPOSE_TARGET=/path/to/project compose start
 ```
+
+---
+
+## Web UI — Cockpit Shell
+
+`compose start` opens a browser-based cockpit at `http://localhost:3001`. The cockpit replaces the old split-pane layout (agent stream left, canvas right) with a structured five-zone layout:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Header │ [ViewTabs: Vision | Stratum | Docs]  [Controls]    │
+├────────┬────────────────────────────────────┬───────────────┤
+│        │                                    │               │
+│Sidebar │          MAIN AREA                 │ Context Panel │
+│(208px) │    (active view content)           │   (280px)     │
+│        │                                    │               │
+├────────┴────────────────────────────────────┴───────────────┤
+│ AGENT BAR  (collapsed | expanded | maximized)               │
+├─────────────────────────────────────────────────────────────┤
+│ NOTIFICATION BAR  (hidden when empty)                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Zones
+
+| Zone | Component | Description |
+|------|-----------|-------------|
+| **Header** | `ViewTabs` | Tab switcher for Vision, Stratum, and Docs top-level views. Global theme and font controls. |
+| **Sidebar** | `CockpitSidebar` → `AttentionQueueSidebar` | Fixed 208 px left panel. Attention-queue view: active build status, pending gates with inline Approve / Revise / Kill, blocked items sorted by priority, compact stats, global phase filter, and view navigation. |
+| **Main Area** | driven by `ViewTabs` | Renders the active top-level view — Vision Surface (7 sub-views), Stratum flow panel, or Docs canvas. |
+| **Context Panel** | `ContextPanel` | Collapsible 280 px right panel. Shows item detail, gate review, or artifact preview depending on selection. |
+| **Agent Bar** | `AgentBar` | Always-present bottom panel for the agent stream. Three states (see below). |
+| **Notification Bar** | `NotificationBar` | Thin dismissible alert strip. Hidden when there are no active notifications. |
+
+### Attention-Queue Sidebar
+
+The sidebar (`AttentionQueueSidebar`) replaces the old `AppSidebar` and organizes content by urgency:
+
+| Section | Content |
+|---------|---------|
+| **Active Build** | Current step name, progress bar, and step counter (e.g. "Step 4 / 15") from `.compose/active-build.json`. Spinner while running; check / X icon on complete / error. |
+| **Pending Gates** | Up to 3 pending gates with inline **Approve / Revise / Kill** buttons. "+ N more" badge when overflow. |
+| **Attention Queue** | Blocked items and decisions, sorted by priority: `DECISION → PENDING_GATE → BLOCKED`. |
+| **Phase Filter** | Multi-select chip row. Selection is **global** — applies to all views, not just the sidebar. |
+| **Compact Stats** | Single-row totals: total items, in-progress, blocked, pending gates. |
+| **View Nav** | 9 view buttons plus theme toggle and search. |
+
+The phase filter state is owned by `App.jsx` (lifted from `VisionTracker`) to prevent duplicate WebSocket connections and ensure all views share the same filter.
+
+### Agent Bar States
+
+The agent bar is always present — it is not a view tab. Toggle between states with the chevron control at the right edge of the bar.
+
+| State | Height | Content |
+|-------|--------|---------|
+| `collapsed` | ~36 px | Status dot, active tool name, elapsed time |
+| `expanded` | 30–50 % of viewport (default 256 px, draggable) | Full message stream + chat input |
+| `maximized` | Fills main area | Full stream; hides sidebar, main content, and context panel |
+
+### Cockpit State Persistence
+
+All cockpit layout preferences survive page reloads:
+
+| `localStorage` key | Type | Default |
+|--------------------|------|---------|
+| `compose:viewTab` | `'vision' \| 'stratum' \| 'docs'` | `'vision'` |
+| `compose:agentBarState` | `'collapsed' \| 'expanded' \| 'maximized'` | `'collapsed'` |
+| `compose:agentBarHeight` | number (px) | `256` |
+| `compose:contextPanel` | `'open' \| 'closed'` | `'open'` |
+| `compose:fontSize` | number | `13` |
+| `compose:theme` | `'light' \| 'dark'` | system default |
+
+### Error Boundaries
+
+The cockpit wraps the full shell in a `SafeModeBoundary`. Each zone additionally has a `PanelErrorBoundary` so a crash in one zone (e.g. the context panel) does not take down the rest of the UI.
 
 ---
 
@@ -759,15 +834,21 @@ Compose ships with five pipeline specs in `pipelines/`:
 | `coverage-sweep.stratum.yaml` | `coverage_sweep` | Test loop: run tests, fix failures until passing |
 | `compose_feature.stratum.yaml` | `compose_feature` | Legacy function-based lifecycle spec |
 
-### Stratum IR v0.2
+### Stratum IR v0.3
 
-Specs use Stratum IR v0.2 format with:
+Specs use Stratum IR v0.3 format (backward-compatible superset of v0.2). All existing v0.2 specs run unchanged. Specs that use v0.3 features declare `ir_version: "0.3"` at the top level.
+
+**v0.2 primitives (all retained):**
 - **contracts**: Output shape definitions with typed fields
 - **functions**: Reusable compute/gate definitions with retries and postconditions
 - **flows**: Step graphs with dependencies, routing, sub-flows
 - **ensure expressions**: Python-like postconditions (`result.clean == True`, `file_exists(path)`)
 - **input expressions**: Data flow between steps (`$.input.x`, `$.steps.prev.output.y`)
 - **skip_if / skip_reason**: Conditional step skipping
+
+**v0.3 additions (STRAT-PAR-1):**
+- **`decompose` step type**: the agent emits a **TaskGraph** — an array of tasks, each with `files_owned` (write set), `files_read` (read set), and `depends_on` (dependency list). Used to break a sequential step into independent subtasks before parallel execution.
+- **`parallel_dispatch` step type**: consumes a TaskGraph and coordinates concurrent agent runs. Fields: `require` (upstream TaskGraph reference), `max_concurrent` (concurrency cap), `isolation` (`worktree` | `none`), `merge` (`squash` | `rebase` | `none`), and `intent_template` (per-task prompt template).
 
 ---
 

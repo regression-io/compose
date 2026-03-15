@@ -37,3 +37,5 @@
 2026-03-15T22:10:16+08:00 | COMP-UX-1e: implementing cross-view navigation — TreeView scroll, ContextItemDetail nav links, App wiring, DocsView back label
 2026-03-15T22:14:06+08:00 | COMP-UX-1e: fixing review findings — clear docs back state on tab switch, pass items to graph/tree for filter awareness
 2026-03-15T22:17:43+08:00 | COMP-UX-1f: Wire agent bar to ops strip and graph overlays — build lifecycle useEffect, feature code pre-selection on chat send, OpsStrip onSelectFeature callback
+2026-03-15T22:31:25+08:00 | fix P1/P2/P3: featureCode resolution, related-item selection sync, ops strip lookup
+2026-03-15T23:44:54+08:00 | fix: doc path slugs too long, dimming too aggressive, context panel divider broken, gate UUIDs still showing
