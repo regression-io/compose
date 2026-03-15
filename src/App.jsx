@@ -337,9 +337,7 @@ function AppInner() {
   } = useVisionStore();
 
   // ── Local vision state (absorbed from VisionTracker) ────────────────────
-  const [selectedItemId, setSelectedItemId] = useState(() =>
-    sessionStorage.getItem('vision-selectedItemId') || null
-  );
+  const [selectedItemId, setSelectedItemId] = useState(null);
   const hadSessionView = useRef(!!localStorage.getItem('compose:activeView'));
   const [activeView, setActiveView] = useState(() =>
     localStorage.getItem('compose:activeView') || 'graph'
