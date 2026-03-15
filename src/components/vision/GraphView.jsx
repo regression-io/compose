@@ -345,7 +345,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   const [statusFilter, setStatusFilter] = useState('active');
   const [grouped, setGrouped] = useState(true);
   const [rankDir, setRankDir] = useState('LR');
-  const [showLegend, setShowLegend] = useState(true);
+  const [showLegend, setShowLegend] = useState(false);
   const [gatePopoverNodeId, setGatePopoverNodeId] = useState(null);
   const [badgePositions, setBadgePositions] = useState([]);
 
