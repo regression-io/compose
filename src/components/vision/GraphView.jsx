@@ -350,14 +350,13 @@ function GatePopover({ featureCode, gates, items, badgePositions, onResolve, onC
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
-export default function GraphView({ items, connections, selectedItemId, onSelect, visibleTracks, buildStateMap, resolveGate, gates }) {
+export default function GraphView({ items, connections, selectedItemId, onSelect, visibleTracks, hiddenGroups, buildStateMap, resolveGate, gates }) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
   const [statusFilter, setStatusFilter] = useState('active');
   const [grouped, setGrouped] = useState(true);
   const [showLegend, setShowLegend] = useState(false);
-  const [hiddenGroups, setHiddenGroups] = useState(new Set());
   const [gatePopoverNodeId, setGatePopoverNodeId] = useState(null);
   const [badgePositions, setBadgePositions] = useState([]);
 
@@ -371,17 +370,6 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   );
 
   // Available groups (for filter bar)
-  const availableGroups = useMemo(() => {
-    const counts = {};
-    for (const item of nonDocItems) {
-      const g = getGroup(item);
-      counts[g] = (counts[g] || 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([group, count]) => ({ group, count }));
-  }, [nonDocItems]);
-
   // Filter by status, visible tracks, and group
   const filteredItems = useMemo(() => {
     let result = nonDocItems;
@@ -604,28 +592,6 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
           <FilterBtn active={showLegend} onClick={() => setShowLegend(!showLegend)}>Legend</FilterBtn>
           </div>
         </div>
-        {/* Group filter row */}
-        {availableGroups.length > 1 && (
-          <div className="flex items-center gap-1 px-3 py-1 overflow-x-auto" style={{ borderTop: '1px solid #283548' }}>
-            <span style={{ fontSize: 10, color: '#64748b', flexShrink: 0 }}>Groups:</span>
-            {availableGroups.map(({ group, count }) => (
-              <FilterBtn
-                key={group}
-                active={!hiddenGroups.has(group)}
-                onClick={() => setHiddenGroups(prev => {
-                  const next = new Set(prev);
-                  next.has(group) ? next.delete(group) : next.add(group);
-                  return next;
-                })}
-              >
-                {group} ({count})
-              </FilterBtn>
-            ))}
-            {hiddenGroups.size > 0 && (
-              <CtrlBtn onClick={() => setHiddenGroups(new Set())} title="Show all groups">Reset</CtrlBtn>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Graph + overlays */}

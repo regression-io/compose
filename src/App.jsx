@@ -208,8 +208,8 @@ function CockpitView({
   buildStateMap,
   // docs navigation
   docsSelectedFile, onDocsSelectedFileChange, docsPreviousView, onDocsBack,
-  // graph track filtering
-  visibleTracks,
+  // graph filtering
+  visibleTracks, hiddenGroups,
   // callbacks
   onSelect, onUpdate, onCreate, onDelete, onOpenGate,
   onCreateConnection, onDeleteConnection, onRefreshBuild, onSelectStep,
@@ -234,6 +234,7 @@ function CockpitView({
           selectedItemId={selectedItemId}
           onSelect={onSelect}
           visibleTracks={visibleTracks}
+          hiddenGroups={hiddenGroups}
           buildStateMap={buildStateMap}
           resolveGate={onResolveGate}
           gates={gates}
@@ -362,6 +363,16 @@ function AppInner() {
     } catch { /* ignore */ }
     return null;
   });
+  // COMP-UX-1: Group filter (shared between sidebar and graph)
+  const [hiddenGroups, setHiddenGroups] = useState(new Set());
+  const handleToggleGroup = useCallback((group) => {
+    setHiddenGroups(prev => {
+      const next = new Set(prev);
+      next.has(group) ? next.delete(group) : next.add(group);
+      return next;
+    });
+  }, []);
+
   const [challengeItemId, setChallengeItemId] = useState(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -921,6 +932,8 @@ function AppInner() {
                       return next;
                     })}
                     onShowAllTracks={() => setVisibleTracks(null)}
+                    hiddenGroups={hiddenGroups}
+                    onToggleGroup={handleToggleGroup}
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
                     connected={connected}
@@ -965,6 +978,7 @@ function AppInner() {
                       onUpdateSettings={updateSettings}
                       onResetSettings={resetSettings}
                       visibleTracks={visibleTracks}
+                      hiddenGroups={hiddenGroups}
                       buildStateMap={buildStateMap}
                       docsSelectedFile={docsSelectedFile}
                       onDocsSelectedFileChange={setDocsSelectedFile}
