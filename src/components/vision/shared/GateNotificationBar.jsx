@@ -42,11 +42,14 @@ export default function GateNotificationBar({ onOpenGate }) {
   // Clamp index to valid range
   const safeIndex = Math.min(index, pending.length - 1);
   const gate = pending[safeIndex];
-  const matchedItem = items.find(i => i.id === gate.itemId);
-  const itemTitle = matchedItem?.title
-    ?? gate.featureCode
-    ?? gate.stepId?.replace(/_/g, ' ')
-    ?? (gate.itemId?.length > 12 ? gate.itemId.slice(0, 8) + '\u2026' : gate.itemId);
+  const matchedItem = items.find(i => i.id === gate.itemId)
+    || items.find(i => i.lifecycle?.featureCode && gate.featureCode && i.lifecycle.featureCode === gate.featureCode);
+  // Build a readable title — avoid raw UUIDs
+  let itemTitle = matchedItem?.title;
+  if (!itemTitle) itemTitle = gate.featureCode;
+  if (!itemTitle) itemTitle = gate.stepId?.replace(/_/g, ' ');
+  if (!itemTitle) itemTitle = gate.toPhase ? `${gate.toPhase} transition` : null;
+  if (!itemTitle) itemTitle = 'Pending review';
   const phaseLabel = LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase ?? 'Gate';
   const colors = GATE_COLORS[gate.fromPhase] ?? FALLBACK_COLOR;
 

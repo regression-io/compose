@@ -75,9 +75,10 @@ function buildElements(items, connections, grouped) {
   // Item nodes
   for (const item of items) {
     const slug = item.slug || item.id.slice(0, 8);
-    const title = (item.title || slug).length > 28
-      ? (item.title || slug).slice(0, 28) + '\u2026'
-      : item.title || slug;
+    // Clean title: strip backticks, extract filename from paths
+    let rawTitle = (item.title || slug).replace(/`/g, '');
+    if (rawTitle.includes('/')) rawTitle = rawTitle.split('/').pop().replace(/\.md$/, '');
+    const title = rawTitle.length > 28 ? rawTitle.slice(0, 28) + '\u2026' : rawTitle;
 
     elements.push({
       data: {
@@ -173,7 +174,7 @@ function buildStylesheet() {
     },
     { selector: 'edge[edgeStyle="dashed"]', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3], 'target-arrow-shape': 'diamond' } },
     { selector: 'edge[edgeType="blocks"]', style: { 'target-arrow-shape': 'tee' } },
-    { selector: '.dimmed', style: { opacity: 0.12 } },
+    { selector: '.dimmed', style: { opacity: 0.35 } },
     { selector: '.highlighted', style: { 'border-width': 3, 'border-color': '#60a5fa' } },
     // COMP-UX-1c: Build state overlay styles
     { selector: '.build-building', style: { 'border-color': '#3b82f6', 'border-width': 3, 'shadow-color': '#3b82f6', 'shadow-opacity': 0.6, 'shadow-blur': 12 } },
@@ -332,9 +333,15 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   const [gatePopoverNodeId, setGatePopoverNodeId] = useState(null);
   const [badgePositions, setBadgePositions] = useState([]);
 
-  // Filter items by status, then by visible tracks
+  // Filter: exclude doc artifacts, then by status, then by visible tracks
   const filteredItems = useMemo(() => {
-    let result = items;
+    // Exclude items that are just doc references (spec, artifact types with doc paths as titles)
+    let result = items.filter(i => {
+      const t = i.title || '';
+      // Skip items whose title is a file path (doc artifacts from feature scanner)
+      if (t.startsWith('`docs/') || t.startsWith('docs/')) return false;
+      return true;
+    });
     const preset = STATUS_FILTERS.find(f => f.key === statusFilter);
     if (preset?.statuses) {
       result = result.filter(i => preset.statuses.includes(i.status || 'planned'));

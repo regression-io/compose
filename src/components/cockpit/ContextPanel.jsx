@@ -1,36 +1,35 @@
 /**
  * ContextPanel — collapsible right-side panel for contextual detail content.
  *
- * Renders as a percentage-width sidebar on the right of the main area.
- * Width is view-dependent: 40% for graph, 50% for tree, hidden for docs.
- * Includes a drag handle for user resize within ±15%.
+ * Width is view-dependent and resizable via drag handle.
  *
  * Props:
- *   isOpen    {boolean}   whether the panel is visible
- *   onToggle  {fn}        called when the user clicks the toggle
- *   width     {number}    panel width as fraction 0-1 (default 0.4)
- *   onResize  {fn}        called with new fraction when user drags the handle
- *   children  {node}      content to render inside the panel
- *   activeBuild {object}  active build state (for no-selection summary)
- *   gates     {array}     pending gates (for no-selection summary)
- *   agentErrors {array}   recent errors (for no-selection summary)
- *   items     {array}     all items (for no-selection summary)
+ *   isOpen      {boolean}  whether the panel is visible
+ *   onToggle    {fn}       called when the user clicks the toggle
+ *   widthPx     {number}   panel width in pixels (computed by App.jsx)
+ *   onResizePx  {fn}       called with new pixel width when user drags
+ *   children    {node}     content to render inside the panel
+ *   activeBuild {object}   active build state (for no-selection summary)
+ *   gates       {array}    pending gates (for no-selection summary)
+ *   agentErrors {array}    recent errors (for no-selection summary)
+ *   items       {array}    all items (for no-selection summary)
  */
 import React, { useCallback, useRef } from 'react';
-import { CONTEXT_MIN_PX } from './contextPanelState.js';
+
+const MIN_WIDTH = 280;
+const MAX_WIDTH_FRACTION = 0.6;
 
 export default function ContextPanel({
   isOpen = false,
   onToggle,
-  width = 0.4,
-  onResize,
+  widthPx = 380,
+  onResizePx,
   children,
   activeBuild,
   gates = [],
   agentErrors = [],
   items = [],
 }) {
-  const panelRef = useRef(null);
   const dragging = useRef(false);
 
   const handleDragStart = useCallback((e) => {
@@ -39,13 +38,10 @@ export default function ContextPanel({
 
     const onMove = (ev) => {
       if (!dragging.current) return;
-      // Compute fraction relative to the panel's parent container
-      const parent = panelRef.current?.parentElement;
-      if (!parent) return;
-      const rect = parent.getBoundingClientRect();
-      const fromRight = rect.right - ev.clientX;
-      const newFraction = fromRight / rect.width;
-      onResize?.(newFraction);
+      const newWidth = window.innerWidth - ev.clientX;
+      const max = window.innerWidth * MAX_WIDTH_FRACTION;
+      const clamped = Math.max(MIN_WIDTH, Math.min(max, newWidth));
+      onResizePx?.(clamped);
     };
 
     const onUp = () => {
@@ -56,7 +52,7 @@ export default function ContextPanel({
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  }, [onResize]);
+  }, [onResizePx]);
 
   const pendingGates = gates.filter(g => g.status === 'pending' || g.status === 'awaiting');
 
@@ -66,8 +62,8 @@ export default function ContextPanel({
       style={{ borderLeft: '1px solid hsl(var(--border))' }}
       data-context-panel-open={isOpen}
     >
-      {/* Drag handle — between main area and panel */}
-      {isOpen && onResize && (
+      {/* Drag handle */}
+      {isOpen && onResizePx && (
         <div
           className="w-1 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 transition-colors flex-shrink-0"
           onMouseDown={handleDragStart}
@@ -90,18 +86,12 @@ export default function ContextPanel({
         {isOpen ? '›' : '‹'}
       </button>
 
-      {/* Panel body — ref used by drag handler to compute relative position */}
+      {/* Panel body */}
       {isOpen && (
         <div
-          ref={panelRef}
           className="flex flex-col h-full overflow-hidden"
-          style={{
-            width: `${(width * 100)}%`,
-            minWidth: `${CONTEXT_MIN_PX}px`,
-            maxWidth: '60vw',
-          }}
+          style={{ width: `${widthPx}px` }}
         >
-          {/* Check if any child actually rendered (React children can be [false, false]) */}
           {React.Children.toArray(children).length > 0 ? (
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {children}
@@ -120,10 +110,6 @@ export default function ContextPanel({
   );
 }
 
-/**
- * ProjectSummary — shown when no item is selected.
- * Replaces the old "No context selected" placeholder.
- */
 function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
   const phaseDistribution = {};
   for (const item of items) {
@@ -131,7 +117,6 @@ function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
     phaseDistribution[phase] = (phaseDistribution[phase] || 0) + 1;
   }
   const totalItems = items.length || 1;
-
   const recentErrors = agentErrors.slice(-5);
 
   return (
@@ -145,7 +130,6 @@ function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
         </span>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
-        {/* Active build */}
         {activeBuild ? (
           <div>
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">Active Build</p>
@@ -162,7 +146,6 @@ function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
           </div>
         )}
 
-        {/* Pending gates */}
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
             Pending Gates ({pendingGates.length})
@@ -180,7 +163,6 @@ function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
           )}
         </div>
 
-        {/* Recent errors */}
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
             Recent Errors ({recentErrors.length})
@@ -198,7 +180,6 @@ function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
           )}
         </div>
 
-        {/* Phase distribution */}
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
             Phase Distribution

@@ -31,10 +31,7 @@ import {
   saveContextOpen,
 } from './components/cockpit/panelState.js';
 import {
-  getContextWidth,
-  clampFraction,
-  loadContextWidths,
-  saveContextWidths,
+  CONTEXT_HIDDEN_VIEWS,
 } from './components/cockpit/contextPanelState.js';
 
 // Vision surface — views, sidebar, modals, store
@@ -321,8 +318,11 @@ function AppInner() {
   // COMP-UI-3: Context selection
   const [contextSelection, setContextSelection] = useState(null);
 
-  // COMP-UX-1b: View-dependent context panel width
-  const [contextWidthOverrides, setContextWidthOverrides] = useState(loadContextWidths);
+  // COMP-UX-1b: Context panel width in pixels
+  const [contextWidthPx, setContextWidthPx] = useState(() => {
+    try { return parseInt(localStorage.getItem('compose:contextWidthPx'), 10) || 420; }
+    catch { return 420; }
+  });
 
   // ── Vision store (absorbed from VisionTracker) ──────────────────────────
   const {
@@ -346,16 +346,10 @@ function AppInner() {
   );
   const [searchQuery, setSearchQuery] = useState('');
 
-  // COMP-UX-1b: computed context panel width
-  const contextWidth = useMemo(() => getContextWidth(activeView, contextWidthOverrides), [activeView, contextWidthOverrides]);
-  const handleContextResize = useCallback((newPct) => {
-    const clamped = clampFraction(newPct);
-    setContextWidthOverrides(prev => {
-      const next = { ...prev, [activeView]: clamped };
-      saveContextWidths(next);
-      return next;
-    });
-  }, [activeView]);
+  const handleContextResizePx = useCallback((px) => {
+    setContextWidthPx(px);
+    localStorage.setItem('compose:contextWidthPx', String(Math.round(px)));
+  }, []);
 
   const [docsSelectedFile, setDocsSelectedFile] = useState(null);
   const [docsPreviousView, setDocsPreviousView] = useState(null);
@@ -989,8 +983,8 @@ function AppInner() {
                   <ContextPanel
                     isOpen={contextOpen}
                     onToggle={toggleContext}
-                    width={contextWidth}
-                    onResize={handleContextResize}
+                    widthPx={contextWidthPx}
+                    onResizePx={handleContextResizePx}
                     activeBuild={activeBuild}
                     gates={gates}
                     agentErrors={agentErrors}
