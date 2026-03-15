@@ -472,6 +472,16 @@ function AppInner() {
     clearUICommand();
   }, [uiCommand, clearUICommand]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // COMP-UX-1f: Listen for feature code pre-selection from agent bar
+  useEffect(() => {
+    const handler = (e) => {
+      const { featureCode } = e.detail || {};
+      if (featureCode) handleOpsSelectFeature(featureCode);
+    };
+    window.addEventListener('compose:select-feature', handler);
+    return () => window.removeEventListener('compose:select-feature', handler);
+  }, [handleOpsSelectFeature]);
+
   // ── Keyboard shortcuts ──────────────────────────────────────────────────
   useEffect(() => {
     const isInputFocused = () =>
@@ -531,6 +541,33 @@ function AppInner() {
     () => computeBuildStateMap(activeBuild, items, connections, gates),
     [activeBuild, items, connections, gates],
   );
+
+  // COMP-UX-1f: Build lifecycle — detect transitions and update ops strip / graph
+  const prevBuildRef = useRef(activeBuild);
+  useEffect(() => {
+    const prev = prevBuildRef.current;
+    if (!prev && activeBuild) {
+      // Build started — context panel auto-selects the feature item if available
+      if (activeBuild.featureItemId) {
+        handleSelect(activeBuild.featureItemId);
+      }
+    } else if (prev && !activeBuild) {
+      // Build ended — if failed, the error is already surfaced via recentErrors → OpsStrip
+      // On success, OpsStrip's flash animation is driven by the 'done' entry type
+      // Graph overlays clear automatically since buildStateMap derives from activeBuild
+    }
+    prevBuildRef.current = activeBuild;
+  }, [activeBuild]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // COMP-UX-1f: OpsStrip feature click → select item in context panel
+  const handleOpsSelectFeature = useCallback((featureCode) => {
+    if (!featureCode) return;
+    const item = items.find(i =>
+      i.title?.includes(featureCode) ||
+      i.description?.includes(featureCode)
+    );
+    if (item) handleSelect(item.id);
+  }, [items, handleSelect]);
 
   // ── Snapshot provider ───────────────────────────────────────────────────
   useEffect(() => {
@@ -977,7 +1014,7 @@ function AppInner() {
           {/* ============================================================== */}
           {/* OPS STRIP (COMP-UX-1d)                                           */}
           {/* ============================================================== */}
-          <OpsStrip activeView={activeView} />
+          <OpsStrip activeView={activeView} onSelectFeature={handleOpsSelectFeature} />
 
           {/* ============================================================== */}
           {/* AGENT BAR                                                        */}

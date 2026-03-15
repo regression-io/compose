@@ -1,93 +1,39 @@
-2026-03-05T10:14:58+02:00 | 18a: delete codex-server.js (replaced by connector class hierarchy)
-2026-03-05T10:15:22+02:00 | 18b: create agent-mcp.js with agent_run MCP tool
-2026-03-05T11:28:29+02:00 | 18c: create pipelines/review-fix.stratum.yaml
-2026-03-05T11:46:26+02:00 | refactor(18e): modularize server/ into 8 new modules — no file over 300 lines
-2026-03-05T12:14:10+02:00 | 18f: write connector + server-unit + activity-route regression tests
-2026-03-05T13:52:07+02:00 | 18g: remove unused openai + gray-matter deps
-2026-03-05T16:18:39+02:00 | Add gate/revise spec tests (test_gate_revise, test_gate_api)
-2026-03-05T22:58:27+02:00 | FEAT-21 execute: Tasks 1+3 — lifecycle-manager.js + vision-store updateLifecycle
-2026-03-05T22:59:26+02:00 | FEAT-21 execute: Task 2 — lifecycle-manager tests
-2026-03-05T23:00:50+02:00 | FEAT-21 execute: Task 4 — lifecycle REST endpoints in vision-routes.js
-2026-03-05T23:01:30+02:00 | FEAT-21 execute: Tasks 5+6 — MCP tool implementations and wiring
-2026-03-05T23:02:30+02:00 | FEAT-21 execute: Task 7 — integration test for lifecycle routes + MCP tools
-2026-03-05T23:14:47+02:00 | FEAT-21 Phase 9: update docs (CHANGELOG, ROADMAP, status)
-2026-03-05T23:20:24+02:00 | FEAT-22 Phase 1: writing artifact awareness design doc
-2026-03-05T23:28:59+02:00 | FEAT-22 Phase 4: writing artifact awareness blueprint
-2026-03-05T23:31:19+02:00 | Writing artifact-awareness blueprint with file:line references
-2026-03-05T23:54:52+02:00 | Implementing FEAT-22 artifact-awareness: core module + templates + tests + MCP + routes
-2026-03-06T10:23:54+02:00 | FEAT-22 docs update: ROADMAP, CHANGELOG, status.md
-2026-03-06T10:30:29+02:00 | Starting FEAT-23 policy enforcement runtime design
-2026-03-06T12:43:52+02:00 | Writing FEAT-23 policy enforcement blueprint with file:line references
-2026-03-06T13:24:45+02:00 | FEAT-23 implementation: Tasks 1-2 (policy-engine.js + vision-store gates)
-2026-03-06T13:25:27+02:00 | FEAT-23 Task 3: lifecycle-manager.js policy integration
-2026-03-06T13:26:50+02:00 | FEAT-23 Tasks 4-5: vision-routes gate endpoints + MCP tools
-2026-03-06T13:28:21+02:00 | FEAT-23 Task 6: tests — policy-engine, lifecycle gate, route gate
-2026-03-06T13:29:52+02:00 | FEAT-23 Task 7: verify all tests
-2026-03-06T17:17:49+02:00 | Task 6: Wire GateView, GateToast, gates state into VisionTracker.jsx
-2026-03-06T17:18:54+02:00 | Task 7: Add lifecycle gate section to ItemDetailPanel
-2026-03-06T17:20:15+02:00 | Task 8: Write gate-client.test.js for visionMessageHandler
-2026-03-06T17:24:36+02:00 | Task 1: Session-lifecycle binding core infrastructure — tests first, then implement bindToFeature, phaseAtEnd, transcript filing, readSessionsByFeature, getItemByFeatureCode
-2026-03-06T17:26:29+02:00 | Fix P2 findings: lifecycle section without gates, gateResolved race, test coverage
-2026-03-06T17:28:14+02:00 | Task 2: Adding route tests and implementing bind/history/current endpoints in session-routes.js
-2026-03-06T17:29:30+02:00 | Fix P2: add artifact assessment to detail panel gate banner + write missing test files
-2026-03-06T17:31:34+02:00 | Task 4: Add toolBindSession and update toolGetCurrentSession in MCP tools + dispatcher
-2026-03-06T17:31:53+02:00 | Task 5: Add session-lifecycle binding fields to client state in visionMessageHandler.js and useVisionStore.js
-2026-03-06T17:33:14+02:00 | Thread onSelectItem callback from VisionTracker through AppSidebar to AgentPanel, add feature context header
-2026-03-06T17:36:21+02:00 | Phase 8: Write implementation report for L4 Gate UI
-2026-03-06T17:38:26+02:00 | Fix P1 path traversal in session bind + P2 MCP error handling
-2026-03-06T17:42:37+02:00 | Writing implementation report and updating roadmap/design status for L5
-2026-03-06T17:44:55+02:00 | /compose L6: Entry scan — checking feature folder and dependencies
-2026-03-06T17:47:11+02:00 | Phase 1: Write L6 Iteration Orchestration design.md
-2026-03-06T17:55:26+02:00 | Fix P1: Kill button should use lifecycle kill path for lifecycle-bound items
-2026-03-06T18:00:28+02:00 | Phase 4: Write L6 Iteration Orchestration blueprint
-2026-03-06T18:14:13+02:00 | L6 Phase 7: implementing iteration orchestration — constants, lifecycle manager methods, routes, MCP tools, client handler, pipeline, tests
-2026-03-06T18:34:22+02:00 | L1 formalization: contract JSON, derived constants, Stratum spec generator, contract test
-2026-03-06T19:07:58+02:00 | L0 design — full preferences system with config file + REST API + Settings UI
-2026-03-06T19:18:58+02:00 | L0 blueprint — reading all integration points for file:line references
-2026-03-06T19:29:10+02:00 | L0 plan — ordered task list from blueprint
-2026-03-06T19:57:52+02:00 | L0 execute — Task 1: SettingsStore + tests, Task 6: bug fixes (parallel)
-2026-03-06T20:02:03+02:00 | Task 2: Creating settings-routes.js and settings-routes.test.js (REST API + tests)
-2026-03-06T20:02:58+02:00 | Task 3: Wiring SettingsStore into VisionServer
-2026-03-06T20:03:28+02:00 | Task 4: Wiring settings into policy engine fallback chain and lifecycle manager
-2026-03-06T20:05:24+02:00 | Task 5: Agent server reads model from settings.json on disk
-2026-03-06T20:05:51+02:00 | Task 7: Adding settings state to WS handler and useVisionStore
-2026-03-06T20:06:42+02:00 | Task 8: SettingsPanel UI component + sidebar wiring + VisionTracker integration
-2026-03-06T20:10:50+02:00 | Review fix: sidebar theme toggle → settings API, model inputs → controlled
-2026-03-06T20:13:12+02:00 | Review fix: App.jsx header theme toggle → settings API
-2026-03-06T20:14:56+02:00 | Review fix: defaultView blocked by eager sessionStorage write
-2026-03-06T20:16:58+02:00 | Review fix: App.jsx theme state derives from DOM class instead of independent state
-2026-03-06T20:18:54+02:00 | Phase 7 Step 2: E2E smoke test for settings feature
-2026-03-06T20:20:44+02:00 | Phase 7 Step 4: Coverage sweep — edge cases and error paths
-2026-03-06T20:22:57+02:00 | Phase 8: Writing implementation report
-2026-03-06T20:23:42+02:00 | Phase 9: Updating CHANGELOG, README, docs
-2026-03-06T20:24:26+02:00 | Phase 10: Final verification and ship
-2026-03-06T20:26:58+02:00 | Review fix: AppSidebar theme state → MutationObserver like App.jsx
-2026-03-06T20:47:58+02:00 | Writing manual test guide for Compose end-to-end with empty project
-2026-03-06T20:50:52+02:00 | Splitting PROJECT_ROOT into COMPOSE_HOME + TARGET_ROOT with project root inference
-2026-03-06T20:54:24+02:00 | Completing PROJECT_ROOT → COMPOSE_HOME/TARGET_ROOT refactor for remaining files: summarizer, agent-spawn, compose-mcp-tools, speckit-helpers, vision-store, settings-store
-2026-03-06T22:07:50+02:00 | INIT-1 Phase 7: Executing implementation plan — Task 1 (find-root.js + project-root.js config loader)
-2026-03-06T22:11:48+02:00 | INIT-1 Phase 7: Tasks 5-8 — config-driven paths in vision-routes, file-watcher, vision-utils, compose-mcp-tools
-2026-03-06T22:14:30+02:00 | INIT-1 Phase 7: Task 9 — writing tests for project config, init command, stratum softfail, config-driven paths
-2026-03-06T22:18:21+02:00 | Writing remaining Task 9 test files: init.test.js, stratum-softfail.test.js, config-paths.test.js
-2026-03-06T22:24:29+02:00 | Writing Phase 8 implementation report for INIT-1
-2026-03-06T22:48:07+02:00 | Scoping STRAT-1: Stratum process engine completion, informed by Compose reference implementations
-2026-03-07T00:16:17+02:00 | Removing speckit integration, replacing with feature-folder scanning/seeding
-2026-03-07T01:08:51+02:00 | Update STRAT-1 design doc and roadmap with 9-feature split (STRAT-ENG-*/STRAT-COMP-*)
-2026-03-07T10:32:44+02:00 | STRAT-ENG-1: Execute plan — IR v0.2 schema additions in stratum-mcp
-2026-03-07T18:22:42+02:00 | T4: Implementing result-normalizer module and tests
-2026-03-07T18:22:51+02:00 | T5: Implementing step-prompt builder (lib/step-prompt.js + test)
-2026-03-07T18:23:28+02:00 | T7: Implement VisionWriter - atomic read-modify-write for vision-state.json
-2026-03-07T18:25:57+02:00 | T3: Implementing stratum-mcp-client.js — MCP SDK client for stratum tool calls
-2026-03-07T18:41:27+02:00 | T9-T10: Init upgrade (agent detection + skill install) and CLI build command
-2026-03-07T18:43:13+02:00 | T11: Integration test for build runner with real stratum-mcp
-2026-03-07T19:59:01+02:00 | T6: Fix 19 test failures from bespoke lifecycle deletion — inline settings defaults, remove deleted MCP tool refs, update gate tests to create gates directly
-2026-03-08T00:02:07+02:00 | STRAT-COMP-3: updating docs and committing all proof-run changes
-2026-03-10T18:37:14+08:00 | STRAT-COMP-4: building compose pipeline CLI for viewing and editing build.stratum.yaml
-2026-03-10T18:43:43+08:00 | building compose new — kickoff pipeline for product-level brainstorm/research/roadmap
-2026-03-12T04:14:11+08:00 | Adding compose build --all: roadmap parser, DAG, orchestrator, gate non-interactive mode
-2026-03-13T05:14:25+08:00 | Task 5: finishing streamWriter pass-through in child flow ensure_failed and nested execute_flow
-2026-03-13T05:19:04+08:00 | Task 6: integration test for JSONL output from build.js
-2026-03-13T05:20:21+08:00 | Task 13: bridge-to-SSE smoke test
-2026-03-13T05:22:53+08:00 | Task 14: edge case hardening — adding stale gate, fresh gate, malformed, no-sentinel tests
-2026-03-13T05:26:50+08:00 | Reconciling STRAT-COMP-4/5/6/7 parallel conflicts — restoring vision-writer.js, test files, and checking all modified files
-2026-03-15T21:49:13+08:00 | COMP-UX-1d: implementing ops strip - recentErrors, OpsStripEntry, OpsStrip, App.jsx wiring, tests
+2026-03-14T09:02:26+08:00 | COMP-UI-3: Wire cockpit ContextPanel to display contextual content — lift selection state, create ContextItemDetail + ContextStepDetail wrappers, route VisionTracker detail through cockpit
+2026-03-14T09:04:05+08:00 | COMP-UI-3: Wire cockpit ContextPanel — thread onContextSelect through Canvas to VisionTracker, pass children to ContextPanel, remove standalone ItemDetailPanel from VisionTracker
+2026-03-14T12:07:27+08:00 | Flat cockpit layout rewrite: absorb VisionTracker into App.jsx, add icon tabs, extract VisionChangesContext
+2026-03-14T15:55:38+08:00 | Remove view nav from sidebar — header tabs are the sole view switcher
+2026-03-14T16:00:18+08:00 | Remove view nav from sidebar, investigate empty API data
+2026-03-14T16:07:10+08:00 | Import ROADMAP.md items into vision store via REST API
+2026-03-14T16:14:55+08:00 | Add project switching: mutable TARGET_ROOT, /api/project/switch endpoint, re-init stores on switch
+2026-03-14T18:53:14+08:00 | Improve feature scanner: parse status from design.md, assess artifact completeness, discover sub-packages, parse related docs for connections
+2026-03-14T18:58:40+08:00 | Add roadmap-graph.html parser to feature scanner — import nodes as items, edges as connections
+2026-03-15T00:19:40+08:00 | Merge Board+Roadmap into Board with group-by toggle; merge List+Tree into Items with flat/tree toggle
+2026-03-15T00:25:07+08:00 | Remove Board, List, Roadmap, Attention views. Keep Tree+search, Graph, Pipeline, Sessions, Gates, Docs. Update tabs.
+2026-03-15T00:43:29+08:00 | Rewrite DocsView: full directory tree + markdown preview pane
+2026-03-15T00:50:36+08:00 | Add cross-view navigation to Docs: navigateToDocs callback, file links in context panel, back navigation
+2026-03-15T00:59:34+08:00 | Tab order, Items filter toolbar + create, Docs editing, Gate count badge
+2026-03-15T01:01:09+08:00 | Adding status/type filter toolbar and create button to TreeView
+2026-03-15T01:01:12+08:00 | Adding edit/save capability to DocsView: edit/preview toggle, PUT /api/file endpoint, unsaved indicator, Cmd+S shortcut
+2026-03-15T01:13:44+08:00 | Smart default view, recently-modified badges, collapsible graph tracks
+2026-03-15T01:47:26+08:00 | Graph view: React card grid for collapsed tracks, cytoscape only for expanded single track
+2026-03-15T01:52:05+08:00 | Graph: single static dagre with track compounds, sidebar checkbox filtering
+2026-03-15T03:18:07+08:00 | Adding preamble overlay and annotation callouts to ops-v2-stacked.html mockup
+2026-03-15T03:18:13+08:00 | Adding preamble overlay and annotation callouts to ops-v3-timeline mockup
+2026-03-15T03:18:18+08:00 | Adding preamble overlay and annotation callouts to ops-v4-kanban mockup
+2026-03-15T03:18:31+08:00 | Adding preamble overlay and annotation callouts to ops-v6-feature-rows mockup
+2026-03-15T03:18:38+08:00 | Adding preamble overlay and annotation callouts to ops-v7a-inline-expand.html mockup
+2026-03-15T03:18:42+08:00 | Adding preamble overlay and annotation callouts to ops-v7b-context-panel mockup
+2026-03-15T03:18:52+08:00 | Adding preamble overlay and annotation callouts to ops-v8-hybrid.html mockup
+2026-03-15T15:22:12+08:00 | Creating multiview-ops.html mockup — Ops view with shared context panel, gate popovers, animated demo
+2026-03-15T15:22:34+08:00 | Creating multiview-docs.html mockup — Docs view with file tree, markdown preview, cross-view navigation
+2026-03-15T16:28:03+08:00 | Rewriting final-flow-v2.html with full context panel sections, flat tree structure, and corrected content
+2026-03-15T16:42:03+08:00 | Rewriting final-flow-v2.html with full context panel sections, flat tree layout, and corrected content
+2026-03-15T21:30:37+08:00 | COMP-UX-1b: implementing context panel as workhorse — width logic, detail tabs, pipeline/sessions/errors/files tab components
+2026-03-15T21:48:55+08:00 | COMP-UX-1c: writing pure logic module graphOpsOverlays.js and tests
+2026-03-15T21:49:58+08:00 | COMP-UX-1c: adding build-state classes, badge overlays, and gate popover to GraphView
+2026-03-15T21:51:10+08:00 | COMP-UX-1c: wiring buildStateMap and resolveGate through App.jsx → CockpitView → GraphView
+2026-03-15T21:57:11+08:00 | COMP-UX-1c: addressing review findings — gate_pending downstream test, error badge click stub
+2026-03-15T22:03:04+08:00 | COMP-UX-1c: updating CHANGELOG.md and ROADMAP.md
+2026-03-15T22:10:16+08:00 | COMP-UX-1e: implementing cross-view navigation — TreeView scroll, ContextItemDetail nav links, App wiring, DocsView back label
+2026-03-15T22:14:06+08:00 | COMP-UX-1e: fixing review findings — clear docs back state on tab switch, pass items to graph/tree for filter awareness
+2026-03-15T22:17:43+08:00 | COMP-UX-1f: Wire agent bar to ops strip and graph overlays — build lifecycle useEffect, feature code pre-selection on chat send, OpsStrip onSelectFeature callback

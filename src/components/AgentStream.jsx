@@ -54,6 +54,7 @@ const _state = {
   activityLog: [],
   _idleTimer: null,
   sourceStatus: { build: null, interactive: null }, // per-source status tracking
+  parallelTasks: null, // { total, completed, failed, active } when parallel dispatch is running
   // React setState callbacks — reattached on each mount
   onConnectedChange: null,
   onMessagesChange: null,
@@ -149,6 +150,7 @@ function setAgentStatus(status, tool, category) {
     status, tool, category,
     activityLog: _state.activityLog,
     currentActivity: _state.currentActivity,
+    parallelTasks: _state.parallelTasks,
   };
 
   if (_state.onAgentStatusChange) _state.onAgentStatusChange({ ...payload });
@@ -173,6 +175,33 @@ function mergeSourceStatus() {
 }
 
 function processMessage(msg) {
+  // Track parallel task progress from build stream events
+  if (msg._source === 'build' && msg.type === 'system' && msg.parallel) {
+    if (msg.subtype === 'build_step' && msg.stepNum?.toString().startsWith('∥')) {
+      // Individual parallel task started — initialize or increment active
+      if (!_state.parallelTasks) {
+        _state.parallelTasks = { total: 0, completed: 0, failed: 0, active: 0, tasks: {} };
+      }
+      _state.parallelTasks.total++;
+      _state.parallelTasks.active++;
+      _state.parallelTasks.tasks[msg.stepId] = 'working';
+    } else if (msg.subtype === 'build_step_done' && _state.parallelTasks?.tasks?.[msg.stepId]) {
+      // Individual parallel task completed
+      _state.parallelTasks.active = Math.max(0, _state.parallelTasks.active - 1);
+      _state.parallelTasks.completed++;
+      _state.parallelTasks.tasks[msg.stepId] = 'complete';
+    } else if (msg.subtype === 'build_step_done' && _state.parallelTasks && !msg.stepNum?.toString().startsWith('∥')) {
+      // Batch-level parallel_dispatch done — clear parallel state
+      _state.parallelTasks = null;
+    }
+  }
+  // Build errors for parallel tasks
+  if (msg._source === 'build' && msg.type === 'error' && _state.parallelTasks?.tasks?.[msg.stepId]) {
+    _state.parallelTasks.active = Math.max(0, _state.parallelTasks.active - 1);
+    _state.parallelTasks.failed++;
+    _state.parallelTasks.tasks[msg.stepId] = 'failed';
+  }
+
   // Derive and apply agent status before appending to list
   const derived = deriveStatus(msg);
   if (derived) {
@@ -180,6 +209,7 @@ function processMessage(msg) {
     _state.sourceStatus[source] = derived;
 
     if (derived.status === 'idle') {
+      _state.parallelTasks = null; // Clear parallel state on idle
       mergeSourceStatus();
     } else {
       if (_state._idleTimer) { clearTimeout(_state._idleTimer); _state._idleTimer = null; }
@@ -355,6 +385,14 @@ export default function AgentStream() {
 
   const handleSend = useCallback(async (text) => {
     setSending(true);
+
+    // COMP-UX-1f: Pre-select feature in context panel if message contains a feature code
+    const featureMatch = text.match(/[A-Z]+-\d+/);
+    if (featureMatch) {
+      window.dispatchEvent(new CustomEvent('compose:select-feature', {
+        detail: { featureCode: featureMatch[0] },
+      }));
+    }
 
     try {
       if (isFirstMessage || !_state.sessionId) {
