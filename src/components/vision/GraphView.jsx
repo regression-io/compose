@@ -110,6 +110,30 @@ function buildElements(items, connections, grouped) {
         classes: 'group-order',
       });
     }
+
+    // Within each group: if members have no real edges between them,
+    // add invisible row edges so dagre lays them out in a grid pattern
+    const GRID_COLS = 4;
+    for (const group of sortedGroups) {
+      const memberIds = items.filter(i => getGroup(i) === group).map(i => i.id);
+      const memberSet = new Set(memberIds);
+      const hasRealEdges = connections.some(c =>
+        memberSet.has(c.fromId) && memberSet.has(c.toId)
+      );
+      if (!hasRealEdges && memberIds.length > 1) {
+        // Chain every GRID_COLS items to create rows
+        for (let i = GRID_COLS; i < memberIds.length; i++) {
+          elements.push({
+            data: {
+              id: `_grid-${group}-${i}`,
+              source: memberIds[i - GRID_COLS],
+              target: memberIds[i],
+            },
+            classes: 'group-order',
+          });
+        }
+      }
+    }
   }
 
   // Item nodes
@@ -414,20 +438,15 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Use grid when edges are sparse (dagre stacks disconnected nodes vertically)
-    const edgeCount = elements.filter(e => e.data?.source).length;
-    const nodeCount = elements.filter(e => !e.data?.source && !e.data?.isGroup).length;
-    const useGrid = edgeCount < nodeCount * 0.3;
-
-    const layout = useGrid
-      ? { name: 'grid', padding: 20, avoidOverlap: true, nodeDimensionsIncludeLabels: true, fit: true }
-      : { name: 'dagre', rankDir, nodeSep: 30, rankSep: 70, edgeSep: 10, padding: 20, animate: false, fit: true };
-
     const cy = cytoscape({
       container: containerRef.current,
       elements,
       style: stylesheet,
-      layout,
+      layout: {
+        name: 'dagre', rankDir,
+        nodeSep: 20, rankSep: 40, edgeSep: 10, padding: 20,
+        animate: false, fit: true,
+      },
       minZoom: 0.1, maxZoom: 4, wheelSensitivity: 0.3, boxSelectionEnabled: false,
     });
     cyRef.current = cy;
