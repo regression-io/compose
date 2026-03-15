@@ -65,7 +65,7 @@ function getGroup(item) {
     const m = fc.match(/^([A-Z][\w-]*?)(?:-\d|$)/);
     return m ? m[1] : fc;
   }
-  return item.phase || 'other';
+  return 'other';
 }
 
 function buildElements(items, connections, grouped) {

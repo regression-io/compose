@@ -183,7 +183,7 @@ function GroupFilter({ items, hiddenGroups, onToggleGroup }) {
       else {
         const fc = item.lifecycle?.featureCode || item.featureCode;
         if (fc) { const m = fc.match(/^([A-Z][\w-]*?)(?:-\d|$)/); group = m ? m[1] : fc; }
-        else group = item.phase || 'other';
+        else group = 'other';
       }
       counts[group] = (counts[group] || 0) + 1;
       if (['in_progress', 'review', 'ready'].includes(item.status)) {
