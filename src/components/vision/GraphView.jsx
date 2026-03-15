@@ -426,13 +426,10 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     });
     cyRef.current = cy;
 
-    // Highlight initially selected item
+    // Highlight initially selected item (no pan — layout already fit the graph)
     if (selectedItemId) {
       const node = cy.$id(selectedItemId);
-      if (node.length) {
-        highlightChain(cy, node);
-        setTimeout(() => cy.animate({ center: { eles: node }, duration: 300 }), 100);
-      }
+      if (node.length) highlightChain(cy, node);
     }
 
     cy.on('mouseover', 'node[status]', (evt) => {
