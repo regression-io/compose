@@ -1,11 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { create } from 'zustand';
 import { handleVisionMessage } from './visionMessageHandler.js';
 
 /**
- * Walk the DOM and produce a compact accessibility-style snapshot.
- * Returns a tree of { tag, role, text, children } nodes.
- * Skips invisible elements and script/style tags.
+ * useVisionStore — Zustand singleton store.
+ *
+ * Single WebSocket connection, single state atom, single set of intervals.
+ * All components read from the same store via useVisionStore() selectors.
+ *
+ * COMP-STATE-1: Replaces the old React hook that created independent state
+ * per component (12 WebSockets, 12 intervals, 12 state copies).
  */
+
+// ─── DOM snapshot (for server snapshot requests) ─────────────────────────────
+
 function collectDOMSnapshot() {
   const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'NOSCRIPT']);
   const MAX_DEPTH = 12;
@@ -19,149 +26,146 @@ function collectDOMSnapshot() {
     }
     if (el.nodeType !== Node.ELEMENT_NODE) return null;
     if (SKIP_TAGS.has(el.tagName)) return null;
-
-    // Skip hidden elements
     const style = window.getComputedStyle(el);
     if (style.display === 'none' || style.visibility === 'hidden') return null;
 
     const node = {};
     const role = el.getAttribute('role') || el.getAttribute('aria-label');
     const tag = el.tagName.toLowerCase();
-
-    // Compact representation
     if (role) node.role = role;
     else node.tag = tag;
-
-    // Capture key attributes
     if (el.className && typeof el.className === 'string') {
       const cls = el.className.trim();
       if (cls.length < 80) node.class = cls;
     }
-
-    // Collect children
     const children = [];
     for (const child of el.childNodes) {
       const c = walk(child, depth + 1);
       if (c) children.push(c);
     }
-
-    // Flatten: if a node has exactly one text child, inline it
     if (children.length === 1 && typeof children[0] === 'string') {
       node.text = children[0];
     } else if (children.length > 0) {
       node.children = children;
     }
-
-    // Skip wrapper divs with no semantic value
     if (!role && (tag === 'div' || tag === 'span') && !node.text && children.length === 1 && typeof children[0] === 'object') {
       return children[0];
     }
-
     return node;
   }
 
-  // Start from the Vision Tracker root if present, otherwise body
   const root = document.querySelector('[data-snapshot-root]') || document.body;
   return walk(root, 0);
 }
 
-/**
- * useVisionStore — WebSocket connection to /ws/vision + REST mutations.
- * Full state replacement on every visionState message (no deltas).
- */
+// ─── Refs (mutable, shared across all subscribers) ───────────────────────────
+
+const refs = {
+  ws: null,
+  reconnectTimer: null,
+  snapshotProvider: null,
+  prevItemMap: null,
+  changeTimer: null,
+  sessionEndTimer: null,
+  gates: [],
+  pendingResolveIds: new Set(),
+  buildPollInterval: null,
+  recentErrorsInterval: null,
+  connected: false,
+};
+
 const EMPTY_CHANGES = { newIds: new Set(), changedIds: new Set() };
 
-export function useVisionStore() {
-  const [items, setItems] = useState([]);
-  const [connections, setConnections] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [uiCommand, setUICommand] = useState(null);
-  const [recentChanges, setRecentChanges] = useState(EMPTY_CHANGES);
-  const [agentActivity, setAgentActivity] = useState([]);
-  const [agentErrors, setAgentErrors] = useState([]);
-  const [sessionState, setSessionState] = useState(null);
-  const [gates, setGates] = useState([]);
-  const [gateEvent, setGateEvent] = useState(null);
-  const [settings, setSettings] = useState(null);
-  const [activeBuild, setActiveBuild] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  // Global phase filter — shared across all views so every panel respects the same selection
-  const [selectedPhase, setSelectedPhase] = useState(() => {
-    try { return localStorage.getItem('compose:selectedPhase') || null; } catch { return null; }
-  });
-  const wsRef = useRef(null);
-  const reconnectTimerRef = useRef(null);
-  const snapshotProviderRef = useRef(null);
-  const prevItemMapRef = useRef(null);
-  const changeTimerRef = useRef(null);
-  const sessionEndTimerRef = useRef(null);
-  const gatesRef = useRef([]);
-  const pendingResolveIdsRef = useRef(new Set());
+// ─── Zustand store ───────────────────────────────────────────────────────────
 
-  // Keep gatesRef in sync for use inside the WS handler closure
-  useEffect(() => { gatesRef.current = gates; }, [gates]);
+export const useVisionStore = create((set, get) => {
+  // ── REST helpers ─────────────────────────────────────────────────────────
 
-  // Persist global phase selection to localStorage
-  useEffect(() => {
-    try {
-      if (selectedPhase) localStorage.setItem('compose:selectedPhase', selectedPhase);
-      else localStorage.removeItem('compose:selectedPhase');
-    } catch { /* ignore in SSR / test contexts */ }
-  }, [selectedPhase]);
+  async function apiCall(url, options) {
+    const res = await fetch(url, options);
+    const data = await res.json();
+    if (!res.ok) {
+      console.error(`[vision] API error ${res.status}:`, data.error || data);
+      return { error: data.error || `HTTP ${res.status}` };
+    }
+    return data;
+  }
 
-  useEffect(() => {
-    function connect() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/vision`);
-      wsRef.current = ws;
+  // ── WebSocket connection ─────────────────────────────────────────────────
 
-      ws.onopen = () => {
-        setConnected(true);
-        fetch('/api/build/state').then(r => r.json()).then(data => setActiveBuild(data.state ?? null)).catch(() => {});
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          handleVisionMessage(msg, {
-            prevItemMapRef, snapshotProviderRef, gatesRef, pendingResolveIdsRef,
-            changeTimerRef, sessionEndTimerRef, wsRef, collectDOMSnapshot,
-          }, {
-            setItems, setConnections, setGates, setGateEvent,
-            setRecentChanges, setUICommand, setAgentActivity,
-            setAgentErrors, setSessionState, setSettings, setActiveBuild, setSessions, EMPTY_CHANGES,
-          });
-        } catch {
-          // ignore
-        }
-      };
-
-      ws.onclose = () => {
-        setConnected(false);
-        reconnectTimerRef.current = setTimeout(connect, 2000);
-      };
-
-      ws.onerror = () => {};
+  function connect() {
+    if (refs.ws && (refs.ws.readyState === WebSocket.OPEN || refs.ws.readyState === WebSocket.CONNECTING)) {
+      return; // already connected
     }
 
-    connect();
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/vision`);
+    refs.ws = ws;
 
-    return () => {
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      if (changeTimerRef.current) clearTimeout(changeTimerRef.current);
-      if (sessionEndTimerRef.current) clearTimeout(sessionEndTimerRef.current);
-      if (wsRef.current) wsRef.current.close();
+    ws.onopen = () => {
+      set({ connected: true });
+      // Hydrate build state on connect
+      fetch('/api/build/state')
+        .then(r => r.json())
+        .then(data => set({ activeBuild: data.state ?? null }))
+        .catch(() => {});
     };
-  }, []);
 
-  // Hydrate session state on mount (server may already have an active session)
-  useEffect(() => {
-    fetch('/api/session/current')
-      .then(r => r.json())
-      .then(data => {
-        if (data.session) {
-          // Only hydrate if no WebSocket sessionStart has arrived first
-          setSessionState(prev => prev ? prev : {
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleVisionMessage(msg, {
+          prevItemMapRef: { get current() { return refs.prevItemMap; }, set current(v) { refs.prevItemMap = v; } },
+          snapshotProviderRef: { get current() { return refs.snapshotProvider; }, set current(v) { refs.snapshotProvider = v; } },
+          gatesRef: { get current() { return refs.gates; }, set current(v) { refs.gates = v; } },
+          pendingResolveIdsRef: { get current() { return refs.pendingResolveIds; }, set current(v) { refs.pendingResolveIds = v; } },
+          changeTimerRef: { get current() { return refs.changeTimer; }, set current(v) { refs.changeTimer = v; } },
+          sessionEndTimerRef: { get current() { return refs.sessionEndTimer; }, set current(v) { refs.sessionEndTimer = v; } },
+          wsRef: { get current() { return refs.ws; }, set current(v) { refs.ws = v; } },
+          collectDOMSnapshot,
+        }, {
+          setItems: (updater) => set(s => ({ items: typeof updater === 'function' ? updater(s.items) : updater })),
+          setConnections: (updater) => set(s => ({ connections: typeof updater === 'function' ? updater(s.connections) : updater })),
+          setGates: (updater) => {
+            set(s => {
+              const next = typeof updater === 'function' ? updater(s.gates) : updater;
+              refs.gates = next; // keep ref in sync
+              return { gates: next };
+            });
+          },
+          setGateEvent: (v) => set({ gateEvent: v }),
+          setRecentChanges: (updater) => set(s => ({ recentChanges: typeof updater === 'function' ? updater(s.recentChanges) : updater })),
+          setUICommand: (v) => set({ uiCommand: v }),
+          setAgentActivity: (updater) => set(s => ({ agentActivity: typeof updater === 'function' ? updater(s.agentActivity) : updater })),
+          setAgentErrors: (updater) => set(s => ({ agentErrors: typeof updater === 'function' ? updater(s.agentErrors) : updater })),
+          setSessionState: (updater) => set(s => ({ sessionState: typeof updater === 'function' ? updater(s.sessionState) : updater })),
+          setSettings: (v) => set({ settings: v }),
+          setActiveBuild: (updater) => set(s => ({ activeBuild: typeof updater === 'function' ? updater(s.activeBuild) : updater })),
+          setSessions: (updater) => set(s => ({ sessions: typeof updater === 'function' ? updater(s.sessions) : updater })),
+          EMPTY_CHANGES,
+        });
+      } catch {
+        // ignore parse errors
+      }
+    };
+
+    ws.onclose = () => {
+      set({ connected: false });
+      refs.reconnectTimer = setTimeout(connect, 2000);
+    };
+
+    ws.onerror = () => {};
+  }
+
+  // ── Start connection + intervals on store creation ───────────────────────
+
+  // Hydrate session
+  fetch('/api/session/current')
+    .then(r => r.json())
+    .then(data => {
+      if (data.session) {
+        set(s => s.sessionState ? {} : {
+          sessionState: {
             id: data.session.id, active: true, startedAt: data.session.startedAt,
             source: data.session.source || 'hydrated', toolCount: data.session.toolCount || 0,
             errorCount: data.session.errorCount || 0, summaries: data.session.summaries || [],
@@ -169,163 +173,113 @@ export function useVisionStore() {
             featureItemId: data.session.featureItemId || null,
             phaseAtBind: data.session.phaseAtBind || null,
             boundAt: data.session.boundAt || null,
-          });
-        }
-      })
-      .catch(() => { console.warn('[vision] Failed to hydrate session state'); });
-  }, []);
+          },
+        });
+      }
+    })
+    .catch(() => console.warn('[vision] Failed to hydrate session state'));
 
-  // 30s polling fallback for build state (covers missed fs.watch events)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetch('/api/build/state')
-        .then(r => r.json())
-        .then(data => setActiveBuild(data.state ?? null))
-        .catch(() => {});
-    }, 30_000);
-    return () => clearInterval(interval);
-  }, []);
+  // Build state polling (5s fallback)
+  refs.buildPollInterval = setInterval(() => {
+    fetch('/api/build/state')
+      .then(r => r.json())
+      .then(data => set({ activeBuild: data.state ?? null }))
+      .catch(() => {});
+  }, 5_000);
 
-  const handleResponse = useCallback(async (res) => {
-    const data = await res.json();
-    if (!res.ok) {
-      console.error(`[vision] API error ${res.status}:`, data.error || data);
-      return { error: data.error || `HTTP ${res.status}` };
-    }
-    return data;
-  }, []);
+  // Recent errors interval (10s, ages out old errors)
+  refs.recentErrorsInterval = setInterval(() => {
+    const { agentErrors } = get();
+    const cutoff = Date.now() - 60_000;
+    const recent = agentErrors
+      .filter(e => new Date(e.timestamp).getTime() > cutoff)
+      .slice(-5);
+    set({ recentErrors: recent });
+  }, 10_000);
 
-  const createItem = useCallback(async (data) => {
-    const res = await fetch('/api/vision/items', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(res);
-  }, [handleResponse]);
+  // Connect WebSocket
+  connect();
 
-  const updateItem = useCallback(async (id, data) => {
-    const res = await fetch(`/api/vision/items/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(res);
-  }, [handleResponse]);
-
-  const deleteItem = useCallback(async (id) => {
-    const res = await fetch(`/api/vision/items/${id}`, { method: 'DELETE' });
-    return handleResponse(res);
-  }, [handleResponse]);
-
-  const createConnection = useCallback(async (data) => {
-    const res = await fetch('/api/vision/connections', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(res);
-  }, [handleResponse]);
-
-  const deleteConnection = useCallback(async (id) => {
-    const res = await fetch(`/api/vision/connections/${id}`, { method: 'DELETE' });
-    return handleResponse(res);
-  }, [handleResponse]);
-
-  // Optimistic position update for drag (local state + debounced REST)
-  const updateItemPosition = useCallback((id, position) => {
-    setItems(prev => prev.map(item =>
-      item.id === id ? { ...item, position } : item
-    ));
-  }, []);
-
-  const clearUICommand = useCallback(() => setUICommand(null), []);
-
-  const registerSnapshotProvider = useCallback((provider) => {
-    snapshotProviderRef.current = provider;
-  }, []);
-
-  const resolveGate = useCallback(async (gateId, outcome, comment) => {
-    pendingResolveIdsRef.current.add(gateId);
-    try {
-      const res = await fetch(`/api/vision/gates/${gateId}/resolve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome, comment }),
-      });
-      const data = await handleResponse(res);
-      if (data.error) pendingResolveIdsRef.current.delete(gateId);
-      return data;
-    } catch {
-      pendingResolveIdsRef.current.delete(gateId);
-      return { error: 'Network error' };
-    }
-  }, [handleResponse]);
-
-  const updateSettings = useCallback(async (patch) => {
-    const res = await fetch('/api/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-    return handleResponse(res);
-  }, [handleResponse]);
-
-  const resetSettings = useCallback(async (section) => {
-    const res = await fetch('/api/settings/reset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(section ? { section } : {}),
-    });
-    return handleResponse(res);
-  }, [handleResponse]);
-
-  // Derived: recent errors within last 60s, capped at 5.
-  // Uses state + interval so errors age out even without new agentErrors arrivals.
-  const [recentErrors, setRecentErrors] = useState([]);
-  useEffect(() => {
-    function recompute() {
-      const cutoff = Date.now() - 60_000;
-      const recent = agentErrors
-        .filter(e => new Date(e.timestamp).getTime() > cutoff)
-        .slice(-5);
-      setRecentErrors(recent);
-    }
-    recompute();
-    // Re-derive every 10s so stale errors drop off
-    const interval = setInterval(recompute, 10_000);
-    return () => clearInterval(interval);
-  }, [agentErrors]);
+  // ── Return initial state + actions ───────────────────────────────────────
 
   return {
-    items,
-    connections,
-    connected,
-    uiCommand,
-    clearUICommand,
-    recentChanges,
-    createItem,
-    updateItem,
-    deleteItem,
-    createConnection,
-    deleteConnection,
-    updateItemPosition,
-    agentActivity,
-    agentErrors,
-    recentErrors,
-    sessionState,
-    registerSnapshotProvider,
-    gates,
-    gateEvent,
-    resolveGate,
-    settings,
-    updateSettings,
-    resetSettings,
-    activeBuild,
-    setActiveBuild,
-    sessions,
-    // Global phase filter (shared across all views)
-    selectedPhase,
-    setSelectedPhase,
+    // State
+    items: [],
+    connections: [],
+    connected: false,
+    uiCommand: null,
+    recentChanges: EMPTY_CHANGES,
+    agentActivity: [],
+    agentErrors: [],
+    recentErrors: [],
+    sessionState: null,
+    gates: [],
+    gateEvent: null,
+    settings: null,
+    activeBuild: null,
+    sessions: [],
+    selectedPhase: (() => {
+      try { return localStorage.getItem('compose:selectedPhase') || null; } catch { return null; }
+    })(),
+
+    // Actions
+    clearUICommand: () => set({ uiCommand: null }),
+
+    registerSnapshotProvider: (provider) => { refs.snapshotProvider = provider; },
+
+    setActiveBuild: (v) => set({ activeBuild: v }),
+
+    setSelectedPhase: (phase) => {
+      set({ selectedPhase: phase });
+      try {
+        if (phase) localStorage.setItem('compose:selectedPhase', phase);
+        else localStorage.removeItem('compose:selectedPhase');
+      } catch { /* ignore */ }
+    },
+
+    updateItemPosition: (id, position) => {
+      set(s => ({ items: s.items.map(item => item.id === id ? { ...item, position } : item) }));
+    },
+
+    // REST mutations
+    createItem: (data) => apiCall('/api/vision/items', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    }),
+
+    updateItem: (id, data) => apiCall(`/api/vision/items/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    }),
+
+    deleteItem: (id) => apiCall(`/api/vision/items/${id}`, { method: 'DELETE' }),
+
+    createConnection: (data) => apiCall('/api/vision/connections', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    }),
+
+    deleteConnection: (id) => apiCall(`/api/vision/connections/${id}`, { method: 'DELETE' }),
+
+    resolveGate: async (gateId, outcome, comment) => {
+      refs.pendingResolveIds.add(gateId);
+      try {
+        const data = await apiCall(`/api/vision/gates/${gateId}/resolve`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outcome, comment }),
+        });
+        if (data.error) refs.pendingResolveIds.delete(gateId);
+        return data;
+      } catch {
+        refs.pendingResolveIds.delete(gateId);
+        return { error: 'Network error' };
+      }
+    },
+
+    updateSettings: (patch) => apiCall('/api/settings', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+    }),
+
+    resetSettings: (section) => apiCall('/api/settings/reset', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(section ? { section } : {}),
+    }),
   };
-}
+});

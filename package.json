@@ -48,7 +48,8 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.0.0",
     "ws": "^8.18.0",
-    "yaml": "^2.8.2"
+    "yaml": "^2.8.2",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
