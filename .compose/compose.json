@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "capabilities": {
+    "stratum": true,
+    "lifecycle": true
+  },
+  "agents": {
+    "claude": { "detected": true, "skillInstalled": true },
+    "codex": { "detected": true, "skillInstalled": true },
+    "gemini": { "detected": false }
+  },
+  "paths": {
+    "docs": "docs",
+    "features": "docs/features",
+    "journal": "docs/journal"
+  }
+}
