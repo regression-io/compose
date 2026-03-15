@@ -55,25 +55,22 @@ const STATUS_FILTERS = [
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+// Derive group key for an item — feature code prefix (e.g. "STRAT-ENG", "COMP-UI")
+function getGroup(item) {
+  const title = item.title || '';
+  const codeMatch = title.match(/^([A-Z][\w-]*?)(?:-\d|:|\s)/);
+  if (codeMatch) return codeMatch[1];
+  const fc = item.lifecycle?.featureCode || item.featureCode;
+  if (fc) {
+    const m = fc.match(/^([A-Z][\w-]*?)(?:-\d|$)/);
+    return m ? m[1] : fc;
+  }
+  return item.phase || 'other';
+}
+
 function buildElements(items, connections, grouped) {
   const elements = [];
   const itemIds = new Set(items.map(i => i.id));
-
-  // Derive group key for an item — feature code prefix (e.g. "STRAT-ENG", "COMP-UI")
-  // Falls back to phase if no feature code pattern found
-  function getGroup(item) {
-    const title = item.title || '';
-    // Match feature code prefix: STRAT-ENG, COMP-UI, INIT, etc.
-    const codeMatch = title.match(/^([A-Z][\w-]*?)(?:-\d|:|\s)/);
-    if (codeMatch) return codeMatch[1];
-    // Try lifecycle featureCode
-    const fc = item.lifecycle?.featureCode || item.featureCode;
-    if (fc) {
-      const m = fc.match(/^([A-Z][\w-]*?)(?:-\d|$)/);
-      return m ? m[1] : fc;
-    }
-    return item.phase || 'other';
-  }
 
   // Compound parent nodes by feature group, sorted by priority
   const sortedGroups = [];
@@ -360,18 +357,34 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   const [statusFilter, setStatusFilter] = useState('active');
   const [grouped, setGrouped] = useState(true);
   const [showLegend, setShowLegend] = useState(false);
+  const [hiddenGroups, setHiddenGroups] = useState(new Set());
   const [gatePopoverNodeId, setGatePopoverNodeId] = useState(null);
   const [badgePositions, setBadgePositions] = useState([]);
 
-  // Filter: exclude doc artifacts, then by status, then by visible tracks
-  const filteredItems = useMemo(() => {
-    // Exclude items that are just doc references (spec, artifact types with doc paths as titles)
-    let result = items.filter(i => {
+  // All non-doc items with their groups
+  const nonDocItems = useMemo(() =>
+    items.filter(i => {
       const t = i.title || '';
-      // Skip items whose title is a file path (doc artifacts from feature scanner)
-      if (t.startsWith('`docs/') || t.startsWith('docs/')) return false;
-      return true;
-    });
+      return !t.startsWith('`docs/') && !t.startsWith('docs/');
+    }),
+    [items],
+  );
+
+  // Available groups (for filter bar)
+  const availableGroups = useMemo(() => {
+    const counts = {};
+    for (const item of nonDocItems) {
+      const g = getGroup(item);
+      counts[g] = (counts[g] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([group, count]) => ({ group, count }));
+  }, [nonDocItems]);
+
+  // Filter by status, visible tracks, and group
+  const filteredItems = useMemo(() => {
+    let result = nonDocItems;
     const preset = STATUS_FILTERS.find(f => f.key === statusFilter);
     if (preset?.statuses) {
       result = result.filter(i => preset.statuses.includes(i.status || 'planned'));
@@ -383,8 +396,11 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
       };
       result = result.filter(i => visibleTracks.has(getTrack(i)));
     }
+    if (hiddenGroups.size > 0) {
+      result = result.filter(i => !hiddenGroups.has(getGroup(i)));
+    }
     return result;
-  }, [items, statusFilter, visibleTracks]);
+  }, [nonDocItems, statusFilter, visibleTracks, hiddenGroups]);
 
   const filteredConnections = useMemo(() => {
     const ids = new Set(filteredItems.map(i => i.id));
@@ -402,6 +418,8 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
 
   useEffect(() => {
     if (!containerRef.current) return;
+
+    if (cyRef.current) { cyRef.current.destroy(); cyRef.current = null; }
 
     const cy = cytoscape({
       container: containerRef.current,
@@ -562,29 +580,52 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   return (
     <div className="flex-1 flex flex-col min-h-0" style={{ background: '#0f172a' }}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 shrink-0"
-        style={{ background: '#1e293b', borderBottom: '1px solid #334155' }}>
-        <div className="flex items-center gap-2">
-          <span style={{ fontSize: 11, color: '#64748b' }}>Status:</span>
-          {STATUS_FILTERS.map(f => (
-            <FilterBtn key={f.key} active={statusFilter === f.key} onClick={() => setStatusFilter(f.key)}>
-              {f.label}
-            </FilterBtn>
-          ))}
-          <Sep />
-          <span style={{ fontSize: 10, color: '#475569' }}>
-            {filteredItems.length} items &middot; {filteredConnections.length} edges
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <FilterBtn active={grouped} onClick={() => setGrouped(!grouped)}>Group</FilterBtn>
-          <Sep />
+      <div className="shrink-0" style={{ background: '#1e293b', borderBottom: '1px solid #334155' }}>
+        <div className="flex items-center justify-between px-3 py-1.5">
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: 11, color: '#64748b' }}>Status:</span>
+            {STATUS_FILTERS.map(f => (
+              <FilterBtn key={f.key} active={statusFilter === f.key} onClick={() => setStatusFilter(f.key)}>
+                {f.label}
+              </FilterBtn>
+            ))}
+            <Sep />
+            <span style={{ fontSize: 10, color: '#475569' }}>
+              {filteredItems.length} items &middot; {filteredConnections.length} edges
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <FilterBtn active={grouped} onClick={() => setGrouped(!grouped)}>Group</FilterBtn>
+            <Sep />
           <CtrlBtn onClick={handleZoomOut} title="Zoom out">&minus;</CtrlBtn>
           <CtrlBtn onClick={handleFit} title="Fit to view">Fit</CtrlBtn>
           <CtrlBtn onClick={handleZoomIn} title="Zoom in">+</CtrlBtn>
           <Sep />
           <FilterBtn active={showLegend} onClick={() => setShowLegend(!showLegend)}>Legend</FilterBtn>
+          </div>
         </div>
+        {/* Group filter row */}
+        {availableGroups.length > 1 && (
+          <div className="flex items-center gap-1 px-3 py-1 overflow-x-auto" style={{ borderTop: '1px solid #283548' }}>
+            <span style={{ fontSize: 10, color: '#64748b', flexShrink: 0 }}>Groups:</span>
+            {availableGroups.map(({ group, count }) => (
+              <FilterBtn
+                key={group}
+                active={!hiddenGroups.has(group)}
+                onClick={() => setHiddenGroups(prev => {
+                  const next = new Set(prev);
+                  next.has(group) ? next.delete(group) : next.add(group);
+                  return next;
+                })}
+              >
+                {group} ({count})
+              </FilterBtn>
+            ))}
+            {hiddenGroups.size > 0 && (
+              <CtrlBtn onClick={() => setHiddenGroups(new Set())} title="Show all groups">Reset</CtrlBtn>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Graph + overlays */}
