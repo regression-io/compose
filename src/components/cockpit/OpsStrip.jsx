@@ -21,9 +21,28 @@ export default function OpsStrip({ activeView, onSelectFeature }) {
   const dismissedRef = useRef(new Set());
   const completedRef = useRef(new Set());
 
+  // COMP-STATE-3: Keep last completed build in memory for flash animation.
+  // When activeBuild transitions from non-null to null (poll clears it),
+  // we inject a synthetic 'done' build so the flash can fire.
+  const prevBuildRef = useRef(activeBuild);
+  const [completedBuild, setCompletedBuild] = useState(null);
+  useEffect(() => {
+    const prev = prevBuildRef.current;
+    if (prev && prev.featureCode && !activeBuild) {
+      // Build just disappeared — synthesize a 'done' entry for 3s
+      setCompletedBuild({ ...prev, status: 'complete' });
+      const timer = setTimeout(() => setCompletedBuild(null), 3000);
+      prevBuildRef.current = activeBuild;
+      return () => clearTimeout(timer);
+    }
+    prevBuildRef.current = activeBuild;
+  }, [activeBuild]);
+
+  const effectiveBuild = activeBuild || completedBuild;
+
   const entries = useMemo(
-    () => deriveEntries({ activeBuild, gates, recentErrors }),
-    [activeBuild, gates, recentErrors],
+    () => deriveEntries({ activeBuild: effectiveBuild, gates, recentErrors }),
+    [effectiveBuild, gates, recentErrors],
   );
 
   // Filter out dismissed entries
