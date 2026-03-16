@@ -200,8 +200,12 @@ const useDesignStore = create((set, get) => ({
         set({ error, status: 'active' });
         return;
       }
-      const { session: updated, designDocPath } = await res.json();
-      set({ session: updated, status: 'complete', designDocPath: designDocPath || null });
+      const data = await res.json();
+      const nextState = { session: data.session, status: 'complete', designDocPath: data.designDocPath || null };
+      if (data.error) {
+        nextState.error = data.error;
+      }
+      set(nextState);
     } catch (err) {
       set({ error: err.message, status: 'active' });
     }
