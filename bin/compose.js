@@ -61,11 +61,11 @@ function detectAgents() {
     agents.push({ name: 'claude', skillDir: join(home, '.claude', 'skills', 'stratum') })
   }
 
-  // Codex (via opencode)
+  // Codex (via opencode) — shares ~/.claude/skills/ with Claude Code
   const hasCodex = spawnSync('which', ['opencode'], { encoding: 'utf-8' }).status === 0
     || existsSync(join(home, '.codex'))
   if (hasCodex) {
-    agents.push({ name: 'codex', skillDir: join(home, '.codex', 'skills', 'stratum') })
+    agents.push({ name: 'codex', skillDir: join(home, '.claude', 'skills', 'stratum'), sharedWith: 'claude' })
   }
 
   // Gemini CLI
@@ -110,13 +110,21 @@ function syncSkills(agents) {
   }
 
   console.log('\nSyncing skills...')
+  const syncedRoots = new Set()
   for (const agent of agents) {
     if (agent.name === 'gemini') {
       console.log(`  - ${agent.name} — detected but skill sync skipped (unverified path)`)
       continue
     }
+    // Skip if this agent shares a skill dir already synced (e.g. codex → ~/.claude/skills/)
+    const agentRoot = dirname(agent.skillDir)
+    if (syncedRoots.has(agentRoot)) {
+      console.log(`  ~ ${agent.name} — shares skill dir with ${agent.sharedWith ?? 'another agent'}, skipped`)
+      continue
+    }
+    syncedRoots.add(agentRoot)
 
-    const agentSkillsRoot = dirname(agent.skillDir) // e.g. ~/.claude/skills
+    const agentSkillsRoot = agentRoot
     const manifestPath = join(agentSkillsRoot, '.compose-skills.json')
 
     // Load previous manifest

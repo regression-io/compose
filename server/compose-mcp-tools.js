@@ -342,7 +342,68 @@ export function toolGetPendingGates({ itemId }) {
 
 const VALID_AGENT_TYPES = new Set(['claude', 'codex']);
 
-export async function toolAgentRun({ type = 'claude', prompt, schema, modelID, cwd }) {
+/**
+ * Build a context preamble for agent_run prompts.
+ * The spawned agent (especially codex via opencode run) has no project context —
+ * no CLAUDE.md, no feature folder awareness, no compose/stratum semantics.
+ * This function reads project files and prepends them so the agent can do useful work.
+ */
+function _buildContext({ featureCode }) {
+  const sections = [];
+
+  // Project instructions
+  const claudeMd = path.join(PROJECT_ROOT, 'CLAUDE.md');
+  if (fs.existsSync(claudeMd)) {
+    try {
+      const content = fs.readFileSync(claudeMd, 'utf-8');
+      sections.push(`## Project Instructions (CLAUDE.md)\n\n${content}`);
+    } catch { /* ignore read errors */ }
+  }
+
+  // Feature artifacts (if feature code detected)
+  if (featureCode) {
+    const featureRoot = resolveProjectPath('features');
+    const featureDir = path.join(featureRoot, featureCode);
+    if (fs.existsSync(featureDir)) {
+      const artifacts = [];
+      try {
+        for (const file of fs.readdirSync(featureDir)) {
+          if (!file.endsWith('.md') && !file.endsWith('.json')) continue;
+          const filePath = path.join(featureDir, file);
+          if (!fs.statSync(filePath).isFile()) continue;
+          try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            artifacts.push(`### ${file}\n\n${content}`);
+          } catch { /* skip unreadable files */ }
+        }
+      } catch { /* ignore readdir errors */ }
+      if (artifacts.length > 0) {
+        sections.push(`## Feature: ${featureCode}\n\n${artifacts.join('\n\n---\n\n')}`);
+      }
+    }
+  }
+
+  if (sections.length === 0) return '';
+  return `# Context\n\n${sections.join('\n\n---\n\n')}\n\n---\n\n`;
+}
+
+/**
+ * Extract a feature code from the prompt if one is referenced.
+ * Looks for common patterns like "FEAT-1", "AUTH-2", or feature folder paths.
+ */
+function _extractFeatureCode(prompt) {
+  // Match uppercase CODE-N patterns (e.g. FEAT-1, AUTH-2, STRAT-COMP-3)
+  const codeMatch = prompt.match(/\b([A-Z][\w-]*-\d+)\b/);
+  if (codeMatch) return codeMatch[1];
+
+  // Match feature folder references
+  const pathMatch = prompt.match(/features\/([a-zA-Z][\w-]+)/);
+  if (pathMatch) return pathMatch[1];
+
+  return null;
+}
+
+export async function toolAgentRun({ type = 'claude', prompt, schema, modelID, cwd, featureCode }) {
   if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
     throw new Error('agent_run: prompt is required');
   }
@@ -350,12 +411,20 @@ export async function toolAgentRun({ type = 'claude', prompt, schema, modelID, c
     throw new Error(`agent_run: unknown type '${type}'. Valid: ${[...VALID_AGENT_TYPES].join(', ')}`);
   }
 
+  // Resolve feature code from explicit param or prompt text
+  const resolvedFeature = featureCode || _extractFeatureCode(prompt);
+
+  // Build context preamble and prepend to prompt
+  const context = _buildContext({ featureCode: resolvedFeature });
+  const fullPrompt = context ? `${context}# Task\n\n${prompt}` : prompt;
+
+  const resolvedCwd = cwd || PROJECT_ROOT;
   const connector = type === 'codex'
-    ? new CodexConnector({ modelID, cwd })
-    : new ClaudeSDKConnector({ model: modelID, cwd });
+    ? new CodexConnector({ modelID, cwd: resolvedCwd })
+    : new ClaudeSDKConnector({ model: modelID, cwd: resolvedCwd });
 
   const parts = [];
-  for await (const event of connector.run(prompt, { schema, modelID, cwd })) {
+  for await (const event of connector.run(fullPrompt, { schema, modelID, cwd: resolvedCwd })) {
     if (event.type === 'assistant' && event.content) {
       parts.push(event.content);
     } else if (event.type === 'error') {

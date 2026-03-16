@@ -221,6 +221,7 @@ const TOOLS = [
     name: 'agent_run',
     description:
       'Run a prompt against an AI agent (claude or codex). ' +
+      'Project context (CLAUDE.md, feature artifacts) is automatically injected. ' +
       'Returns the full response text. ' +
       'If schema is provided, the agent is instructed to return JSON matching the schema ' +
       'and the parsed result is included in the response.',
@@ -236,6 +237,10 @@ const TOOLS = [
           type: 'string',
           description: 'The prompt to send to the agent.',
         },
+        featureCode: {
+          type: 'string',
+          description: 'Feature code (e.g. "AUTH-2") to include feature artifacts in context. Auto-detected from prompt if omitted.',
+        },
         schema: {
           type: 'object',
           description: 'JSON Schema for structured output. When provided, the agent responds with JSON only.',
@@ -246,7 +251,7 @@ const TOOLS = [
         },
         cwd: {
           type: 'string',
-          description: 'Working directory for the agent. Defaults to process.cwd().',
+          description: 'Working directory for the agent. Defaults to project root.',
         },
       },
       required: ['prompt'],

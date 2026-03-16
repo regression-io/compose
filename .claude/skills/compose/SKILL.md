@@ -70,6 +70,20 @@ At every gate, always propose whether to proceed, skip, or revise. The differenc
 - **Flag:** Agent decides, human gets notified
 - **Skip:** Agent decides silently
 
+### Codex Review
+
+Any gate can include a Codex review pass. This is not limited to implementation — use it for design docs, PRDs, blueprints, plans, or code.
+
+```
+Call mcp__compose__agent_run with:
+  type: "codex"
+  prompt: "Review <artifact>. Output REVIEW CLEAN if no actionable findings remain."
+```
+
+Fix all issues Codex flags. Re-run until REVIEW CLEAN. Max 10 iterations — if max hit, the problem is in the spec, surface to human.
+
+If `mcp__compose__agent_run` is unavailable, fall back to `compose-reviewer` agent.
+
 ## Lifecycle
 
 ```
@@ -197,22 +211,7 @@ Uses `EnterPlanMode`. Plan writes to `docs/features/<feature-code>/plan.md`.
 
 **Step 3: Review Loop**
 
-Codex is the default reviewer. Opus executes; Codex reviews. This is not configurable.
-
-```
-Call mcp__compose__agent_run with:
-  type: "codex"
-  task: "Review the implementation against blueprint and plan. List all issues
-         with confidence >= 80. Output REVIEW CLEAN if no actionable findings remain."
-  files: changed files + docs/features/<feature-code>/blueprint.md + plan.md
-```
-
-Fix all issues Codex flags. Re-run until REVIEW CLEAN.
-
-If `mcp__compose__agent_run` is unavailable, fall back to `compose-reviewer`
-agent and note the fallback in the session log.
-
-Max 10 iterations. If max hit, problem is in spec — surface to human.
+Run the Codex Review protocol (see Gate Protocol above) against the implementation.
 
 **Step 4: Coverage Sweep**
 
@@ -445,8 +444,8 @@ When `/compose` is invoked, always scan first:
 |---|---|
 | `compose-explorer` | Phase 1 (2-3 parallel), Phase 4 (targeted) |
 | `compose-architect` | Phase 3 (2-3 competing mandates) |
-| `mcp__compose__agent_run(type="codex")` | Phase 7 step 3 — default reviewer (Opus executes, Codex reviews) |
-| `compose-reviewer` | Phase 7 step 3 — fallback only when `codex_run` unavailable |
+| `mcp__compose__agent_run(type="codex")` | Any gate — Codex review pass (see Gate Protocol) |
+| `compose-reviewer` | Fallback when `agent_run` unavailable |
 | `superpowers:test-driven-development` | Phase 7 step 1 |
 | `superpowers:verification-before-completion` | Before any task/phase done |
 | `superpowers:systematic-debugging` | Any unexpected failure |
