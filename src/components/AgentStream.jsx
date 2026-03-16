@@ -13,7 +13,7 @@ import ChatInput from './agent/ChatInput.jsx';
  * unmount/remount cycles don't reset the message history or close the SSE stream.
  */
 
-const AGENT_PORT = parseInt(import.meta.env.VITE_AGENT_PORT || '3002', 10);
+const AGENT_PORT = parseInt(import.meta.env.VITE_AGENT_PORT || '4002', 10);
 const SESSION_STORAGE_KEY = 'compose-agent-session';
 const MAX_MESSAGES = 500;
 const MAX_ACTIVITY_LOG = 8;

@@ -42,7 +42,7 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 4001;
 const app = express();
 app.use(cors({ origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/ }));
 app.use(express.json());

@@ -21,7 +21,7 @@ import { HOOK_OPTIONS } from './agent-hooks.js';
 import { getTargetRoot, getDataDir } from './project-root.js';
 import { BuildStreamBridge } from './build-stream-bridge.js';
 
-const PORT = process.env.AGENT_PORT || 3002;
+const PORT = process.env.AGENT_PORT || 4002;
 const SETTINGS_FILE = path.join(getDataDir(), 'settings.json');
 
 function _readModelSetting() {

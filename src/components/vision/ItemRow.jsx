@@ -177,7 +177,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
     const desc = item.description || item.title;
     const text = `Be brief. Summarize, give your recommendation, refine the decision wording based on the resolution if needed: ${desc}\n`;
     try {
-      await fetch('http://localhost:3002/api/terminal/inject', {
+      await fetch('http://localhost:4002/api/terminal/inject', {
         method: 'POST',
         headers: withComposeToken({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ text }),

@@ -27,19 +27,19 @@ const PROCESSES = [
   {
     name: 'api-server',
     path: path.join(__dirname, 'index.js'),
-    port: process.env.PORT || 3001,
+    port: process.env.PORT || 4001,
     type: 'fork',
   },
   {
     name: 'agent-server',
     path: path.join(__dirname, 'agent-server.js'),
-    port: process.env.AGENT_PORT || 3002,
+    port: process.env.AGENT_PORT || 4002,
     type: 'fork',
   },
   {
     name: 'vite',
     command: path.join(COMPOSE_HOME, 'node_modules', '.bin', 'vite'),
-    port: process.env.VITE_PORT || 5173,
+    port: process.env.VITE_PORT || 4173,
     type: 'spawn',
   },
 ];
@@ -59,7 +59,7 @@ function ensureComposeApiToken() {
   // Expose the same token to Vite client code.
   process.env.VITE_COMPOSE_API_TOKEN = process.env.COMPOSE_API_TOKEN;
   // Expose AGENT_PORT so AgentStream.jsx can reach the right port
-  process.env.VITE_AGENT_PORT = process.env.AGENT_PORT || '3002';
+  process.env.VITE_AGENT_PORT = process.env.AGENT_PORT || '4002';
 }
 
 // --- Singleton enforcement ---

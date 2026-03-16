@@ -10,12 +10,12 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5195,
+    port: 4173,
     proxy: {
-      '/api': 'http://localhost:3001',
-      // Only proxy file-watcher and vision WS — terminal connects directly to port 3002
-      '/ws/files': { target: 'ws://localhost:3001', ws: true },
-      '/ws/vision': { target: 'ws://localhost:3001', ws: true },
+      '/api': 'http://localhost:4001',
+      // Only proxy file-watcher and vision WS — agent connects directly to port 4002
+      '/ws/files': { target: 'ws://localhost:4001', ws: true },
+      '/ws/vision': { target: 'ws://localhost:4001', ws: true },
     },
   },
 });
