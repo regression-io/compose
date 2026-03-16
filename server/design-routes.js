@@ -197,7 +197,7 @@ export function attachDesignRoutes(app, { getSessionManager, getConnector, getPr
 
   // POST /api/design/message
   app.post('/api/design/message', (req, res) => {
-    const { scope, featureCode, type, content, cardId, comment } = req.body || {};
+    const { scope, featureCode, type, content, cardId, comment, messageIndex } = req.body || {};
     if (!scope || !['product', 'feature'].includes(scope)) {
       return res.status(400).json({ error: 'scope must be "product" or "feature"' });
     }
@@ -225,15 +225,23 @@ export function attachDesignRoutes(app, { getSessionManager, getConnector, getPr
           timestamp,
         });
       } else {
-        // card_select — extract question and full card from last assistant decision block
+        // card_select — extract question and full card from the originating decision block
         let question = 'pending';
         let card = { id: cardId };
 
         const currentSession = sessionManager.getSession(scope, featureCode);
         if (currentSession) {
-          // Walk messages in reverse to find the last assistant message with decision blocks
-          for (let i = currentSession.messages.length - 1; i >= 0; i--) {
-            const msg = currentSession.messages[i];
+          // If messageIndex is provided, look up that exact message (avoids ID collisions)
+          // Otherwise fall back to scanning backward for the last decision block
+          const searchStart = typeof messageIndex === 'number' && messageIndex >= 0 && messageIndex < currentSession.messages.length
+            ? messageIndex
+            : null;
+
+          const scanMessages = searchStart !== null
+            ? [currentSession.messages[searchStart]]
+            : [...currentSession.messages].reverse();
+
+          for (const msg of scanMessages) {
             if (msg.role === 'assistant' && typeof msg.content === 'string') {
               const { parts } = parseDecisionBlocks(msg.content);
               const decisionPart = parts.find(p => p.type === 'decision');
@@ -242,7 +250,6 @@ export function attachDesignRoutes(app, { getSessionManager, getConnector, getPr
                 if (block.question) {
                   question = block.question;
                 }
-                // Find the full card object by matching cardId
                 if (Array.isArray(block.options)) {
                   const matched = block.options.find(o => o.id === cardId);
                   if (matched) {

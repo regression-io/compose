@@ -128,7 +128,7 @@ const useDesignStore = create((set, get) => ({
     }
   },
 
-  selectCard: async (cardId, comment = null) => {
+  selectCard: async (cardId, comment = null, messageIndex = null) => {
     const { session, messages: prevMessages } = get();
     if (!session) return;
 
@@ -140,7 +140,7 @@ const useDesignStore = create((set, get) => ({
       const res = await fetch(`/api/design/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: session.scope, featureCode: session.featureCode, type: 'card_select', cardId, comment }),
+        body: JSON.stringify({ scope: session.scope, featureCode: session.featureCode, type: 'card_select', cardId, comment, messageIndex }),
       });
       if (!res.ok) {
         set({ messages: prevMessages, status: 'active', error: `Failed to select card: ${res.status}` });

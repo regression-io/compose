@@ -18,7 +18,7 @@ export default function DesignView() {
     session, messages, decisions, status, error, streamingMessage,
     designDocPath,
     hydrate, startSession, sendMessage, selectCard, completeDesign,
-    connectSSE, disconnectSSE,
+    connectSSE, disconnectSSE, reset,
   } = useDesignStore();
 
   const [inputValue, setInputValue] = useState('');
@@ -55,7 +55,7 @@ export default function DesignView() {
   // Handle card submit (with optional comment)
   const handleCardSend = useCallback(() => {
     if (!selectedCard) return;
-    selectCard(selectedCard.cardId, cardComment || null);
+    selectCard(selectedCard.cardId, cardComment || null, selectedCard.messageIndex);
     setSelectedCard(null);
     setCardComment('');
   }, [selectedCard, cardComment, selectCard]);
@@ -122,6 +122,13 @@ export default function DesignView() {
               Document written to <code className="text-foreground">{designDocPath}</code>
             </span>
           )}
+          <div className="flex-1" />
+          <button
+            onClick={() => { reset(); }}
+            className="px-2 py-1 text-[10px] font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+          >
+            New Session
+          </button>
         </div>
       )}
 
