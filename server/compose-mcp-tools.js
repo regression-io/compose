@@ -10,6 +10,8 @@ import http from 'node:http';
 import path from 'node:path';
 import { ArtifactManager, ARTIFACT_SCHEMAS } from './artifact-manager.js';
 import { getTargetRoot, getDataDir, resolveProjectPath } from './project-root.js';
+import { ClaudeSDKConnector } from './connectors/claude-sdk-connector.js';
+import { CodexConnector } from './connectors/codex-connector.js';
 
 export const PROJECT_ROOT = getTargetRoot();
 export const VISION_FILE = path.join(getDataDir(), 'vision-state.json');
@@ -332,5 +334,45 @@ export function toolGetPendingGates({ itemId }) {
   if (!gates) return { count: 0, gates: [] };
   const pending = gates.filter(g => g.status === 'pending' && (!itemId || g.itemId === itemId));
   return { count: pending.length, gates: pending };
+}
+
+// ---------------------------------------------------------------------------
+// Agent run — dispatch prompts to claude or codex
+// ---------------------------------------------------------------------------
+
+const VALID_AGENT_TYPES = new Set(['claude', 'codex']);
+
+export async function toolAgentRun({ type = 'claude', prompt, schema, modelID, cwd }) {
+  if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+    throw new Error('agent_run: prompt is required');
+  }
+  if (!VALID_AGENT_TYPES.has(type)) {
+    throw new Error(`agent_run: unknown type '${type}'. Valid: ${[...VALID_AGENT_TYPES].join(', ')}`);
+  }
+
+  const connector = type === 'codex'
+    ? new CodexConnector({ modelID, cwd })
+    : new ClaudeSDKConnector({ model: modelID, cwd });
+
+  const parts = [];
+  for await (const event of connector.run(prompt, { schema, modelID, cwd })) {
+    if (event.type === 'assistant' && event.content) {
+      parts.push(event.content);
+    } else if (event.type === 'error') {
+      throw new Error(`agent_run (${type}): ${event.message}`);
+    }
+  }
+
+  const text = parts.join('');
+
+  if (schema) {
+    try {
+      return { text, result: JSON.parse(text) };
+    } catch {
+      return { text, result: null, parseError: 'Response was not valid JSON' };
+    }
+  }
+
+  return { text };
 }
 

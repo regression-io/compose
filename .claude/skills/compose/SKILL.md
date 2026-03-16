@@ -200,7 +200,7 @@ Uses `EnterPlanMode`. Plan writes to `docs/features/<feature-code>/plan.md`.
 Codex is the default reviewer. Opus executes; Codex reviews. This is not configurable.
 
 ```
-Call agent_run with:
+Call mcp__compose__agent_run with:
   type: "codex"
   task: "Review the implementation against blueprint and plan. List all issues
          with confidence >= 80. Output REVIEW CLEAN if no actionable findings remain."
@@ -209,7 +209,7 @@ Call agent_run with:
 
 Fix all issues Codex flags. Re-run until REVIEW CLEAN.
 
-If `agent_run` is unavailable (Phase 4.5 not yet deployed), fall back to `compose-reviewer`
+If `mcp__compose__agent_run` is unavailable, fall back to `compose-reviewer`
 agent and note the fallback in the session log.
 
 Max 10 iterations. If max hit, problem is in spec — surface to human.
@@ -445,7 +445,7 @@ When `/compose` is invoked, always scan first:
 |---|---|
 | `compose-explorer` | Phase 1 (2-3 parallel), Phase 4 (targeted) |
 | `compose-architect` | Phase 3 (2-3 competing mandates) |
-| `agent_run(type="codex")` | Phase 7 step 3 — default reviewer (Opus executes, Codex reviews) |
+| `mcp__compose__agent_run(type="codex")` | Phase 7 step 3 — default reviewer (Opus executes, Codex reviews) |
 | `compose-reviewer` | Phase 7 step 3 — fallback only when `codex_run` unavailable |
 | `superpowers:test-driven-development` | Phase 7 step 1 |
 | `superpowers:verification-before-completion` | Before any task/phase done |

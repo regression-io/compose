@@ -17,8 +17,8 @@ if (projectConfig.capabilities.stratum) {
   try {
     execFileSync('which', ['stratum-mcp'], { stdio: 'ignore' });
   } catch {
-    console.warn('[compose] stratum-mcp not found — Stratum features disabled');
-    console.warn('[compose] Install: pip install stratum && stratum-mcp install');
+    console.error('[compose] stratum-mcp not found but capabilities.stratum=true');
+    console.error('[compose] Run: compose init (will auto-install) or compose init --no-stratum');
     projectConfig.capabilities.stratum = false;
   }
 }

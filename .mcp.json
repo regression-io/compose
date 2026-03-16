@@ -1,11 +1,5 @@
 {
   "mcpServers": {
-    "agent": {
-      "command": "node",
-      "args": [
-        "./server/agent-mcp.js"
-      ]
-    },
     "compose": {
       "command": "node",
       "args": [

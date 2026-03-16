@@ -40,6 +40,7 @@ import {
   toolApproveGate,
   toolGetPendingGates,
   toolBindSession,
+  toolAgentRun,
 } from './compose-mcp-tools.js';
 
 // ---------------------------------------------------------------------------
@@ -216,6 +217,41 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: 'agent_run',
+    description:
+      'Run a prompt against an AI agent (claude or codex). ' +
+      'Returns the full response text. ' +
+      'If schema is provided, the agent is instructed to return JSON matching the schema ' +
+      'and the parsed result is included in the response.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['claude', 'codex'],
+          description: 'Which agent to use. "claude" uses the Claude Agent SDK (default). "codex" uses OpenAI Codex via opencode.',
+        },
+        prompt: {
+          type: 'string',
+          description: 'The prompt to send to the agent.',
+        },
+        schema: {
+          type: 'object',
+          description: 'JSON Schema for structured output. When provided, the agent responds with JSON only.',
+        },
+        modelID: {
+          type: 'string',
+          description: 'Override the model ID.',
+        },
+        cwd: {
+          type: 'string',
+          description: 'Working directory for the agent. Defaults to process.cwd().',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -250,6 +286,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'scaffold_feature':         result = toolScaffoldFeature(args); break;
       case 'approve_gate':             result = await toolApproveGate(args); break;
       case 'get_pending_gates':        result = toolGetPendingGates(args); break;
+      case 'agent_run':               result = await toolAgentRun(args); break;
       default:
         return {
           content: [{ type: 'text', text: `Unknown tool: ${name}` }],
