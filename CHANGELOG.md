@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-03-16
+
+### COMP-DESIGN-1: Interactive Design Conversation
+
+- **Design tab** in cockpit header — new view for interactive product design conversations with the LLM
+- **Decision cards** — LLM presents options as clickable cards with recommendations; cards render from inline ` ```decision ``` ` JSON blocks in markdown
+- **Design sidebar** — running decision log replacing AttentionQueueSidebar when Design tab is active; supports decision revision
+- **Session management** — one session per scope (product or feature), persisted to `.compose/data/design-sessions.json`, survives page reloads
+- **SSE streaming** — real-time LLM response streaming via session-scoped Server-Sent Events with in-flight dispatch guard
+- **Design doc generation** — "Complete Design" action writes structured design doc to `docs/design.md` (product) or `docs/features/{code}/design.md` (feature)
+- **`compose new` integration** — detects existing design doc and uses it as enriched intent, skipping the questionnaire
+- **Security hardening** — prototype pollution protection, input validation, completed session guards, optimistic rollback
+
 ## 2026-03-15
 
 ### COMP-UX-1d: Ops Strip

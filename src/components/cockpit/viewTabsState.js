@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_MAIN_TABS = [
-  'graph', 'tree', 'docs', 'gates', 'pipeline', 'sessions'
+  'graph', 'tree', 'docs', 'design', 'gates', 'pipeline', 'sessions'
 ];
 
 // ---------------------------------------------------------------------------
@@ -95,7 +95,22 @@ export function loadMainTabs() {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
     if (!raw) return [...DEFAULT_MAIN_TABS];
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length >= 1) return parsed;
+    if (Array.isArray(parsed) && parsed.length >= 1) {
+      // Migration: ensure new tabs added to DEFAULT_MAIN_TABS are present
+      let tabs = parsed;
+      for (const tab of DEFAULT_MAIN_TABS) {
+        if (!tabs.includes(tab)) {
+          // Insert after 'docs' if possible, otherwise append
+          const docsIdx = tabs.indexOf('docs');
+          if (docsIdx >= 0) {
+            tabs = [...tabs.slice(0, docsIdx + 1), tab, ...tabs.slice(docsIdx + 1)];
+          } else {
+            tabs = [...tabs, tab];
+          }
+        }
+      }
+      return tabs;
+    }
   } catch {
     // ignore
   }

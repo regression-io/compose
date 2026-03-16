@@ -19,6 +19,9 @@ import { attachSessionRoutes } from './session-routes.js';
 import { attachActivityRoutes } from './activity-routes.js';
 import { SettingsStore } from './settings-store.js';
 import { attachSettingsRoutes } from './settings-routes.js';
+import { attachDesignRoutes } from './design-routes.js';
+import { DesignSessionManager } from './design-session.js';
+import { ClaudeSDKConnector } from './connectors/claude-sdk-connector.js';
 /** Settings defaults (previously derived from contracts/lifecycle.json). */
 const SETTINGS_DEFAULTS = {
   phases: [
@@ -90,6 +93,34 @@ export class VisionServer {
       spawnJournalAgent,
       projectRoot: getTargetRoot(),
       store: this.store,
+    });
+
+    // ── Design conversation routes ──────────────────────────────────────────
+    // Re-resolve on every call so project switches get fresh instances.
+    let _designSessionManager = null;
+    let _designDataDir = null;
+    let _designConnector = null;
+    let _designCwd = null;
+
+    attachDesignRoutes(app, {
+      getSessionManager: () => {
+        const dataDir = getDataDir();
+        if (dataDir !== _designDataDir) {
+          if (_designSessionManager) _designSessionManager.destroy();
+          _designSessionManager = new DesignSessionManager(dataDir);
+          _designDataDir = dataDir;
+        }
+        return _designSessionManager;
+      },
+      getConnector: () => {
+        const cwd = getTargetRoot();
+        if (cwd !== _designCwd) {
+          _designConnector = new ClaudeSDKConnector({ cwd });
+          _designCwd = cwd;
+        }
+        return _designConnector;
+      },
+      getProjectRoot: () => getTargetRoot(),
     });
 
     // ── Build state hydration ─────────────────────────────────────────────

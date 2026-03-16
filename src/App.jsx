@@ -48,6 +48,9 @@ import ChallengeModal from './components/vision/ChallengeModal.jsx';
 import SettingsPanel from './components/vision/SettingsPanel.jsx';
 import PipelineView from './components/vision/PipelineView.jsx';
 import SessionsView from './components/vision/SessionsView.jsx';
+import DesignView from './components/vision/DesignView.jsx';
+import DesignSidebar from './components/vision/DesignSidebar.jsx';
+import { useDesignStore } from './components/vision/useDesignStore.js';
 import CommandPalette from './components/vision/shared/CommandPalette.jsx';
 import ItemFormDialog from './components/vision/shared/ItemFormDialog.jsx';
 import SettingsModal from './components/vision/shared/SettingsModal.jsx';
@@ -215,6 +218,7 @@ function CockpitView({
   onSelect, onUpdate, onCreate, onDelete, onOpenGate,
   onCreateConnection, onDeleteConnection, onRefreshBuild, onSelectStep,
   onResolveGate, onUpdateSettings, onResetSettings,
+  projectRoot,
 }) {
   switch (activeView) {
     case 'tree':
@@ -276,6 +280,8 @@ function CockpitView({
           onBack={onDocsBack}
         />
       );
+    case 'design':
+      return <DesignView key={projectRoot} />;
     case 'settings':
       return (
         <SettingsPanel
@@ -300,6 +306,10 @@ function CockpitView({
 // ---------------------------------------------------------------------------
 
 function AppInner() {
+  // ── Design store ────────────────────────────────────────────────────────
+  const designDecisions = useDesignStore(s => s.decisions);
+  const designStatus = useDesignStore(s => s.status);
+
   // ── Persistent UI state ─────────────────────────────────────────────────
   const [fontSize, setFontSize] = useState(loadFontSize);
   const [isDark, setIsDark] = useState(() =>
@@ -920,43 +930,49 @@ function AppInner() {
                   {sidebarOpen ? '\u2039' : '\u203A'}
                 </button>
                 {sidebarOpen && (
-                  <AttentionQueueSidebar
-                    items={items}
-                    gates={gates}
-                    activeBuild={activeBuild}
-                    onViewChange={handleViewChange}
-                    selectedPhase={selectedPhase}
-                    onPhaseSelect={setSelectedPhase}
-                    selectedTrack={selectedTrack}
-                    onTrackSelect={setSelectedTrack}
-                    visibleTracks={visibleTracks}
-                    onToggleVisibleTrack={(track, allTracks) => setVisibleTracks(prev => {
-                      // First toggle: init from all tracks, then remove the unchecked one
-                      if (!prev) {
-                        const next = new Set(allTracks);
-                        next.delete(track);
-                        return next;
-                      }
-                      const next = new Set(prev);
-                      if (next.has(track)) next.delete(track);
-                      else next.add(track);
-                      // If all are checked again, go back to null (show all)
-                      if (allTracks && next.size >= allTracks.length) return null;
-                      return next;
-                    })}
-                    onShowAllTracks={() => setVisibleTracks(null)}
-                    hiddenGroups={hiddenGroups}
-                    onToggleGroup={handleToggleGroup}
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    connected={connected}
-                    agentActivity={agentActivity}
-                    agentErrors={agentErrors}
-                    sessionState={sessionState}
-                    onSelectItem={handleSelect}
-                    onThemeChange={updateSettings}
-                    onNewItem={() => setCreateOpen(true)}
-                  />
+                  activeView === 'design'
+                    ? <DesignSidebar
+                        decisions={designDecisions}
+                        sessionComplete={designStatus === 'complete'}
+                        onReviseDecision={(i) => useDesignStore.getState().reviseDecision(i)}
+                      />
+                    : <AttentionQueueSidebar
+                        items={items}
+                        gates={gates}
+                        activeBuild={activeBuild}
+                        onViewChange={handleViewChange}
+                        selectedPhase={selectedPhase}
+                        onPhaseSelect={setSelectedPhase}
+                        selectedTrack={selectedTrack}
+                        onTrackSelect={setSelectedTrack}
+                        visibleTracks={visibleTracks}
+                        onToggleVisibleTrack={(track, allTracks) => setVisibleTracks(prev => {
+                          // First toggle: init from all tracks, then remove the unchecked one
+                          if (!prev) {
+                            const next = new Set(allTracks);
+                            next.delete(track);
+                            return next;
+                          }
+                          const next = new Set(prev);
+                          if (next.has(track)) next.delete(track);
+                          else next.add(track);
+                          // If all are checked again, go back to null (show all)
+                          if (allTracks && next.size >= allTracks.length) return null;
+                          return next;
+                        })}
+                        onShowAllTracks={() => setVisibleTracks(null)}
+                        hiddenGroups={hiddenGroups}
+                        onToggleGroup={handleToggleGroup}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        connected={connected}
+                        agentActivity={agentActivity}
+                        agentErrors={agentErrors}
+                        sessionState={sessionState}
+                        onSelectItem={handleSelect}
+                        onThemeChange={updateSettings}
+                        onNewItem={() => setCreateOpen(true)}
+                      />
                 )}
               </div>
 
@@ -997,6 +1013,7 @@ function AppInner() {
                       onDocsSelectedFileChange={setDocsSelectedFile}
                       docsPreviousView={docsPreviousView}
                       onDocsBack={navigateBackFromDocs}
+                      projectRoot={projectRoot}
                     />
                   </PanelErrorBoundary>
                 </div>
