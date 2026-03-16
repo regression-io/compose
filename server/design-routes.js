@@ -375,8 +375,13 @@ Output ONLY the Markdown content, no code fences.`;
         designDocPath = path.join('docs', 'design.md');
       }
 
-      // Write the design doc
+      // Guard: never overwrite an existing doc with empty content
       const absPath = path.join(projectRoot, designDocPath);
+      if (!docContent.trim()) {
+        console.error('[design] Generated doc is empty — refusing to overwrite');
+        res.json({ session: completedSession, error: 'Doc generation produced empty content' });
+        return;
+      }
       fs.mkdirSync(path.dirname(absPath), { recursive: true });
       fs.writeFileSync(absPath, docContent, 'utf-8');
 
