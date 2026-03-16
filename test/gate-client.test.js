@@ -257,8 +257,8 @@ describe('handleVisionMessage — gateResolved', () => {
     assert.equal(calls.setGateEvent.length, 0); // still suppressed because g2 was in the set
   });
 
-  test('resolved gate without matching gatesRef still emits toast (itemId null)', () => {
-    // Edge case: gatesRef doesn't have the gate (stale)
+  test('resolved gate without matching gatesRef falls back to gateId (never null)', () => {
+    // Edge case: gatesRef doesn't have the gate (stale) — falls back to gateId
     refs.gatesRef.current = [];
 
     handleVisionMessage(
@@ -267,7 +267,7 @@ describe('handleVisionMessage — gateResolved', () => {
     );
 
     assert.equal(calls.setGateEvent.length, 1);
-    assert.equal(calls.setGateEvent[0].resolved.itemId, null);
+    assert.equal(calls.setGateEvent[0].resolved.itemId, 'g1'); // gateId fallback, not null
   });
 });
 

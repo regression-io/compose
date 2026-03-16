@@ -44,7 +44,7 @@ function initialFormState(parentItem) {
 }
 
 export default function ItemFormDialog({ open, onClose, parentItem }) {
-  const { createItem } = useVisionStore();
+  const createItem = useVisionStore(s => s.createItem);
   const [form, setForm] = useState(() => initialFormState(parentItem));
   const [selectedType, setSelectedType] = useState('task');
   const [advancedOpen, setAdvancedOpen] = useState(false);

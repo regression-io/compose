@@ -12,6 +12,7 @@
  */
 import React, { useState, useMemo } from 'react';
 import { useVisionStore } from '../vision/useVisionStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import ItemDetailPanel from '../vision/ItemDetailPanel.jsx';
 import DetailTabs from './DetailTabs.jsx';
 import ContextPipelineDots from '../vision/ContextPipelineDots.jsx';
@@ -21,18 +22,16 @@ import ContextFilesTab from '../vision/ContextFilesTab.jsx';
 
 export default function ContextItemDetail({ itemId, onSelect, onClose, onOpenFile, onViewInGraph, onViewInTree }) {
   const {
-    items,
-    connections,
-    gates,
-    updateItem,
-    deleteItem,
-    createConnection,
-    deleteConnection,
-    resolveGate,
-    activeBuild,
-    sessions,
-    agentErrors,
-  } = useVisionStore();
+    items, connections, gates, updateItem, deleteItem,
+    createConnection, deleteConnection, resolveGate,
+    activeBuild, sessions, agentErrors,
+  } = useVisionStore(useShallow(s => ({
+    items: s.items, connections: s.connections, gates: s.gates,
+    updateItem: s.updateItem, deleteItem: s.deleteItem,
+    createConnection: s.createConnection, deleteConnection: s.deleteConnection,
+    resolveGate: s.resolveGate, activeBuild: s.activeBuild,
+    sessions: s.sessions, agentErrors: s.agentErrors,
+  })));
 
   const item = items.find(i => i.id === itemId) || null;
   const [activeDetailTab, setActiveDetailTab] = useState('overview');

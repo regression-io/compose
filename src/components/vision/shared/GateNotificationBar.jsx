@@ -16,6 +16,7 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, X, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { useVisionStore } from '../useVisionStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { LIFECYCLE_PHASE_LABELS } from '../constants.js';
 
 const GATE_COLORS = {
@@ -31,7 +32,7 @@ const GATE_COLORS = {
 const FALLBACK_COLOR = { bg: 'bg-muted/30', border: 'border-border', text: 'text-muted-foreground' };
 
 export default function GateNotificationBar({ onOpenGate }) {
-  const { gates, items } = useVisionStore();
+  const { gates, items } = useVisionStore(useShallow(s => ({ gates: s.gates, items: s.items })));
   const [dismissed, setDismissed] = useState(new Set());
   const [index, setIndex] = useState(0);
 

@@ -368,7 +368,7 @@ function ActiveBuildBanner({ build, onDismiss }) {
 // ---------------------------------------------------------------------------
 
 export default function StratumPanel() {
-  const { activeBuild } = useVisionStore()
+  const activeBuild = useVisionStore(s => s.activeBuild)
   const [dismissed, setDismissed] = useState(null)
 
   const handleDismiss = useCallback(() => {

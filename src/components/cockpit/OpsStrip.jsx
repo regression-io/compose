@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useVisionStore } from '../vision/useVisionStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import OpsStripEntry from './OpsStripEntry.jsx';
 import { deriveEntries } from './opsStripLogic.js';
 
@@ -11,9 +12,9 @@ import { deriveEntries } from './opsStripLogic.js';
  */
 
 export default function OpsStrip({ activeView, onSelectFeature }) {
-  const {
-    activeBuild, gates, recentErrors, resolveGate,
-  } = useVisionStore();
+  const { activeBuild, gates, recentErrors, resolveGate } = useVisionStore(
+    useShallow(s => ({ activeBuild: s.activeBuild, gates: s.gates, recentErrors: s.recentErrors, resolveGate: s.resolveGate }))
+  );
 
   // Animation state per entry key
   const [animStates, setAnimStates] = useState(new Map());

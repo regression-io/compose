@@ -18,11 +18,12 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Search, ShieldCheck, AlertTriangle, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { useVisionStore } from '../useVisionStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import { LIFECYCLE_PHASE_LABELS } from '../constants.js';
 import StatusBadge from './StatusBadge.jsx';
 
 export default function CommandPalette({ open, onClose, onSelectItem, onSelectGate }) {
-  const { items, gates, sessions } = useVisionStore();
+  const { items, gates, sessions } = useVisionStore(useShallow(s => ({ items: s.items, gates: s.gates, sessions: s.sessions })));
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef(null);

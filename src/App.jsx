@@ -37,6 +37,7 @@ import {
 // Vision surface — views, sidebar, modals, store
 import { VisionChangesContext } from './components/vision/VisionChangesContext.js';
 import { useVisionStore } from './components/vision/useVisionStore.js';
+import { useShallow } from 'zustand/react/shallow';
 import AttentionQueueSidebar from './components/vision/AttentionQueueSidebar.jsx';
 import TreeView from './components/vision/TreeView.jsx';
 import GraphView from './components/vision/GraphView.jsx';
@@ -335,7 +336,19 @@ function AppInner() {
     activeBuild, setActiveBuild,
     sessions,
     selectedPhase, setSelectedPhase,
-  } = useVisionStore();
+  } = useVisionStore(useShallow(s => ({
+    items: s.items, connections: s.connections, connected: s.connected,
+    uiCommand: s.uiCommand, clearUICommand: s.clearUICommand, recentChanges: s.recentChanges,
+    createItem: s.createItem, updateItem: s.updateItem, deleteItem: s.deleteItem,
+    createConnection: s.createConnection, deleteConnection: s.deleteConnection,
+    agentActivity: s.agentActivity, agentErrors: s.agentErrors,
+    sessionState: s.sessionState, registerSnapshotProvider: s.registerSnapshotProvider,
+    gates: s.gates, gateEvent: s.gateEvent, resolveGate: s.resolveGate,
+    settings: s.settings, updateSettings: s.updateSettings, resetSettings: s.resetSettings,
+    activeBuild: s.activeBuild, setActiveBuild: s.setActiveBuild,
+    sessions: s.sessions,
+    selectedPhase: s.selectedPhase, setSelectedPhase: s.setSelectedPhase,
+  })));
 
   // ── Local vision state (absorbed from VisionTracker) ────────────────────
   const [selectedItemId, setSelectedItemId] = useState(null);
