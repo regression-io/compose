@@ -269,6 +269,15 @@ function runInit(flags) {
   writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2))
   console.log(`Registered compose-mcp in ${mcpPath}`)
 
+  // 6b. Run stratum-mcp install to register hooks + CLAUDE.md in this project
+  if (hasStratum) {
+    console.log('Running stratum-mcp install for hooks...')
+    const stratumResult = spawnSync('stratum-mcp', ['install'], { cwd, stdio: 'inherit' })
+    if (stratumResult.status !== 0) {
+      console.warn('Warning: stratum-mcp install failed (hooks may not be registered)')
+    }
+  }
+
   // 7. Scaffold ROADMAP.md from template if absent
   const roadmapDest = join(cwd, 'ROADMAP.md')
   if (!existsSync(roadmapDest)) {

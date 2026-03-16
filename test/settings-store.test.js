@@ -26,7 +26,7 @@ const SETTINGS_DEFAULTS = {
     { id: 'ship', defaultPolicy: 'gate' },
   ],
   iterationDefaults: {
-    review: { maxIterations: 10 },
+    review: { maxIterations: 5 },
     coverage: { maxIterations: 15 },
   },
   policyModes: ['gate', 'flag', 'skip'],
@@ -59,7 +59,7 @@ describe('defaults', () => {
   test('get() returns contract iteration defaults', () => {
     const store = makeStore();
     const settings = store.get();
-    assert.equal(settings.iterations.review.maxIterations, 10);
+    assert.equal(settings.iterations.review.maxIterations, 5);
     assert.equal(settings.iterations.coverage.maxIterations, 15);
   });
 

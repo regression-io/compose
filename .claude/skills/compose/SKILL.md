@@ -80,7 +80,7 @@ Call mcp__compose__agent_run with:
   prompt: "Review <artifact>. Output REVIEW CLEAN if no actionable findings remain."
 ```
 
-Fix all issues Codex flags. Re-run until REVIEW CLEAN. Max 10 iterations — if max hit, the problem is in the spec, surface to human.
+Fix all issues Codex flags. Re-run until REVIEW CLEAN. Max 5 iterations — if max hit, the problem is in the spec, surface to human.
 
 If `mcp__compose__agent_run` is unavailable, fall back to `compose-reviewer` agent.
 

@@ -67,7 +67,7 @@ flows:
         output_contract: ReviewResult
         ensure:
           - "result.clean == True"
-        retries: 10
+        retries: 5
 
   # --- Sub-flow: coverage ---
   # Single-step: claude runs tests, stratum retries via ensure_failed.

@@ -1,5 +1,36 @@
 {
-  "hooks": {},
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/ruze/.stratum/hooks/stratum-session-start.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/ruze/.stratum/hooks/stratum-session-stop.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/ruze/.stratum/hooks/stratum-post-tool-failure.sh"
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "plugin-dev@claude-plugins-official": true
   }
