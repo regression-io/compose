@@ -94,6 +94,7 @@ export const useVisionStore = create((set, get) => {
   // ── WebSocket connection ─────────────────────────────────────────────────
 
   function connect() {
+    if (refs.disposed) return;
     if (refs.ws && (refs.ws.readyState === WebSocket.OPEN || refs.ws.readyState === WebSocket.CONNECTING)) {
       return; // already connected
     }
@@ -297,7 +298,8 @@ export const useVisionStore = create((set, get) => {
 // module instance doesn't leak alongside the new one.
 
 function teardown() {
-  if (refs.ws) { refs.ws.close(); refs.ws = null; }
+  refs.disposed = true;
+  if (refs.ws) { refs.ws.onclose = null; refs.ws.close(); refs.ws = null; }
   if (refs.reconnectTimer) { clearTimeout(refs.reconnectTimer); refs.reconnectTimer = null; }
   if (refs.changeTimer) { clearTimeout(refs.changeTimer); refs.changeTimer = null; }
   if (refs.sessionEndTimer) { clearTimeout(refs.sessionEndTimer); refs.sessionEndTimer = null; }
