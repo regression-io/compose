@@ -10,7 +10,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 4173,
+    port: 5195,
     proxy: {
       '/api': 'http://localhost:4001',
       // Only proxy file-watcher and vision WS — agent connects directly to port 4002

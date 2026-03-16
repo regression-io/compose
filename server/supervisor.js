@@ -39,7 +39,7 @@ const PROCESSES = [
   {
     name: 'vite',
     command: path.join(COMPOSE_HOME, 'node_modules', '.bin', 'vite'),
-    port: process.env.VITE_PORT || 4173,
+    port: process.env.VITE_PORT || 5195,
     type: 'spawn',
   },
 ];
