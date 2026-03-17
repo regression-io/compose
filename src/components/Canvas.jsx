@@ -370,15 +370,15 @@ export default function Canvas({ fontSize = 14 }) {
   };
 
   return (
-    <div className="h-full flex flex-col" style={{ background: 'var(--compose-raised)' }}>
+    <div className="h-full flex flex-col" style={{ background: 'hsl(var(--background))' }}>
       {/* Header bar */}
       <div
         className="flex items-center px-2 shrink-0 gap-1"
-        style={{ borderBottom: '1px solid var(--border-standard)', minHeight: '32px' }}
+        style={{ borderBottom: '1px solid hsl(var(--border))', minHeight: '32px' }}
       >
         <div
           className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ background: connected ? 'var(--success)' : 'var(--error)' }}
+          style={{ background: connected ? 'hsl(var(--success))' : 'hsl(var(--destructive))' }}
         />
 
         <div className="flex-1 flex items-center gap-0 overflow-x-auto min-w-0" style={{ scrollbarWidth: 'none' }}>
@@ -389,25 +389,25 @@ export default function Canvas({ fontSize = 14 }) {
                 key={tab.path}
                 className="flex items-center gap-1.5 px-2.5 py-1 text-[13px] shrink-0 border-none cursor-pointer group"
                 style={{
-                  color: i === activeIndex ? 'var(--ink-primary)' : 'var(--ink-tertiary)',
-                  background: i === activeIndex ? 'var(--compose-overlay)' : 'transparent',
-                  borderBottom: i === activeIndex ? '2px solid var(--ember)' : '2px solid transparent',
+                  color: i === activeIndex ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
+                  background: i === activeIndex ? 'hsl(var(--muted))' : 'transparent',
+                  borderBottom: i === activeIndex ? '2px solid hsl(var(--primary))' : '2px solid transparent',
                 }}
                 onClick={() => setActiveIndex(i)}
                 title={tab.path}
               >
                 <span className="truncate max-w-[140px]">{displayName(tab.path)}</span>
                 <span
-                  className="text-[11px] opacity-0 group-hover:opacity-80 hover:text-[var(--ember)]"
-                  style={{ color: 'var(--ink-secondary)', transition: 'opacity 0.15s', cursor: 'pointer', padding: '0 2px' }}
+                  className="text-[11px] opacity-0 group-hover:opacity-80 hover:text-[hsl(var(--primary))]"
+                  style={{ color: 'hsl(var(--muted-foreground))', transition: 'opacity 0.15s', cursor: 'pointer', padding: '0 2px' }}
                   onClick={(e) => { e.stopPropagation(); undockTab(tab.path); }}
                   title="Pop out to window"
                 >
                   <ExternalLink style={{ width: 11, height: 11, display: 'inline' }} />
                 </span>
                 <span
-                  className="text-[11px] opacity-40 group-hover:opacity-100 hover:text-[var(--error)]"
-                  style={{ color: 'var(--ink-secondary)', transition: 'opacity 0.15s', cursor: 'pointer', padding: '0 2px' }}
+                  className="text-[11px] opacity-40 group-hover:opacity-100 hover:text-[hsl(var(--destructive))]"
+                  style={{ color: 'hsl(var(--muted-foreground))', transition: 'opacity 0.15s', cursor: 'pointer', padding: '0 2px' }}
                   onClick={(e) => closeTab(i, e)}
                 >
                   ✕
@@ -420,8 +420,8 @@ export default function Canvas({ fontSize = 14 }) {
         <button
           className="flex items-center gap-1 px-1.5 py-0.5 shrink-0 rounded"
           style={{
-            color: showFilePicker ? 'var(--ember)' : 'var(--ink-tertiary)',
-            background: showFilePicker ? 'var(--compose-overlay)' : 'none',
+            color: showFilePicker ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+            background: showFilePicker ? 'hsl(var(--muted))' : 'none',
             border: 'none',
             cursor: 'pointer',
           }}
@@ -434,8 +434,8 @@ export default function Canvas({ fontSize = 14 }) {
         <button
           className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
           style={{
-            color: pinned ? 'var(--ember)' : 'var(--ink-tertiary)',
-            background: pinned ? 'var(--ember-glow)' : 'transparent',
+            color: pinned ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+            background: pinned ? 'hsl(var(--primary) / 0.1)' : 'transparent',
             border: 'none',
             cursor: 'pointer',
           }}
@@ -451,13 +451,13 @@ export default function Canvas({ fontSize = 14 }) {
         <div
           className="overflow-y-auto"
           style={{
-            background: 'var(--compose-overlay)',
-            borderBottom: '1px solid var(--border-standard)',
+            background: 'hsl(var(--muted))',
+            borderBottom: '1px solid hsl(var(--border))',
             maxHeight: '240px',
           }}
         >
           {fileList.length === 0 ? (
-            <div className="px-3 py-2 text-xs" style={{ color: 'var(--ink-tertiary)' }}>
+            <div className="px-3 py-2 text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
               No markdown files found in docs/
             </div>
           ) : (
@@ -468,7 +468,7 @@ export default function Canvas({ fontSize = 14 }) {
                   key={f}
                   className="block w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 truncate"
                   style={{
-                    color: isOpen ? 'var(--ember)' : 'var(--ink-secondary)',
+                    color: isOpen ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
@@ -511,15 +511,15 @@ export default function Canvas({ fontSize = 14 }) {
           ) : (
             <div className="h-full flex items-center justify-center">
               <div className="text-center">
-                <p className="text-sm mb-1" style={{ color: 'var(--ink-tertiary)' }}>
+                <p className="text-sm mb-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
                   Canvas
                 </p>
-                <p className="text-xs" style={{ color: 'var(--ink-muted)' }}>
+                <p className="text-xs" style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>
                   Edit a markdown file in docs/ to see it here
                 </p>
                 <button
                   className="text-xs mt-3 underline"
-                  style={{ color: 'var(--ink-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
+                  style={{ color: 'hsl(var(--muted-foreground))', background: 'none', border: 'none', cursor: 'pointer' }}
                   onClick={() => { loadFileList(); setShowFilePicker(true); }}
                 >
                   or browse files
@@ -533,7 +533,7 @@ export default function Canvas({ fontSize = 14 }) {
       {/* Highlight style — injected once */}
       <style>{`
         .canvas-markdown [id="${highlightId}"] {
-          background: var(--ember-glow);
+          background: hsl(var(--primary) / 0.1);
           margin-left: -8px;
           padding-left: 8px;
           margin-right: -8px;

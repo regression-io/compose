@@ -13,7 +13,7 @@ const CATEGORY_COLORS = {
   searching: 'var(--color-category-searching)',
   fetching: 'var(--color-category-fetching)',
   delegating: 'var(--color-category-delegating)',
-  thinking: 'var(--ink-tertiary)',
+  thinking: 'hsl(var(--muted-foreground))',
 };
 
 const ERROR_TYPE_LABELS = {
@@ -113,21 +113,21 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem }) 
       )}
       {sessionState && (
         <div className="px-3 pb-1">
-          <div className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--ink-tertiary, var(--color-text-tertiary))' }}>
+          <div className="flex items-center gap-1.5 text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{
-              background: sessionState.active ? 'var(--color-primary)' : 'var(--color-success)',
+              background: sessionState.active ? 'hsl(var(--primary))' : 'hsl(var(--success))',
             }} />
             <SessionTimer startedAt={sessionState.startedAt} active={sessionState.active} duration={sessionState.duration} />
             <span className="tabular-nums">{sessionState.toolCount || 0} tools</span>
             {sessionState.errorCount > 0 && (
-              <span style={{ color: 'var(--color-error, #ef4444)' }}>{sessionState.errorCount} err</span>
+              <span style={{ color: 'hsl(var(--destructive))' }}>{sessionState.errorCount} err</span>
             )}
             {!sessionState.active && sessionState.journalSpawned && (
-              <span style={{ color: 'var(--color-primary)' }}>journal</span>
+              <span style={{ color: 'hsl(var(--primary))' }}>journal</span>
             )}
           </div>
           {sessionState.summaries?.length > 0 && (
-            <p className="text-[10px] mt-0.5 truncate" style={{ color: 'var(--ink-tertiary, var(--color-text-tertiary))', opacity: 0.7 }}
+            <p className="text-[10px] mt-0.5 truncate" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.7 }}
               title={sessionState.summaries[sessionState.summaries.length - 1]?.summary}>
               {sessionState.summaries[sessionState.summaries.length - 1]?.summary}
             </p>
@@ -137,29 +137,29 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem }) 
 
       {/* Agent activity */}
       <div className="px-3 pb-2">
-        <div className="rounded-md p-2" style={{ background: 'var(--color-surface-overlay)' }}>
+        <div className="rounded-md p-2" style={{ background: 'hsl(var(--accent))' }}>
           <div className="flex items-center gap-1.5 mb-1">
             <div
               className="w-1.5 h-1.5 rounded-full flex-shrink-0"
               style={{
-                background: agentState.status === 'working' ? 'var(--color-category-writing)' : 'var(--color-success)',
+                background: agentState.status === 'working' ? 'var(--color-category-writing)' : 'hsl(var(--success))',
                 animation: agentState.status === 'working' ? 'pulse 1.5s ease-in-out infinite' : 'none',
               }}
             />
             <span className="text-[10px] font-medium uppercase tracking-wider" style={{
-              color: agentState.status === 'working' ? 'var(--color-category-writing)' : 'var(--ink-tertiary, var(--color-text-tertiary))',
+              color: agentState.status === 'working' ? 'var(--color-category-writing)' : 'hsl(var(--muted-foreground))',
             }}>
               {agentState.status === 'working'
                 ? (CATEGORY_LABELS[agentState.category] || 'Working')
                 : 'Idle'}
             </span>
             {agentState.status === 'working' && agentState.tool && (
-              <span className="text-[10px] tracking-wider" style={{ color: 'var(--ink-tertiary, var(--color-text-tertiary))' }}>
+              <span className="text-[10px] tracking-wider" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 {agentState.tool}
               </span>
             )}
             {agentState.status === 'working' && agentState.currentActivity && (
-              <span className="text-[10px] tabular-nums ml-auto" style={{ color: 'var(--ink-tertiary, var(--color-text-tertiary))', opacity: 0.6 }}>
+              <span className="text-[10px] tabular-nums ml-auto" style={{ color: 'hsl(var(--muted-foreground))', opacity: 0.6 }}>
                 {formatElapsed(Date.now() - agentState.currentActivity.startTime)}
               </span>
             )}
@@ -174,7 +174,7 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem }) 
                   title={`${entry.tool || 'thinking'} — ${formatElapsed(entry.duration)}`}
                   style={{
                     width: Math.max(4, Math.min(16, (entry.duration || 0) / 1000 * 2)),
-                    background: CATEGORY_COLORS[entry.category] || (agentState.status === 'working' ? 'var(--color-category-writing)' : 'var(--color-success)'),
+                    background: CATEGORY_COLORS[entry.category] || (agentState.status === 'working' ? 'var(--color-category-writing)' : 'hsl(var(--success))'),
                     opacity: 0.2 + (i / arr.length) * 0.6,
                   }}
                 />
@@ -185,9 +185,9 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem }) 
           {agentActivity && agentActivity.length > 0 && (
             <div className="mt-1.5 space-y-0.5">
               {agentActivity.slice(-4).map((entry, i) => (
-                <div key={i} className="flex items-center gap-1 text-[10px]" style={{ color: entry.error ? 'var(--color-error, #ef4444)' : 'var(--ink-tertiary, var(--color-text-tertiary))' }}>
+                <div key={i} className="flex items-center gap-1 text-[10px]" style={{ color: entry.error ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>
                   {entry.error && (
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--color-error, #ef4444)' }} />
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'hsl(var(--destructive))' }} />
                   )}
                   <span className="font-medium shrink-0">{entry.tool}</span>
                   {entry.category && !entry.error && (
@@ -213,13 +213,13 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem }) 
           {resolvedItems.length > 0 && (
             <div className="mt-1.5">
               <p className="text-[10px] font-medium uppercase tracking-wider mb-0.5"
-                 style={{ color: 'var(--ink-tertiary, var(--color-text-tertiary))' }}>
+                 style={{ color: 'hsl(var(--muted-foreground))' }}>
                 Working on
               </p>
               {resolvedItems.slice(0, 3).map(item => (
                 <div key={item.id}
                   className="flex items-center gap-1 text-[10px] py-0.5"
-                  style={{ color: 'var(--color-text-secondary)' }}>
+                  style={{ color: 'hsl(var(--muted-foreground))' }}>
                   <span>{item.status === 'in_progress' ? '◆' : '◇'}</span>
                   <span className="truncate">{item.title}</span>
                 </div>
@@ -230,12 +230,12 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem }) 
           {agentErrors && agentErrors.length > 0 && (
             <div className="mt-1.5">
               <p className="text-[10px] font-medium uppercase tracking-wider mb-0.5"
-                 style={{ color: 'var(--color-error, #ef4444)' }}>
+                 style={{ color: 'hsl(var(--destructive))' }}>
                 Errors
               </p>
               {agentErrors.slice(-3).map((err, i) => (
                 <div key={i} className="flex items-center gap-1 text-[10px] py-0.5"
-                  style={{ color: 'var(--color-error, #ef4444)' }}>
+                  style={{ color: 'hsl(var(--destructive))' }}>
                   <span className="font-medium shrink-0">
                     {ERROR_TYPE_LABELS[err.errorType] || err.errorType}
                   </span>

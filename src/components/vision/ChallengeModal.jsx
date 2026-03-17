@@ -68,7 +68,7 @@ function ChallengeRow({ item, onUpdate }) {
       <div className="flex items-start gap-2">
         <div
           className="w-2 h-2 rounded-full shrink-0 mt-1.5"
-          style={{ background: isResolved ? 'var(--color-text-tertiary)' : TYPE_COLORS.question }}
+          style={{ background: isResolved ? 'hsl(var(--muted-foreground))' : TYPE_COLORS.question }}
         />
         <p className={cn(
           'text-sm font-medium leading-snug flex-1',

@@ -103,85 +103,17 @@
 }
 
 /* ── Design tokens ── */
-/* Shared (theme-independent) */
 :root {
-  /* Brand (base44 indigo primary) */
-  --color-primary: #818CF8;
-  --color-secondary: #6366F1;
-  --color-accent: #3b82f6;
-  --color-success: #22C55E;
-  --color-warning: #F59E0B;
-  --color-error: #EF4444;
-
-  /* Agent activity category colors (light mode — higher contrast) */
-  --color-category-reading: var(--color-primary);
+  /* Agent activity category colors (light mode) */
+  --color-category-reading: #818CF8;
   --color-category-writing: #d97706;
   --color-category-executing: #ea580c;
-  --color-category-searching: var(--color-primary);
+  --color-category-searching: #818CF8;
   --color-category-fetching: #0e7490;
   --color-category-delegating: #7c3aed;
 
-  /* Typography */
-  --font-family: 'Inter', sans-serif;
-  --line-height: 1.5;
-
-  /* Spacing */
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --spacing-xl: 32px;
-  --spacing-2xl: 40px;
-
-  /* Buttons */
-  --button-border-radius: 0.375rem;
-  --button-padding-vertical: 0.5rem;
-  --button-padding-horizontal: 1rem;
-  --button-font-weight: 600;
-
-  /* Cards */
-  --card-border-radius: 0.5rem;
-  --card-padding: 1rem;
-
-  /* Inputs */
-  --input-border-radius: 0.375rem;
-  --input-height: 2.5rem;
-
-  /* Light mode (default) */
-  --color-background: #FFFFFF;
-  --color-surface: #FAFAFA;
-  --color-surface-overlay: #F5F5F5;
-  --color-text-primary: #0a0a0a;
-  --color-text-secondary: #404040;
-  --color-text-tertiary: #737373;
-  --color-text-muted: #a3a3a3;
-  --input-border-color: #e5e5e5;
-  --border-standard: rgba(0, 0, 0, 0.08);
-  --border-soft: rgba(0, 0, 0, 0.04);
+  /* Legacy borders — used by .compose-btn-icon */
   --border-emphasis: rgba(0, 0, 0, 0.15);
-  --border-focus: rgba(99, 102, 241, 0.40);
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --accent-glow: rgba(251, 191, 36, 0.10);
-  --primary-glow: rgba(99, 102, 241, 0.08);
-
-  /* Legacy aliases — existing components still reference these */
-  --compose-void: #FAFAFA;
-  --compose-base: var(--color-background);
-  --compose-raised: var(--color-surface);
-  --compose-overlay: var(--color-surface-overlay);
-  --compose-inset: #F5F5F5;
-  --ink-primary: var(--color-text-primary);
-  --ink-secondary: var(--color-text-secondary);
-  --ink-tertiary: var(--color-text-tertiary);
-  --ink-muted: var(--color-text-muted);
-  --ember: var(--color-accent);
-  --ember-glow: var(--accent-glow);
-  --indigo: var(--color-primary);
-  --indigo-glow: var(--primary-glow);
-  --magenta: #a87cb8;
-  --magenta-glow: rgba(168, 124, 184, 0.15);
-  --error: var(--color-error);
-  --info: var(--color-primary);
 
   /* ItemRow sizing scale */
   --row-radius: 8px;
@@ -203,31 +135,13 @@
   --row-chevron: 16px;
 }
 
-/* Dark mode overrides — deep blue-slate palette matching graph view */
+/* Dark mode category color overrides */
 .dark {
-  --color-background: #0f172a;
-  --color-surface: #1e293b;
-  --color-surface-overlay: #283548;
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #94a3b8;
-  --color-text-tertiary: #64748b;
-  --color-text-muted: #475569;
-  --input-border-color: #334155;
-  --border-standard: #334155;
-  --border-soft: rgba(255, 255, 255, 0.04);
-  --border-emphasis: #475569;
-  --border-focus: rgba(59, 130, 246, 0.40);
-  --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
-  --accent-glow: rgba(59, 130, 246, 0.12);
-  --primary-glow: rgba(59, 130, 246, 0.15);
-  --compose-void: #0b1120;
-  --compose-inset: #0d1526;
-  --color-accent: #3b82f6;
-  /* Agent activity category colors (dark mode) */
   --color-category-writing: #60a5fa;
   --color-category-executing: #f97316;
   --color-category-fetching: #06b6d4;
   --color-category-delegating: #a855f7;
+  --border-emphasis: #475569;
 }
 
 /* ── Scrollbar ── */
@@ -302,24 +216,24 @@
 .xterm { padding: 8px 0 !important; }
 .xterm-viewport::-webkit-scrollbar-thumb { background: hsl(var(--border)); }
 
-/* ── Header icon buttons (legacy, for terminal panel) ── */
+/* ── Header icon buttons (terminal panel) ── */
 .compose-btn-icon {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 10px;
   font-weight: 500;
   line-height: 1;
   padding: 3px 5px;
-  border: 1px solid var(--border-standard);
+  border: 1px solid hsl(var(--border));
   border-radius: 3px;
   background: transparent;
-  color: var(--ink-tertiary);
+  color: hsl(var(--muted-foreground));
   cursor: pointer;
   transition: color 0.1s, border-color 0.1s, background 0.1s;
 }
 .compose-btn-icon:hover:not(:disabled) {
-  color: var(--ink-secondary);
+  color: hsl(var(--foreground));
   border-color: var(--border-emphasis);
-  background: var(--compose-raised);
+  background: hsl(var(--background));
 }
 .compose-btn-icon:disabled {
   opacity: 0.3;

@@ -26,7 +26,7 @@ function post(path, body) {
 
 function StatusBadge({ status }) {
   const colors = {
-    running:       'var(--compose-raised, #2a2a2a)',
+    running:       'hsl(var(--background))',
     awaiting_gate: '#7c3aed',
     complete:      '#166534',
     killed:        '#7f1d1d',

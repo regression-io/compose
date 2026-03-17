@@ -4,11 +4,6 @@
  * All functions are side-effect-free and DOM/JSX-free so they can be
  * imported and unit-tested directly with Node's built-in test runner.
  *
- * Consumers:
- *   BoardView.jsx      → (GATED_STATUSES from constants; gate check inlined)
- *   ItemListView.jsx   → filterItems, sortItems, groupItems, groupLabel, relativeTime
- *   RoadmapView.jsx    → getChildren, countDescendants, rollupStatus, CHILD_EDGE_TYPES
- *   SessionsView.jsx   → filterSessions, relativeTime
  */
 
 import { STATUSES, PHASES, PHASE_LABELS } from './constants.js';

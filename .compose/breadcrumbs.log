@@ -39,3 +39,23 @@
 2026-03-15T22:17:43+08:00 | COMP-UX-1f: Wire agent bar to ops strip and graph overlays — build lifecycle useEffect, feature code pre-selection on chat send, OpsStrip onSelectFeature callback
 2026-03-15T22:31:25+08:00 | fix P1/P2/P3: featureCode resolution, related-item selection sync, ops strip lookup
 2026-03-15T23:44:54+08:00 | fix: doc path slugs too long, dimming too aggressive, context panel divider broken, gate UUIDs still showing
+2026-03-16T11:22:08+08:00 | Creating designSessionState.js pure logic module and tests (COMP-DESIGN-1 Task 1)
+2026-03-16T11:22:23+08:00 | Creating DesignSessionManager and tests (TDD) for COMP-DESIGN-1 Task 2
+2026-03-16T11:22:38+08:00 | Creating DesignCard.jsx presentational component for design conversation cards
+2026-03-16T11:24:07+08:00 | Creating design-routes.js, attaching in vision-server.js, and writing tests for COMP-DESIGN-1 Task 3
+2026-03-16T11:24:24+08:00 | Creating DesignSidebar.jsx component for COMP-DESIGN-1 Task 5b
+2026-03-16T11:26:03+08:00 | Creating useDesignStore.js Zustand store for design sessions (COMP-DESIGN-1 Task 4)
+2026-03-16T11:26:48+08:00 | Creating DesignView.jsx — conversation thread with decision cards and input area (COMP-DESIGN-1 Task 6)
+2026-03-16T11:26:54+08:00 | Adding design doc detection to new.js — skip questionnaire when docs/design.md exists
+2026-03-16T11:28:36+08:00 | COMP-DESIGN-1 Task 7: Wire Design tab and sidebar into cockpit shell
+2026-03-16T11:36:38+08:00 | Fix SSE keepalive + ack broadcast and card_select decision extraction from prior assistant messages
+2026-03-16T11:36:59+08:00 | Fix prototype pollution in DesignSessionManager and add res.ok checks in useDesignStore
+2026-03-16T11:37:04+08:00 | Fix two Codex review findings: localStorage tab migration and design session scope persistence
+2026-03-16T11:50:47+08:00 | Wire LLM dispatch after human messages in design-routes — fire-and-forget async call to ClaudeSDKConnector after text/card_select
+2026-03-16T11:51:28+08:00 | Wire decision revision end-to-end + generate design doc on complete
+2026-03-16T11:58:50+08:00 | Fix SSE global broadcast (scope isolation) and duplicate submit (immediate streaming status)
+2026-03-16T11:58:54+08:00 | Fix design routes: lazy getters for project switching + reject messages on completed sessions
+2026-03-16T12:19:00+08:00 | Fix 4 findings: stale design instances, SSE race, state reset on switch, card/in-flight guards
+2026-03-16T12:32:46+08:00 | Fix 5 design session findings: stale hydrate on project switch, connector sharing, card ID collisions, revision controls, hardcoded localhost
+2026-03-17T23:39:15+08:00 | COMP-UI-6: Polish and teardown — delete dead files, add zone error boundaries, migrate legacy color tokens
+2026-03-18T00:06:56+08:00 | COMP-UI-6 fix: restore expandAgentBar for tests, inline useIsMobile, migrate remaining legacy token consumers

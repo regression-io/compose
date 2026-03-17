@@ -41,7 +41,7 @@ function PopoutBar({ path, onDock }) {
         onClick={onDock}
         className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider"
         style={{
-          color: 'var(--ember, hsl(var(--primary)))',
+          color: 'hsl(var(--primary))',
           background: 'none',
           border: 'none',
           cursor: 'pointer',

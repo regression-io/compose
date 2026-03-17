@@ -26,7 +26,7 @@ export default function DesignSidebar({ decisions = [], onReviseDecision, sessio
         <div className="flex items-center justify-between">
           <h3
             className="text-[11px] font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--color-text-primary)' }}
+            style={{ color: 'hsl(var(--foreground))' }}
           >
             Decisions
           </h3>
@@ -47,7 +47,7 @@ export default function DesignSidebar({ decisions = [], onReviseDecision, sessio
         {decisions.length === 0 ? (
           <div
             className="px-3 py-6 text-center text-[11px]"
-            style={{ color: 'var(--color-text-tertiary)' }}
+            style={{ color: 'hsl(var(--muted-foreground))' }}
           >
             No decisions yet
           </div>
@@ -63,7 +63,7 @@ export default function DesignSidebar({ decisions = [], onReviseDecision, sessio
                 <span
                   className="text-[11px] font-medium leading-tight"
                   style={{
-                    color: 'var(--color-text-primary)',
+                    color: 'hsl(var(--foreground))',
                     textDecoration: decision.superseded ? 'line-through' : undefined,
                   }}
                 >
@@ -73,7 +73,7 @@ export default function DesignSidebar({ decisions = [], onReviseDecision, sessio
                 {decision.comment && (
                   <span
                     className="text-[10px] leading-snug mt-0.5"
-                    style={{ color: 'var(--color-text-tertiary)' }}
+                    style={{ color: 'hsl(var(--muted-foreground))' }}
                   >
                     {decision.comment}
                   </span>
@@ -82,7 +82,7 @@ export default function DesignSidebar({ decisions = [], onReviseDecision, sessio
                 {decision.superseded && (
                   <span
                     className="text-[9px] mt-0.5 uppercase tracking-wider font-medium"
-                    style={{ color: 'var(--color-text-tertiary)' }}
+                    style={{ color: 'hsl(var(--muted-foreground))' }}
                   >
                     superseded
                   </span>

@@ -30,7 +30,7 @@ function phaseStats(items, phaseKey) {
 function ConfidenceBar({ avg }) {
   if (avg < 0) return null;
   const pct = (avg / 4) * 100;
-  const color = avg >= 3.5 ? 'var(--color-success)' : avg >= 2 ? 'var(--color-primary)' : 'var(--color-error)';
+  const color = avg >= 3.5 ? 'hsl(var(--success))' : avg >= 2 ? 'hsl(var(--primary))' : 'hsl(var(--destructive))';
   return (
     <div className="h-1 w-8 rounded-full bg-muted">
       <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
@@ -172,7 +172,7 @@ function AppSidebar({
 
       {/* Views */}
       <div className="p-2">
-        <p className="text-[10px] font-medium uppercase tracking-wider px-2 mb-1" style={{ color: 'var(--color-text-tertiary)' }}>Views</p>
+        <p className="text-[10px] font-medium uppercase tracking-wider px-2 mb-1" style={{ color: 'hsl(var(--muted-foreground))' }}>Views</p>
         {VIEWS.map(view => {
           const Icon = view.icon;
           const isActive = activeView === view.key;
@@ -214,14 +214,14 @@ function AppSidebar({
       {/* Phases */}
       <ScrollArea className="flex-1">
         <div className="p-2">
-          <p className="text-[10px] font-medium uppercase tracking-wider px-2 mb-1" style={{ color: 'var(--color-text-tertiary)' }}>Phases</p>
+          <p className="text-[10px] font-medium uppercase tracking-wider px-2 mb-1" style={{ color: 'hsl(var(--muted-foreground))' }}>Phases</p>
           <button
             onClick={() => onPhaseSelect(null)}
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
             style={{
-              color: !selectedPhase ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              color: !selectedPhase ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
               fontWeight: !selectedPhase ? 500 : 400,
-              background: !selectedPhase ? 'var(--color-surface-overlay)' : 'transparent',
+              background: !selectedPhase ? 'hsl(var(--accent))' : 'transparent',
             }}
           >
             <CircleDot className="h-3.5 w-3.5 shrink-0" />
@@ -236,16 +236,16 @@ function AppSidebar({
                 onClick={() => onPhaseSelect(isActive ? null : phaseKey)}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors"
                 style={{
-                  color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                  color: isActive ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
                   fontWeight: isActive ? 500 : 400,
-                  background: isActive ? 'var(--color-surface-overlay)' : 'transparent',
+                  background: isActive ? 'hsl(var(--accent))' : 'transparent',
                 }}
               >
                 <span className="truncate">{PHASE_LABELS[phaseKey] || phaseKey}</span>
                 <div className="ml-auto flex items-center gap-1.5">
                   <ConfidenceBar avg={stats.avgConfidence} />
                   {stats.count > 0 && (
-                    <span className="text-[10px] tabular-nums" style={{ color: 'var(--color-text-tertiary)' }}>{stats.count}</span>
+                    <span className="text-[10px] tabular-nums" style={{ color: 'hsl(var(--muted-foreground))' }}>{stats.count}</span>
                   )}
                 </div>
               </button>

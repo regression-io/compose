@@ -169,12 +169,12 @@ function ToolbarButton({ onClick, active, children, title }) {
       title={title}
       className="text-xs rounded cursor-pointer transition-colors font-semibold"
       style={{
-        padding: 'var(--spacing-xs) var(--spacing-sm)',
-        borderRadius: 'var(--button-border-radius)',
+        padding: '4px 8px',
+        borderRadius: '0.375rem',
         border: '1px solid',
-        borderColor: active ? 'var(--accent-glow)' : 'var(--border-standard)',
-        background: active ? 'var(--accent-glow)' : 'var(--color-surface-overlay)',
-        color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+        borderColor: active ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--border))',
+        background: active ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--accent))',
+        color: active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
       }}
     >
       {children}
@@ -188,12 +188,12 @@ function ViewTab({ mode, active, onClick }) {
       onClick={onClick}
       className="text-xs rounded cursor-pointer capitalize transition-colors font-semibold"
       style={{
-        padding: 'var(--spacing-xs) var(--spacing-sm)',
-        borderRadius: 'var(--button-border-radius)',
+        padding: '4px 8px',
+        borderRadius: '0.375rem',
         border: '1px solid',
-        borderColor: active ? 'var(--accent-glow)' : 'var(--border-standard)',
-        background: active ? 'var(--accent-glow)' : 'var(--color-surface-overlay)',
-        color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
+        borderColor: active ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--border))',
+        background: active ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--accent))',
+        color: active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.6)',
       }}
     >
       {mode}
@@ -202,35 +202,35 @@ function ViewTab({ mode, active, onClick }) {
 }
 
 function Separator() {
-  return <div className="w-px h-4 mx-0.5" style={{ background: 'var(--border-standard)' }} />;
+  return <div className="w-px h-4 mx-0.5" style={{ background: 'hsl(var(--border))' }} />;
 }
 
 function EdgeRow({ arrow, label, edgeStyle, color, targetLabel, targetColor, suffix }) {
   return (
     <div
       className="flex items-center gap-2 text-xs"
-      style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', color: 'var(--color-text-secondary)' }}
+      style={{ padding: '4px 8px', color: 'hsl(var(--muted-foreground))' }}
     >
-      <span style={{ color: 'var(--color-text-muted)' }}>{arrow}</span>
+      <span style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>{arrow}</span>
       <span style={{
-        color: color || 'var(--color-text-secondary)',
+        color: color || 'hsl(var(--muted-foreground))',
         fontStyle: edgeStyle === 'dashed' ? 'italic' : 'normal',
       }}>
         {label || 'connects'}
       </span>
       {targetLabel ? (
         <>
-          <span style={{ color: 'var(--color-text-muted)' }}>&rarr;</span>
+          <span style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>&rarr;</span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: targetColor || 'var(--color-text-muted)' }} />
-            <span style={{ color: 'var(--color-text-primary)' }}>{targetLabel}</span>
+            <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: targetColor || 'hsl(var(--muted-foreground) / 0.6)' }} />
+            <span style={{ color: 'hsl(var(--foreground))' }}>{targetLabel}</span>
           </span>
         </>
       ) : suffix ? (
-        <span style={{ color: 'var(--color-text-muted)' }}>{suffix}</span>
+        <span style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>{suffix}</span>
       ) : null}
       {edgeStyle && edgeStyle !== 'solid' && (
-        <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>({edgeStyle})</span>
+        <span className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>({edgeStyle})</span>
       )}
     </div>
   );
@@ -274,13 +274,13 @@ function TreeView({ nodes, edges, graphKey }) {
   return (
     <div
       className="w-full h-full overflow-y-auto"
-      style={{ background: 'var(--color-background)', padding: 'var(--card-padding)' }}
+      style={{ background: 'hsl(var(--background))', padding: '1rem' }}
     >
       {/* Controls */}
-      <div className="flex items-center mb-4" style={{ gap: 'var(--spacing-sm)' }}>
+      <div className="flex items-center mb-4" style={{ gap: '8px' }}>
         <ToolbarButton onClick={() => setCollapsed(new Set())}>Expand all</ToolbarButton>
         <ToolbarButton onClick={() => setCollapsed(new Set(nodes.map(n => n.id)))}>Collapse all</ToolbarButton>
-        <span className="text-xs ml-auto" style={{ color: 'var(--color-text-tertiary)' }}>
+        <span className="text-xs ml-auto" style={{ color: 'hsl(var(--muted-foreground))' }}>
           {nodes.length} entities &middot; {edges.length} relations
         </span>
       </div>
@@ -298,13 +298,13 @@ function TreeView({ nodes, edges, graphKey }) {
           <div key={node.id} className="mb-0.5">
             <button
               onClick={() => toggle(node.id)}
-              className="flex items-center w-full text-left bg-transparent border-none cursor-pointer rounded-md transition-colors hover:bg-[var(--color-surface-overlay)]"
-              style={{ gap: 'var(--spacing-sm)', padding: 'var(--spacing-sm)' }}
+              className="flex items-center w-full text-left bg-transparent border-none cursor-pointer rounded-md transition-colors hover:bg-[hsl(var(--accent))]"
+              style={{ gap: '8px', padding: '8px' }}
             >
               <span
                 className="text-xs w-4 text-center inline-block transition-transform"
                 style={{
-                  color: 'var(--color-text-tertiary)',
+                  color: 'hsl(var(--muted-foreground))',
                   transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
                 }}
               >
@@ -318,21 +318,21 @@ function TreeView({ nodes, edges, graphKey }) {
                   transform: node.shape === 'diamond' ? 'rotate(45deg) scale(0.8)' : 'none',
                 }}
               />
-              <span className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+              <span className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>
                 {node.label}
               </span>
               {node.sublabel && (
-                <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>
                   &mdash; {node.sublabel}
                 </span>
               )}
-              <span className="text-xs ml-auto" style={{ color: 'var(--color-text-muted)' }}>
+              <span className="text-xs ml-auto" style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>
                 {totalRelations}
               </span>
             </button>
 
             {!isCollapsed && (
-              <div style={{ paddingLeft: 'var(--spacing-xl)', paddingBottom: 'var(--spacing-xs)' }}>
+              <div style={{ paddingLeft: '32px', paddingBottom: '4px' }}>
                 {outNonSelf.map((e, i) => (
                   <EdgeRow
                     key={`out-${i}`}
@@ -351,29 +351,29 @@ function TreeView({ nodes, edges, graphKey }) {
                   <div
                     key={`in-${i}`}
                     className="flex items-center gap-2 text-xs"
-                    style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', color: 'var(--color-text-secondary)' }}
+                    style={{ padding: '4px 8px', color: 'hsl(var(--muted-foreground))' }}
                   >
                     <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: nodeMap[e.from]?.color || 'var(--color-text-muted)' }} />
-                      <span style={{ color: 'var(--color-text-primary)' }}>
+                      <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: nodeMap[e.from]?.color || 'hsl(var(--muted-foreground) / 0.6)' }} />
+                      <span style={{ color: 'hsl(var(--foreground))' }}>
                         {nodeMap[e.from]?.label || e.from}
                       </span>
                     </span>
-                    <span style={{ color: 'var(--color-text-muted)' }}>&rarr;</span>
+                    <span style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>&rarr;</span>
                     <span style={{
-                      color: e.color || 'var(--color-text-secondary)',
+                      color: e.color || 'hsl(var(--muted-foreground))',
                       fontStyle: e.style === 'dashed' ? 'italic' : 'normal',
                     }}>
                       {e.label || 'connects'}
                     </span>
-                    <span style={{ color: 'var(--color-text-muted)' }}>&rarr; this</span>
+                    <span style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>&rarr; this</span>
                     {e.style && e.style !== 'solid' && (
-                      <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>({e.style})</span>
+                      <span className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>({e.style})</span>
                     )}
                   </div>
                 ))}
                 {totalRelations === 0 && (
-                  <div className="text-xs italic" style={{ padding: 'var(--spacing-xs) var(--spacing-sm)', color: 'var(--color-text-muted)' }}>
+                  <div className="text-xs italic" style={{ padding: '4px 8px', color: 'hsl(var(--muted-foreground) / 0.6)' }}>
                     no relations
                   </div>
                 )}
@@ -502,16 +502,16 @@ export default function GraphRenderer({
   // --- Tree view ---
   if (viewMode === 'tree') {
     return (
-      <div className="w-full h-full flex flex-col" style={{ background: 'var(--color-background)' }}>
+      <div className="w-full h-full flex flex-col" style={{ background: 'hsl(var(--background))' }}>
         <div
           className="flex items-center justify-between shrink-0"
-          style={{ padding: 'var(--spacing-sm) var(--spacing-md)', borderBottom: '1px solid var(--border-standard)' }}
+          style={{ padding: '8px 16px', borderBottom: '1px solid hsl(var(--border))' }}
         >
-          <div className="flex items-center" style={{ gap: 'var(--spacing-sm)' }}>
-            {title && <span className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{title}</span>}
-            {subtitle && <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>{subtitle}</span>}
+          <div className="flex items-center" style={{ gap: '8px' }}>
+            {title && <span className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>{title}</span>}
+            {subtitle && <span className="text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>{subtitle}</span>}
           </div>
-          <div className="flex" style={{ gap: 'var(--spacing-xs)' }}>
+          <div className="flex" style={{ gap: '4px' }}>
             <ViewTab mode="graph" active={viewMode === 'graph'} onClick={() => setViewMode('graph')} />
             <ViewTab mode="tree" active={viewMode === 'tree'} onClick={() => setViewMode('tree')} />
           </div>
@@ -525,38 +525,38 @@ export default function GraphRenderer({
 
   // --- Graph view ---
   return (
-    <div className="w-full h-full relative" style={{ background: 'var(--color-background)' }}>
+    <div className="w-full h-full relative" style={{ background: 'hsl(var(--background))' }}>
       {/* Header */}
       {(title || subtitle) && (
         <div
           className="absolute top-0 left-0 right-0 z-[2] pointer-events-none"
           style={{
-            padding: 'var(--spacing-sm) var(--spacing-md)',
-            background: 'linear-gradient(to bottom, var(--color-background) 0%, transparent 100%)',
+            padding: '8px 16px',
+            background: 'linear-gradient(to bottom, hsl(var(--background)) 0%, transparent 100%)',
           }}
         >
-          {title && <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{title}</div>}
-          {subtitle && <div className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>{subtitle}</div>}
+          {title && <div className="text-sm font-semibold" style={{ color: 'hsl(var(--foreground))' }}>{title}</div>}
+          {subtitle && <div className="text-[10px] mt-0.5" style={{ color: 'hsl(var(--muted-foreground))' }}>{subtitle}</div>}
         </div>
       )}
 
       {/* Controls toolbar */}
-      <div className="absolute top-2 right-3 z-[2] flex items-center" style={{ gap: 'var(--spacing-xs)' }}>
+      <div className="absolute top-2 right-3 z-[2] flex items-center" style={{ gap: '4px' }}>
         <select
           value={layoutKey}
           onChange={(e) => setLayoutKey(e.target.value)}
           className="text-xs rounded cursor-pointer appearance-none"
           style={{
-            padding: 'var(--spacing-xs) var(--spacing-sm)',
-            borderRadius: 'var(--button-border-radius)',
-            background: 'var(--color-surface-overlay)',
-            border: '1px solid var(--border-standard)',
-            color: 'var(--color-text-secondary)',
+            padding: '4px 8px',
+            borderRadius: '0.375rem',
+            background: 'hsl(var(--accent))',
+            border: '1px solid hsl(var(--border))',
+            color: 'hsl(var(--muted-foreground))',
           }}
           title="Graph layout"
         >
           {Object.entries(LAYOUT_LABELS).map(([key, label]) => (
-            <option key={key} value={key} style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-primary)' }}>
+            <option key={key} value={key} style={{ background: 'hsl(var(--accent))', color: 'hsl(var(--foreground))' }}>
               {label}
             </option>
           ))}
@@ -580,24 +580,24 @@ export default function GraphRenderer({
         <div
           className="absolute bottom-3 left-3 z-[2]"
           style={{
-            background: 'var(--color-surface)',
-            border: '1px solid var(--border-standard)',
-            borderRadius: 'var(--card-border-radius)',
-            padding: 'var(--spacing-sm) var(--spacing-md)',
-            boxShadow: 'var(--card-shadow)',
+            background: 'hsl(var(--card))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: '0.5rem',
+            padding: '8px 16px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
             minWidth: 150,
             maxWidth: 210,
           }}
         >
           <div className="flex justify-between items-center mb-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-tertiary)' }}>
+            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--muted-foreground))' }}>
               Entities
             </span>
             {hiddenNodes.size > 0 && (
               <button
                 onClick={showAll}
                 className="text-[10px] bg-transparent border-none cursor-pointer p-0"
-                style={{ color: 'var(--color-accent)' }}
+                style={{ color: 'hsl(var(--primary))' }}
               >
                 Show all
               </button>
@@ -621,7 +621,7 @@ export default function GraphRenderer({
                   <span
                     className="text-xs"
                     style={{
-                      color: isHidden ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
+                      color: isHidden ? 'hsl(var(--muted-foreground) / 0.6)' : 'hsl(var(--muted-foreground))',
                       textDecoration: isHidden ? 'line-through' : 'none',
                     }}
                   >
@@ -633,13 +633,13 @@ export default function GraphRenderer({
           </div>
 
           <div className="flex justify-between items-center mt-2.5 mb-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-tertiary)' }}>
+            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'hsl(var(--muted-foreground))' }}>
               Edges
             </span>
             <button
               onClick={() => setShowEdgeLabels(!showEdgeLabels)}
               className="text-[10px] bg-transparent border-none cursor-pointer p-0"
-              style={{ color: showEdgeLabels ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+              style={{ color: showEdgeLabels ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.6)' }}
             >
               {showEdgeLabels ? 'Hide labels' : 'Show labels'}
             </button>
@@ -648,9 +648,9 @@ export default function GraphRenderer({
             {EDGE_LEGEND.map(e => (
               <div key={e.style} className="flex items-center gap-1.5">
                 <svg width="20" height="6" className="shrink-0">
-                  <line x1="0" y1="3" x2="20" y2="3" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeDasharray={e.dash || 'none'} />
+                  <line x1="0" y1="3" x2="20" y2="3" stroke="hsl(var(--muted-foreground))" strokeWidth="1.5" strokeDasharray={e.dash || 'none'} />
                 </svg>
-                <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{e.label}</span>
+                <span className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>{e.label}</span>
               </div>
             ))}
           </div>
@@ -665,22 +665,22 @@ export default function GraphRenderer({
             left: tooltip.x,
             top: tooltip.y,
             transform: 'translate(-50%, -100%)',
-            background: 'var(--color-surface-overlay)',
-            border: '1px solid var(--border-standard)',
-            borderRadius: 'var(--card-border-radius)',
-            padding: 'var(--spacing-xs) var(--spacing-sm)',
-            boxShadow: 'var(--card-shadow)',
+            background: 'hsl(var(--accent))',
+            border: '1px solid hsl(var(--border))',
+            borderRadius: '0.5rem',
+            padding: '4px 8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
             minWidth: 110,
             maxWidth: 200,
           }}
         >
-          <div className="text-sm font-semibold" style={{ color: tooltip.color || 'var(--color-text-primary)' }}>
+          <div className="text-sm font-semibold" style={{ color: tooltip.color || 'hsl(var(--foreground))' }}>
             {tooltip.label}
           </div>
           {tooltip.sublabel && (
-            <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{tooltip.sublabel}</div>
+            <div className="text-xs mt-0.5" style={{ color: 'hsl(var(--muted-foreground))' }}>{tooltip.sublabel}</div>
           )}
-          <div className="text-[10px] mt-1 font-mono" style={{ color: 'var(--color-text-muted)' }}>{tooltip.id}</div>
+          <div className="text-[10px] mt-1 font-mono" style={{ color: 'hsl(var(--muted-foreground) / 0.6)' }}>{tooltip.id}</div>
         </div>
       )}
 

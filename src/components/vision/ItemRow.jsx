@@ -31,7 +31,7 @@ const STATUS_TEXT = {
 };
 
 function getTypeColor(type) {
-  return TYPE_COLORS[type] || 'var(--color-text-secondary)';
+  return TYPE_COLORS[type] || 'hsl(var(--muted-foreground))';
 }
 
 function getStatusBadgeStyle(status) {
@@ -227,10 +227,10 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
       className={animClass || undefined}
       style={{
         position: 'relative',
-        border: '1px solid var(--border-standard)',
+        border: '1px solid hsl(var(--border))',
         borderRadius: 'var(--row-radius)',
         marginBottom: 'var(--row-gap)',
-        background: 'var(--color-surface)',
+        background: 'hsl(var(--card))',
         overflow: 'hidden',
       }}
     >
@@ -251,11 +251,11 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
           paddingLeft: `calc(var(--row-pad-h) + ${depth * 16}px)`,
           cursor: 'pointer',
           fontSize: 'var(--row-font)',
-          background: expanded ? 'var(--color-surface-overlay)' : 'transparent',
-          borderBottom: expanded ? '1px solid var(--border-soft)' : 'none',
+          background: expanded ? 'hsl(var(--accent))' : 'transparent',
+          borderBottom: expanded ? '1px solid hsl(var(--border) / 0.4)' : 'none',
         }}
-        onMouseEnter={(e) => { if (!expanded) e.currentTarget.style.background = 'var(--primary-glow)'; }}
-        onMouseLeave={(e) => { if (!expanded) e.currentTarget.style.background = expanded ? 'var(--color-surface-overlay)' : 'transparent'; }}
+        onMouseEnter={(e) => { if (!expanded) e.currentTarget.style.background = 'hsl(var(--primary) / 0.08)'; }}
+        onMouseLeave={(e) => { if (!expanded) e.currentTarget.style.background = expanded ? 'hsl(var(--accent))' : 'transparent'; }}
       >
         {/* Color dot */}
         <span
@@ -282,7 +282,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
         )}
 
         {/* Title */}
-        <span style={{ flex: 1, color: 'var(--color-text-primary)' }}>
+        <span style={{ flex: 1, color: 'hsl(var(--foreground))' }}>
           {item.title}
         </span>
 
@@ -308,7 +308,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
         {/* Collapsed hints: connection count + needs-review for decisions */}
         {!expanded && (children.length + linkedItems.length + questionItems.length + blockingItems.length) > 0 && (
           <span style={{
-            fontSize: 'var(--row-label)', color: 'var(--color-text-muted)', flexShrink: 0,
+            fontSize: 'var(--row-label)', color: 'hsl(var(--muted-foreground) / 0.6)', flexShrink: 0,
           }}>
             {children.length + linkedItems.length + questionItems.length + blockingItems.length} links
           </span>
@@ -331,7 +331,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
         )}
         {!expanded && children.length > 0 && (
           <span style={{
-            fontSize: 'var(--row-label)', color: 'var(--color-text-tertiary)', flexShrink: 0,
+            fontSize: 'var(--row-label)', color: 'hsl(var(--muted-foreground))', flexShrink: 0,
           }}>
             ({children.length})
           </span>
@@ -340,7 +340,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
         {/* Chevron */}
         {expanded
           ? <ChevronDown className="row-chevron" style={{ color: '#818cf8', flexShrink: 0 }} />
-          : <ChevronRight className="row-chevron" style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+          : <ChevronRight className="row-chevron" style={{ color: 'hsl(var(--muted-foreground) / 0.6)', flexShrink: 0 }} />
         }
       </div>
 
@@ -348,7 +348,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
       {!expanded && rollup && (
         <div style={{
           padding: `4px var(--row-body-pad-h)`, paddingLeft: `calc(var(--row-body-pad-h) + ${depth * 16}px + 20px)`,
-          fontSize: '11px', lineHeight: 1.5, color: 'var(--color-text-muted)',
+          fontSize: '11px', lineHeight: 1.5, color: 'hsl(var(--muted-foreground) / 0.6)',
           display: 'flex', flexDirection: 'column', gap: '2px',
         }}>
           {/* Rollup stats */}
@@ -451,7 +451,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
                 </div>
               )}
               {/* Separator after blocking section */}
-              <div style={{ height: '1px', background: 'var(--border-standard)', margin: '8px 0' }} />
+              <div style={{ height: '1px', background: 'hsl(var(--border))', margin: '8px 0' }} />
             </div>
           )}
 
@@ -490,7 +490,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
             return (
               <>
                 {baseDesc && (
-                  <div style={{ color: 'var(--color-text-secondary)', marginBottom: (resolution || history) ? '6px' : '10px' }}>
+                  <div style={{ color: 'hsl(var(--muted-foreground))', marginBottom: (resolution || history) ? '6px' : '10px' }}>
                     {baseDesc}
                   </div>
                 )}
@@ -505,7 +505,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
                     <div style={{ fontSize: 'var(--row-section-label)', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#22c55e', marginBottom: '2px' }}>
                       Resolution
                     </div>
-                    <div style={{ fontSize: 'var(--row-body-font)', color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 'var(--row-body-font)', color: 'hsl(var(--foreground))', lineHeight: 1.5 }}>
                       {resolution}
                     </div>
                   </div>
@@ -520,7 +520,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
             <div style={{ marginBottom: '10px' }}>
               <div style={{
                 fontSize: 'var(--row-section-label)', textTransform: 'uppercase', letterSpacing: '0.08em',
-                color: 'var(--color-text-tertiary)', marginBottom: '4px',
+                color: 'hsl(var(--muted-foreground))', marginBottom: '4px',
               }}>
                 Children ({children.length})
               </div>
@@ -543,7 +543,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
             <div style={{ marginBottom: options.length > 0 ? '10px' : '0' }}>
               <div style={{
                 fontSize: 'var(--row-section-label)', textTransform: 'uppercase', letterSpacing: '0.08em',
-                color: 'var(--color-text-tertiary)', marginBottom: '4px',
+                color: 'hsl(var(--muted-foreground))', marginBottom: '4px',
               }}>
                 Linked items
               </div>
@@ -564,10 +564,10 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
                     background: getTypeColor(link.item.type),
                   }} />
                   <span style={{ flex: 1 }}>{link.item.title}</span>
-                  <span style={{ fontSize: 'var(--row-section-label)', color: 'var(--color-text-muted)', marginLeft: 'auto' }}>
+                  <span style={{ fontSize: 'var(--row-section-label)', color: 'hsl(var(--muted-foreground) / 0.6)', marginLeft: 'auto' }}>
                     {edgeLabel(link.edgeType, link.direction)}
                   </span>
-                  <ChevronRight style={{ color: 'var(--color-text-muted)', flexShrink: 0, width: 12, height: 12 }} />
+                  <ChevronRight style={{ color: 'hsl(var(--muted-foreground) / 0.6)', flexShrink: 0, width: 12, height: 12 }} />
                 </div>
               ))}
             </div>
@@ -577,7 +577,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
           {isDecision && options.length > 0 && (
             <div>
               <div style={{
-                fontSize: 'var(--row-btn-font)', color: 'var(--color-text-tertiary)', marginBottom: '6px',
+                fontSize: 'var(--row-btn-font)', color: 'hsl(var(--muted-foreground))', marginBottom: '6px',
                 textTransform: 'uppercase', letterSpacing: '0.05em',
               }}>
                 Options
@@ -592,8 +592,8 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
               <input
                 style={{
                   flex: 1, fontSize: 'var(--row-body-font)', padding: 'var(--row-link-pad)', borderRadius: '4px',
-                  border: '1px solid var(--border-standard)', background: 'var(--color-surface)',
-                  color: 'var(--color-text-primary)', outline: 'none',
+                  border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))',
+                  color: 'hsl(var(--foreground))', outline: 'none',
                 }}
                 placeholder="Resolution note (optional, Enter to submit)..."
                 value={resolveText}
@@ -619,7 +619,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
                 onClick={(e) => { e.stopPropagation(); setResolveOpen(false); }}
                 style={{
                   fontSize: 'var(--row-btn-font)', padding: 'var(--row-btn-pad)', borderRadius: '4px', cursor: 'pointer',
-                  border: '1px solid var(--border-standard)', background: 'transparent', color: 'var(--color-text-muted)',
+                  border: '1px solid hsl(var(--border))', background: 'transparent', color: 'hsl(var(--muted-foreground) / 0.6)',
                 }}
               >
                 Cancel
@@ -633,7 +633,7 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
             gap: '6px',
             marginTop: '10px',
             paddingTop: '8px',
-            borderTop: '1px solid var(--border-soft)',
+            borderTop: '1px solid hsl(var(--border) / 0.4)',
           }}>
             {/* Decision actions */}
             {isDecision && !isApproved && (
@@ -715,8 +715,8 @@ function ItemRow({ item, items, connections, onDrillIn, onAction, depth = 0, def
             {isQuestion && isTerminal && (
               <span style={{
                 fontSize: 'var(--row-btn-font)', padding: 'var(--row-btn-pad)', borderRadius: '4px',
-                border: '1px solid var(--border-standard)',
-                color: item.status === 'complete' ? '#22c55e' : 'var(--color-text-muted)',
+                border: '1px solid hsl(var(--border))',
+                color: item.status === 'complete' ? '#22c55e' : 'hsl(var(--muted-foreground) / 0.6)',
               }}>
                 {item.status === 'complete' ? 'Resolved' : 'Dismissed'}
               </span>
@@ -765,7 +765,7 @@ function HistorySection({ history }) {
         style={{
           display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
           fontSize: 'var(--row-section-label)', textTransform: 'uppercase', letterSpacing: '0.08em',
-          color: 'var(--color-text-muted)', marginBottom: open ? '6px' : '0',
+          color: 'hsl(var(--muted-foreground) / 0.6)', marginBottom: open ? '6px' : '0',
         }}
       >
         {open
@@ -778,17 +778,17 @@ function HistorySection({ history }) {
       {open && (
         <div style={{
           marginLeft: '0', paddingLeft: '10px',
-          borderLeft: '2px solid var(--border-standard)',
+          borderLeft: '2px solid hsl(var(--border))',
         }}>
           {entries.map((entry, i) => (
             <div key={i} style={{
               padding: '4px 0', fontSize: 'var(--row-body-font)', lineHeight: 1.5,
-              color: 'var(--color-text-secondary)',
-              borderBottom: i < entries.length - 1 ? '1px solid var(--border-soft)' : 'none',
+              color: 'hsl(var(--muted-foreground))',
+              borderBottom: i < entries.length - 1 ? '1px solid hsl(var(--border) / 0.4)' : 'none',
             }}>
               {entry.date && (
                 <span style={{
-                  fontSize: 'var(--row-section-label)', color: 'var(--color-text-muted)',
+                  fontSize: 'var(--row-section-label)', color: 'hsl(var(--muted-foreground) / 0.6)',
                   fontFamily: 'monospace', marginRight: '8px',
                 }}>
                   {entry.date}
@@ -857,10 +857,10 @@ function OptionRow({ option, letter }) {
   return (
     <div
       style={{
-        border: '1px solid var(--border-standard)',
+        border: '1px solid hsl(var(--border))',
         borderRadius: 'var(--row-radius)',
         marginBottom: '6px',
-        background: 'var(--color-surface)',
+        background: 'hsl(var(--card))',
         overflow: 'hidden',
       }}
     >
@@ -874,17 +874,17 @@ function OptionRow({ option, letter }) {
           padding: 'var(--row-pad-v) var(--row-pad-h)',
           cursor: 'pointer',
           fontSize: 'var(--row-body-font)',
-          background: expanded ? 'var(--primary-glow)' : 'transparent',
-          borderBottom: expanded ? '1px solid var(--border-soft)' : 'none',
+          background: expanded ? 'hsl(var(--primary) / 0.08)' : 'transparent',
+          borderBottom: expanded ? '1px solid hsl(var(--border) / 0.4)' : 'none',
           borderLeft: isRecommended ? '2px solid #818cf8' : '2px solid transparent',
         }}
-        onMouseEnter={(e) => { if (!expanded) e.currentTarget.style.background = 'var(--primary-glow)'; }}
-        onMouseLeave={(e) => { if (!expanded) e.currentTarget.style.background = expanded ? 'var(--primary-glow)' : 'transparent'; }}
+        onMouseEnter={(e) => { if (!expanded) e.currentTarget.style.background = 'hsl(var(--primary) / 0.08)'; }}
+        onMouseLeave={(e) => { if (!expanded) e.currentTarget.style.background = expanded ? 'hsl(var(--primary) / 0.08)' : 'transparent'; }}
       >
         {/* Letter prefix */}
         <span style={{
           fontWeight: 700,
-          color: isRecommended ? '#818cf8' : 'var(--color-text-tertiary)',
+          color: isRecommended ? '#818cf8' : 'hsl(var(--muted-foreground))',
           width: '16px',
           flexShrink: 0,
         }}>
@@ -894,7 +894,7 @@ function OptionRow({ option, letter }) {
         {/* Option title */}
         <span style={{
           flex: 1,
-          color: isRecommended ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+          color: isRecommended ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
         }}>
           {isRecommended ? <b>{option.title}</b> : option.title}
         </span>
@@ -912,7 +912,7 @@ function OptionRow({ option, letter }) {
         {/* Chevron */}
         {expanded
           ? <ChevronDown className="row-chevron" style={{ color: '#818cf8', flexShrink: 0 }} />
-          : <ChevronRight className="row-chevron" style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+          : <ChevronRight className="row-chevron" style={{ color: 'hsl(var(--muted-foreground) / 0.6)', flexShrink: 0 }} />
         }
       </div>
 
@@ -921,7 +921,7 @@ function OptionRow({ option, letter }) {
         <div style={{ padding: 'var(--row-body-pad-v) var(--row-body-pad-h)', fontSize: 'var(--row-body-font)', lineHeight: 1.5 }}>
           {/* Body text (non-pros/cons lines) */}
           {body && (
-            <div style={{ color: 'var(--color-text-secondary)', marginBottom: hasProsCons ? '8px' : '0' }}>
+            <div style={{ color: 'hsl(var(--muted-foreground))', marginBottom: hasProsCons ? '8px' : '0' }}>
               {body}
             </div>
           )}
@@ -939,7 +939,7 @@ function OptionRow({ option, letter }) {
                 </div>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                   {pros.map((pro, i) => (
-                    <li key={i} style={{ color: 'var(--color-text-secondary)', padding: '1px 0' }}>
+                    <li key={i} style={{ color: 'hsl(var(--muted-foreground))', padding: '1px 0' }}>
                       <span style={{ color: '#22c55e' }}>+ </span>{pro}
                     </li>
                   ))}
@@ -955,7 +955,7 @@ function OptionRow({ option, letter }) {
                 </div>
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                   {cons.map((con, i) => (
-                    <li key={i} style={{ color: 'var(--color-text-secondary)', padding: '1px 0' }}>
+                    <li key={i} style={{ color: 'hsl(var(--muted-foreground))', padding: '1px 0' }}>
                       <span style={{ color: '#ef4444' }}>- </span>{con}
                     </li>
                   ))}
@@ -966,7 +966,7 @@ function OptionRow({ option, letter }) {
 
           {/* Fallback: no pros/cons lines, no body, but description exists */}
           {!body && !hasProsCons && option.description && (
-            <div style={{ color: 'var(--color-text-secondary)' }}>
+            <div style={{ color: 'hsl(var(--muted-foreground))' }}>
               {option.description}
             </div>
           )}

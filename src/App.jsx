@@ -102,7 +102,7 @@ class PanelErrorBoundary extends React.Component {
             className="text-xs uppercase tracking-wider font-semibold"
             style={{ color: 'hsl(var(--destructive))' }}
           >
-            panel crashed
+            {this.props.zone ? `${this.props.zone} crashed` : 'panel crashed'}
           </div>
           <div className="text-[11px] max-w-[300px] text-center opacity-70 font-mono">
             {this.state.error?.message?.substring(0, 120)}
@@ -807,6 +807,7 @@ function AppInner() {
         {/* ================================================================ */}
         {/* HEADER                                                            */}
         {/* ================================================================ */}
+        <PanelErrorBoundary zone="header">
         <header
           className="h-9 flex items-center px-3 gap-3 shrink-0 justify-between"
           style={{ borderBottom: '1px solid hsl(var(--border))' }}
@@ -907,6 +908,7 @@ function AppInner() {
             </button>
           </div>
         </header>
+        </PanelErrorBoundary>
 
         {/* ================================================================ */}
         {/* WORKSPACE                                                         */}
@@ -918,6 +920,7 @@ function AppInner() {
             <div className="flex-1 min-h-0 flex overflow-hidden">
 
               {/* Sidebar toggle + AttentionQueueSidebar */}
+              <PanelErrorBoundary zone="sidebar">
               <div className="flex h-full shrink-0" style={{ borderRight: '1px solid hsl(var(--border))' }}>
                 <button
                   className="w-4 h-full flex items-center justify-center text-[10px] text-muted-foreground hover:text-foreground transition-colors select-none"
@@ -975,6 +978,7 @@ function AppInner() {
                       />
                 )}
               </div>
+              </PanelErrorBoundary>
 
               {/* Main content area */}
               <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
@@ -1054,11 +1058,14 @@ function AppInner() {
           {/* ============================================================== */}
           {/* OPS STRIP (COMP-UX-1d)                                           */}
           {/* ============================================================== */}
+          <PanelErrorBoundary zone="ops strip">
           <OpsStrip activeView={activeView} onSelectFeature={handleOpsSelectFeature} />
+          </PanelErrorBoundary>
 
           {/* ============================================================== */}
           {/* AGENT BAR                                                        */}
           {/* ============================================================== */}
+          <PanelErrorBoundary zone="agent bar">
           <div
             className={[
               'shrink-0 flex flex-col overflow-hidden',
@@ -1070,6 +1077,7 @@ function AppInner() {
               onStateChange={setAgentBarState}
             />
           </div>
+          </PanelErrorBoundary>
         </div>
 
         {/* ================================================================ */}

@@ -41,26 +41,26 @@ function BuildStatusWidget({ activeBuild }) {
   if (!activeBuild) return null;
 
   const barColor = bp.isRunning
-    ? 'var(--color-accent)'
+    ? 'hsl(var(--primary))'
     : bp.status === 'complete'
-      ? 'var(--color-success)'
+      ? 'hsl(var(--success))'
       : bp.status === 'failed' || bp.status === 'killed'
-        ? 'var(--color-error)'
-        : 'var(--color-text-tertiary)';
+        ? 'hsl(var(--destructive))'
+        : 'hsl(var(--muted-foreground))';
 
   return (
-    <div className="mx-3 mb-2 rounded-md p-2" style={{ background: 'var(--color-surface-overlay)' }}>
+    <div className="mx-3 mb-2 rounded-md p-2" style={{ background: 'hsl(var(--accent))' }}>
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-1.5">
           <Zap
             className="h-3 w-3 shrink-0"
             style={{ color: barColor }}
           />
-          <span className="text-[10px] font-medium truncate max-w-[100px]" style={{ color: 'var(--color-text-primary)' }}>
+          <span className="text-[10px] font-medium truncate max-w-[100px]" style={{ color: 'hsl(var(--foreground))' }}>
             {bp.featureCode || 'Build'}
           </span>
         </div>
-        <span className="text-[10px] tabular-nums" style={{ color: 'var(--color-text-tertiary)' }}>
+        <span className="text-[10px] tabular-nums" style={{ color: 'hsl(var(--muted-foreground))' }}>
           {bp.stepNum}/{bp.totalSteps}
         </span>
       </div>
@@ -72,14 +72,14 @@ function BuildStatusWidget({ activeBuild }) {
         />
       </div>
       <div className="flex items-center justify-between mt-1">
-        <span className="text-[10px]" style={{ color: 'var(--color-text-tertiary)' }}>
+        <span className="text-[10px]" style={{ color: 'hsl(var(--muted-foreground))' }}>
           {bp.stepLabel}
         </span>
         {bp.isRunning && (
           <span
             className="w-1.5 h-1.5 rounded-full shrink-0"
             style={{
-              background: 'var(--color-accent)',
+              background: 'hsl(var(--primary))',
               animation: 'pulse 1.5s ease-in-out infinite',
             }}
           />
@@ -103,16 +103,16 @@ function AttentionQueueSection({ items, gates, onSelectItem, onViewChange }) {
   const overflow = queue.length - visible.length;
 
   const iconFor = (priority) => {
-    if (priority === ATTENTION_PRIORITY.BLOCKED) return <AlertTriangle className="h-3 w-3 shrink-0" style={{ color: 'var(--color-error)' }} />;
-    if (priority === ATTENTION_PRIORITY.PENDING_GATE) return <Shield className="h-3 w-3 shrink-0" style={{ color: 'var(--color-warning, #f59e0b)' }} />;
-    return <Bell className="h-3 w-3 shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />;
+    if (priority === ATTENTION_PRIORITY.BLOCKED) return <AlertTriangle className="h-3 w-3 shrink-0" style={{ color: 'hsl(var(--destructive))' }} />;
+    if (priority === ATTENTION_PRIORITY.PENDING_GATE) return <Shield className="h-3 w-3 shrink-0" style={{ color: 'hsl(var(--warning))' }} />;
+    return <Bell className="h-3 w-3 shrink-0" style={{ color: 'hsl(var(--muted-foreground))' }} />;
   };
 
   return (
     <div className="px-2 mb-2">
       <p
         className="text-[10px] font-medium uppercase tracking-wider px-2 mb-1"
-        style={{ color: 'var(--color-text-tertiary)' }}
+        style={{ color: 'hsl(var(--muted-foreground))' }}
       >
         Needs Attention
       </p>
@@ -121,7 +121,7 @@ function AttentionQueueSection({ items, gates, onSelectItem, onViewChange }) {
           key={item.id}
           onClick={() => onSelectItem?.(item.id)}
           className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors hover:bg-sidebar-accent/50"
-          style={{ color: 'var(--color-text-secondary)' }}
+          style={{ color: 'hsl(var(--muted-foreground))' }}
           title={reason}
         >
           {iconFor(priority)}
@@ -134,7 +134,7 @@ function AttentionQueueSection({ items, gates, onSelectItem, onViewChange }) {
         <button
           onClick={() => onViewChange?.('attention')}
           className="flex w-full items-center px-2 py-0.5 text-[10px] rounded-md hover:bg-sidebar-accent/50 transition-colors"
-          style={{ color: 'var(--color-text-tertiary)' }}
+          style={{ color: 'hsl(var(--muted-foreground))' }}
         >
           +{overflow} more
         </button>
@@ -154,13 +154,13 @@ function CompactStatsRow({ items, gates }) {
     <div className="flex items-center gap-2 flex-wrap px-3 pb-1">
       <span className="text-xs text-muted-foreground">{stats.total} items</span>
       {stats.inProgress > 0 && (
-        <span className="text-xs" style={{ color: 'var(--color-accent)' }}>{stats.inProgress} active</span>
+        <span className="text-xs" style={{ color: 'hsl(var(--primary))' }}>{stats.inProgress} active</span>
       )}
       {stats.blocked > 0 && (
-        <span className="text-xs" style={{ color: 'var(--color-error)' }}>{stats.blocked} blocked</span>
+        <span className="text-xs" style={{ color: 'hsl(var(--destructive))' }}>{stats.blocked} blocked</span>
       )}
       {stats.pendingGates > 0 && (
-        <span className="text-xs" style={{ color: 'var(--color-warning, #f59e0b)' }}>{stats.pendingGates} gates</span>
+        <span className="text-xs" style={{ color: 'hsl(var(--warning))' }}>{stats.pendingGates} gates</span>
       )}
     </div>
   );
@@ -216,16 +216,16 @@ function GroupFilter({ items, hiddenGroups, onToggleGroup }) {
             onClick={() => onToggleGroup?.(group)}
             className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors hover:bg-sidebar-accent/50"
             style={{
-              color: isHidden ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)',
+              color: isHidden ? 'hsl(var(--muted-foreground))' : 'hsl(var(--muted-foreground))',
               opacity: isHidden ? 0.4 : 1,
               fontWeight: active > 0 ? 500 : 400,
             }}
           >
             <span className="truncate flex-1 text-left">{group}</span>
             {active > 0 && (
-              <span className="text-[10px] tabular-nums" style={{ color: 'var(--color-accent)' }}>{active}</span>
+              <span className="text-[10px] tabular-nums" style={{ color: 'hsl(var(--primary))' }}>{active}</span>
             )}
-            <span className="text-[10px] tabular-nums shrink-0" style={{ color: 'var(--color-text-tertiary)' }}>{count}</span>
+            <span className="text-[10px] tabular-nums shrink-0" style={{ color: 'hsl(var(--muted-foreground))' }}>{count}</span>
           </button>
         );
       })}
@@ -392,7 +392,7 @@ function AttentionQueueSidebar({
         <div className="p-2">
           <p
             className="text-[10px] font-medium uppercase tracking-wider px-2 mb-1"
-            style={{ color: 'var(--color-text-tertiary)' }}
+            style={{ color: 'hsl(var(--muted-foreground))' }}
           >
             Groups
           </p>
