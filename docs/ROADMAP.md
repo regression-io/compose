@@ -1,7 +1,7 @@
 # Compose Roadmap
 
 **Project:** Compose — structured implementation pipeline for AI-driven development
-**Last updated:** 2026-03-05
+**Last updated:** 2026-03-17
 
 ## Related Documents
 
@@ -72,7 +72,7 @@ complete decomposition of what "agent connector (read-write)" meant at planning 
 
 ---
 
-## Phase 4.5: Architecture Foundation — PLANNED
+## Phase 4.5: Architecture Foundation — COMPLETE
 
 **Scope boundary:** Delivers the connector *infrastructure* — class hierarchy, MCP tools, Stratum
 harness. This is the engineering substrate. Phase 7 builds on this to make the lifecycle itself
@@ -91,9 +91,9 @@ See: [Architecture Foundation Plan](plans/2026-02-26-architecture-foundation-pla
 | 18c | Stratum externalization — pipelines/ directory, review-fix.stratum.yaml, end-to-end run | COMPLETE |
 | 18d | UI decoupling — verify zero new UI surface; VisionServer SSE stays sole UI channel | COMPLETE |
 | 18e | Server modularization — split server/ into domain modules, single responsibility per file | COMPLETE |
-| 18f | Test + observability hardening — golden flow tests for both MCP tools, Stratum audit trace | PARTIAL — unit tests pass (13); integration golden flow tests require live inference |
+| 18f | Test + observability hardening — golden flow tests for both MCP tools, Stratum audit trace | COMPLETE — unit tests (13) + agent-mcp golden flow tests (6) + live smoke tests pass |
 | 18g | Cutover + cleanup — remove openai dep, dead code, dangling imports | COMPLETE |
-| 18h | Acceptance gate — both tools callable; Stratum pipeline completes on a real feature | PLANNED |
+| 18h | Acceptance gate — both tools callable; Stratum pipeline completes on a real feature | COMPLETE — review-fix pipeline ran end-to-end (claude execute → codex review → clean), audit trace written |
 
 ---
 
