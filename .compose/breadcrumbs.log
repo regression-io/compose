@@ -59,3 +59,4 @@
 2026-03-16T12:32:46+08:00 | Fix 5 design session findings: stale hydrate on project switch, connector sharing, card ID collisions, revision controls, hardcoded localhost
 2026-03-17T23:39:15+08:00 | COMP-UI-6: Polish and teardown — delete dead files, add zone error boundaries, migrate legacy color tokens
 2026-03-18T00:06:56+08:00 | COMP-UI-6 fix: restore expandAgentBar for tests, inline useIsMobile, migrate remaining legacy token consumers
+2026-03-18T19:50:47+08:00 | 18h acceptance gate: register agent MCP server, copy review-fix pipeline, write golden flow tests
