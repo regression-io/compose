@@ -61,3 +61,4 @@
 2026-03-18T00:06:56+08:00 | COMP-UI-6 fix: restore expandAgentBar for tests, inline useIsMobile, migrate remaining legacy token consumers
 2026-03-18T19:50:47+08:00 | 18h acceptance gate: register agent MCP server, copy review-fix pipeline, write golden flow tests
 2026-03-18T21:28:11+08:00 | 18h: write run-pipeline.mjs script to drive stratum review-fix pipeline end-to-end
+2026-03-18T22:29:30+08:00 | Item 23: write policy enforcement design plan for Codex review
