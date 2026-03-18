@@ -318,7 +318,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
   // POST /api/vision/gates — create a gate (used by CLI dual-dispatch)
   app.post('/api/vision/gates', (req, res) => {
     try {
-      const { flowId, stepId, itemId, artifact, options, fromPhase, toPhase, summary, comment } = req.body;
+      const { flowId, stepId, itemId, artifact, options, fromPhase, toPhase, summary, comment, policyMode } = req.body;
       const round = req.body.round ?? 1;
       if (!flowId || !stepId) {
         return res.status(400).json({ error: 'flowId and stepId are required' });
@@ -337,6 +337,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
         artifact: artifact || null,
         options: options || null,
         fromPhase: fromPhase || null,
+        policyMode: policyMode ?? 'gate',
         toPhase: toPhase || null,
         summary: summary || null,
         comment: comment || null,
@@ -370,7 +371,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
 
   app.post('/api/vision/gates/:id/resolve', (req, res) => {
     try {
-      const { outcome: rawOutcome, comment } = req.body;
+      const { outcome: rawOutcome, comment, resolvedBy } = req.body;
       if (!rawOutcome) return res.status(400).json({ error: 'outcome is required' });
       // Normalize legacy outcome values
       const outcomeMap = { approved: 'approve', killed: 'kill', revised: 'revise' };
@@ -383,7 +384,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
       }
 
       // AD-4: Server only updates gate state. CLI owns lifecycle transitions.
-      store.resolveGate(req.params.id, { outcome, comment });
+      store.resolveGate(req.params.id, { outcome, comment, resolvedBy });
 
       scheduleBroadcast();
       broadcastMessage({ type: 'gateResolved', gateId: req.params.id, itemId: gate.itemId, outcome, timestamp: new Date().toISOString() });

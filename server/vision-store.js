@@ -250,20 +250,21 @@ export class VisionStore {
 
   /** Create a gate record */
   createGate(gate) {
+    gate.policyMode = gate.policyMode ?? 'gate';
     this.gates.set(gate.id, gate);
     this._save();
     return gate;
   }
 
   /** Resolve a pending gate */
-  resolveGate(gateId, { outcome, comment }) {
+  resolveGate(gateId, { outcome, comment, resolvedBy } = {}) {
     const gate = this.gates.get(gateId);
     if (!gate) throw new Error(`Gate not found: ${gateId}`);
     if (gate.status !== 'pending') throw new Error(`Gate ${gateId} is not pending (status: ${gate.status})`);
     gate.status = 'resolved';
     gate.outcome = outcome;
     gate.resolvedAt = new Date().toISOString();
-    gate.resolvedBy = 'human';
+    gate.resolvedBy = resolvedBy ?? 'human';
     gate.comment = comment || null;
     this.gates.set(gateId, gate);
     this._save();
