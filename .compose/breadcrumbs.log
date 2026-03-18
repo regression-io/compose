@@ -63,3 +63,4 @@
 2026-03-18T21:28:11+08:00 | 18h: write run-pipeline.mjs script to drive stratum review-fix pipeline end-to-end
 2026-03-18T22:29:30+08:00 | Item 23: write policy enforcement design plan for Codex review
 2026-03-18T22:37:28+08:00 | Item 23: implement policy enforcement runtime per plan.md
+2026-03-18T23:17:25+08:00 | ITEM-24: gate UI polish — policyMode display, gate history, artifact preview, revise feedback

@@ -59,7 +59,7 @@ function Section({ title, count, color, children }) {
   );
 }
 
-function PendingGateRow({ gate, item, isExpanded, expandedAction, onExpand, onResolve, onSelect }) {
+function PendingGateRow({ gate, item, priorRevision, isExpanded, expandedAction, onExpand, onResolve, onSelect }) {
   const [comment, setComment] = useState('');
 
   const handleSubmitRevise = () => {
@@ -91,6 +91,11 @@ function PendingGateRow({ gate, item, isExpanded, expandedAction, onExpand, onRe
             {LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}
           </p>
           <ArtifactAssessment gate={gate} />
+          {priorRevision ? (
+            <div className="text-[10px] px-2 py-1 rounded bg-amber-400/10 border border-amber-400/20 text-amber-400">
+              Prior revision: {priorRevision}
+            </div>
+          ) : null}
         </div>
         <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
           {relativeTime(gate.createdAt)}
@@ -173,13 +178,27 @@ function PendingGateRow({ gate, item, isExpanded, expandedAction, onExpand, onRe
   );
 }
 
+function resolvedByLabel(gate) {
+  if (gate.resolvedBy === 'system') {
+    const mode = gate.policyMode;
+    if (mode === 'flag') return 'auto (flag)';
+    if (mode === 'skip') return 'auto (skip)';
+    return 'auto';
+  }
+  return gate.resolvedBy ?? 'human';
+}
+
 function ResolvedGateRow({ gate, item }) {
   const outcomeColors = {
     approved: { color: 'text-success', border: 'border-success/30' },
+    approve: { color: 'text-success', border: 'border-success/30' },
     revised: { color: 'text-amber-400', border: 'border-amber-400/30' },
+    revise: { color: 'text-amber-400', border: 'border-amber-400/30' },
     killed: { color: 'text-destructive', border: 'border-destructive/30' },
+    kill: { color: 'text-destructive', border: 'border-destructive/30' },
   };
   const style = outcomeColors[gate.outcome] || outcomeColors.approved;
+  const byLabel = resolvedByLabel(gate);
 
   return (
     <div className="px-3 py-2 border-l-2 border-l-transparent">
@@ -190,6 +209,11 @@ function ResolvedGateRow({ gate, item }) {
         <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-4', style.color, style.border)}>
           {gate.outcome}
         </Badge>
+        {byLabel !== 'human' && (
+          <span className="text-[9px] px-1 py-0 rounded bg-muted text-muted-foreground">
+            {byLabel}
+          </span>
+        )}
         <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
           {relativeTime(gate.resolvedAt)}
         </span>
@@ -217,23 +241,35 @@ export default function GateView({ gates, items, onResolve, onSelect }) {
     setExpandedAction(action);
   };
 
-  const { pending, resolvedToday } = useMemo(() => {
+  const { pending, resolved, priorRevisions } = useMemo(() => {
     const p = [];
     const r = [];
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
     for (const gate of gates) {
       if (gate.status === 'pending') {
         p.push(gate);
-      } else if (gate.resolvedAt && new Date(gate.resolvedAt) >= todayStart) {
+      } else if (gate.resolvedAt) {
         r.push(gate);
       }
     }
     p.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     r.sort((a, b) => new Date(b.resolvedAt) - new Date(a.resolvedAt));
-    return { pending: p, resolvedToday: r };
+
+    // Find prior revision comments for pending gates (same stepId, outcome=revised/revise)
+    const revisions = new Map();
+    for (const pg of p) {
+      const prior = r.find(rg =>
+        rg.stepId === pg.stepId &&
+        rg.itemId === pg.itemId &&
+        (rg.outcome === 'revised' || rg.outcome === 'revise') &&
+        rg.comment
+      );
+      if (prior) revisions.set(pg.id, prior.comment);
+    }
+
+    return { pending: p, resolved: r, priorRevisions: revisions };
   }, [gates]);
 
+  const [showAllHistory, setShowAllHistory] = useState(false);
   const itemMap = useMemo(() => new Map(items.map(i => [i.id, i])), [items]);
 
   return (
@@ -248,9 +284,9 @@ export default function GateView({ gates, items, onResolve, onSelect }) {
         ) : (
           <span className="text-[10px] text-muted-foreground">No gates pending</span>
         )}
-        {resolvedToday.length > 0 && (
+        {resolved.length > 0 && (
           <span className="text-[10px] text-muted-foreground">
-            · {resolvedToday.length} resolved today
+            · {resolved.length} resolved
           </span>
         )}
       </div>
@@ -264,6 +300,7 @@ export default function GateView({ gates, items, onResolve, onSelect }) {
                 key={gate.id}
                 gate={gate}
                 item={itemMap.get(gate.itemId)}
+                priorRevision={priorRevisions.get(gate.id)}
                 isExpanded={expandedGateId === gate.id}
                 expandedAction={expandedGateId === gate.id ? expandedAction : null}
                 onExpand={handleExpand}
@@ -274,21 +311,29 @@ export default function GateView({ gates, items, onResolve, onSelect }) {
           </Section>
         )}
 
-        {/* Resolved today */}
-        {resolvedToday.length > 0 && (
-          <Section title="Resolved Today" count={resolvedToday.length} color="#22c55e">
-            {resolvedToday.map(gate => (
+        {/* Gate history */}
+        {resolved.length > 0 && (
+          <Section title="History" count={resolved.length} color="#22c55e">
+            {(showAllHistory ? resolved.slice(0, 50) : resolved.slice(0, 10)).map(gate => (
               <ResolvedGateRow
                 key={gate.id}
                 gate={gate}
                 item={itemMap.get(gate.itemId)}
               />
             ))}
+            {resolved.length > 10 && !showAllHistory && (
+              <button
+                className="w-full px-3 py-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowAllHistory(true)}
+              >
+                Show all {resolved.length} resolved gates
+              </button>
+            )}
           </Section>
         )}
 
         {/* Empty state */}
-        {pending.length === 0 && resolvedToday.length === 0 && (
+        {pending.length === 0 && resolved.length === 0 && (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground">
             No gates pending.
           </div>
