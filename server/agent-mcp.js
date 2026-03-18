@@ -79,9 +79,21 @@ async function toolAgentRun({ type = 'claude', prompt, schema, modelID, cwd }) {
 
   if (schema) {
     try {
+      // Try full text first (agent returned pure JSON)
       const result = JSON.parse(text);
       return { text, result };
     } catch {
+      // Extract JSON from last ```json ... ``` code block (injectSchema format)
+      const match = text.match(/```json\s*\n([\s\S]*?)\n\s*```/g);
+      if (match) {
+        const lastBlock = match[match.length - 1]
+          .replace(/^```json\s*\n/, '')
+          .replace(/\n\s*```$/, '');
+        try {
+          const result = JSON.parse(lastBlock);
+          return { text, result };
+        } catch { /* fall through */ }
+      }
       return { text, result: null, parseError: 'Response was not valid JSON' };
     }
   }
