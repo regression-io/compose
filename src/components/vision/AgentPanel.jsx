@@ -50,7 +50,7 @@ const SessionTimer = React.memo(function SessionTimer({ startedAt, active, durat
  * AgentPanel — volatile telemetry display for agent status, activity, errors, and session info.
  * Extracted from AppSidebar to isolate high-frequency re-renders from stable navigation.
  */
-function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem }) {
+function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem, spawnedAgents }) {
   const [agentState, setAgentState] = React.useState({
     status: 'idle', tool: null, category: null, activityLog: [], currentActivity: null,
   });
@@ -241,6 +241,32 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem }) 
                   </span>
                   <span className="truncate opacity-70" title={err.message}>
                     {err.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Spawned subagents */}
+          {spawnedAgents && spawnedAgents.length > 0 && (
+            <div className="mt-1.5">
+              <p className="text-[10px] font-medium uppercase tracking-wider mb-0.5"
+                 style={{ color: 'hsl(var(--muted-foreground))' }}>
+                Subagents
+              </p>
+              {spawnedAgents.map(agent => (
+                <div key={agent.agentId}
+                  className="flex items-center gap-1.5 text-[10px] py-0.5"
+                  style={{ color: 'hsl(var(--muted-foreground))' }}>
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{
+                    background: agent.status === 'running'
+                      ? 'var(--color-category-executing)'
+                      : agent.status === 'complete' ? 'hsl(var(--success))' : 'hsl(var(--destructive))',
+                    animation: agent.status === 'running' ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                  }} />
+                  <span className="font-medium shrink-0">{agent.agentType}</span>
+                  <span className="truncate opacity-60">{agent.status}</span>
+                  <span className="tabular-nums ml-auto opacity-50">
+                    {formatElapsed(Date.now() - new Date(agent.startedAt).getTime())}
                   </span>
                 </div>
               ))}

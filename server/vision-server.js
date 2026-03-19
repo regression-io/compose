@@ -14,6 +14,7 @@ import { attachGraphExportRoutes } from './graph-export.js';
 import { StratumSync, attachStratumRoutes } from './stratum-sync.js';
 import { createStratumRouter } from './stratum-api.js';
 import { attachAgentSpawnRoutes } from './agent-spawn.js';
+import { AgentRegistry } from './agent-registry.js';
 import { attachVisionRoutes } from './vision-routes.js';
 import { attachSessionRoutes } from './session-routes.js';
 import { attachActivityRoutes } from './activity-routes.js';
@@ -37,7 +38,7 @@ const SETTINGS_DEFAULTS = {
     { id: 'ship', defaultPolicy: 'gate' },
   ],
   iterationDefaults: {
-    review: { maxIterations: 5 },
+    review: { maxIterations: 4 },
     coverage: { maxIterations: 15 },
   },
   policyModes: ['gate', 'flag', 'skip'],
@@ -168,10 +169,13 @@ export class VisionServer {
     });
 
     // ── Agent spawn routes ──────────────────────────────────────────────────
+    const agentRegistry = new AgentRegistry(getDataDir());
     attachAgentSpawnRoutes(app, {
       projectRoot: getTargetRoot(),
       broadcastMessage: (msg) => this.broadcastMessage(msg),
       requireSensitiveToken,
+      registry: agentRegistry,
+      sessionManager: this.sessionManager,
     });
 
     // ── Feature scan routes ────────────────────────────────────────────────

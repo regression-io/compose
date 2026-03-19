@@ -14,7 +14,7 @@ export function handleVisionMessage(msg, refs, setters) {
   const {
     setItems, setConnections, setGates, setGateEvent,
     setRecentChanges, setUICommand, setAgentActivity,
-    setAgentErrors, setSessionState, setSettings, setActiveBuild, setSessions, EMPTY_CHANGES,
+    setAgentErrors, setSessionState, setSpawnedAgents, setSettings, setActiveBuild, setSessions, EMPTY_CHANGES,
   } = setters;
 
   if (msg.type === 'visionState') {
@@ -59,6 +59,22 @@ export function handleVisionMessage(msg, refs, setters) {
     });
     // Optimistic session tool count increment
     setSessionState(prev => prev?.active ? { ...prev, toolCount: (prev.toolCount || 0) + 1 } : prev);
+
+  } else if (msg.type === 'agentSpawned') {
+    setSpawnedAgents(prev => [...prev, {
+      agentId: msg.agentId,
+      agentType: msg.agentType,
+      status: 'running',
+      startedAt: msg.startedAt,
+      prompt: msg.prompt,
+    }]);
+
+  } else if (msg.type === 'agentComplete') {
+    setSpawnedAgents(prev => prev.map(a =>
+      a.agentId === msg.agentId
+        ? { ...a, status: msg.status, completedAt: new Date().toISOString() }
+        : a
+    ));
 
   } else if (msg.type === 'sessionStart') {
     // COMP-STATE-4: always clear previous session and its end timer unconditionally

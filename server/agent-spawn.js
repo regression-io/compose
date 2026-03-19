@@ -22,8 +22,18 @@ const PROJECT_ROOT = getTargetRoot();
  * @param {object} app — Express app
  * @param {{ projectRoot: string, broadcastMessage: function, requireSensitiveToken: function }} deps
  */
-export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadcastMessage, requireSensitiveToken }) {
-  /** Tracks running agents: Map<id, { process, output, stderr, status, prompt, startedAt, exitCode }> */
+function deriveAgentType(prompt) {
+  const lower = (prompt ?? '').toLowerCase();
+  if (lower.includes('explore') || lower.includes('find features') || lower.includes('map the architecture'))
+    return 'compose-explorer';
+  if (lower.includes('architect') || lower.includes('competing') || lower.includes('proposal'))
+    return 'compose-architect';
+  if (lower.includes('review') || lower.includes('codex'))
+    return 'codex';
+  return 'claude';
+}
+
+export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadcastMessage, requireSensitiveToken, registry, sessionManager }) {
   const _agents = new Map();
   // POST /api/agent/spawn — spawn a hidden Claude subagent
   app.post('/api/agent/spawn', requireSensitiveToken, (req, res) => {
@@ -58,6 +68,21 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
     };
     _agents.set(agentId, agent);
 
+    // Register with persistent registry + broadcast spawn event
+    const agentType = deriveAgentType(prompt);
+    const parentSessionId = sessionManager?.currentSession?.id ?? null;
+    if (registry) {
+      registry.register(agentId, { parentSessionId, agentType, prompt, pid: proc.pid });
+    }
+    broadcastMessage({
+      type: 'agentSpawned',
+      agentId,
+      parentSessionId,
+      agentType,
+      prompt: prompt.slice(0, 200),
+      startedAt: agent.startedAt,
+    });
+
     proc.stdout.on('data', (chunk) => {
       agent.output += chunk.toString();
     });
@@ -69,14 +94,16 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
     proc.on('close', (code) => {
       agent.status = code === 0 ? 'complete' : 'failed';
       agent.exitCode = code;
+      if (registry) {
+        registry.complete(agentId, { status: agent.status, exitCode: code });
+      }
       broadcastMessage({
         type: 'agentComplete',
         agentId,
+        agentType,
         status: agent.status,
         output: agent.output,
       });
-      // Clean up after 5 minutes
-      setTimeout(() => _agents.delete(agentId), 300_000);
     });
 
     proc.on('error', (err) => {
@@ -115,5 +142,13 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
       });
     }
     res.json({ agents });
+  });
+
+  // GET /api/agents/tree — agent hierarchy for current session
+  app.get('/api/agents/tree', (_req, res) => {
+    if (!registry) return res.json({ agents: [] });
+    const parentId = sessionManager?.currentSession?.id ?? null;
+    const agents = parentId ? registry.getChildren(parentId) : registry.getAll();
+    res.json({ sessionId: parentId, agents });
   });
 }

@@ -148,6 +148,7 @@ export const useVisionStore = create((set, get) => {
             });
           },
           setSessionState: (updater) => set(s => ({ sessionState: typeof updater === 'function' ? updater(s.sessionState) : updater })),
+          setSpawnedAgents: (updater) => set(s => ({ spawnedAgents: typeof updater === 'function' ? updater(s.spawnedAgents) : updater })),
           setSettings: (v) => set({ settings: v }),
           setActiveBuild: (updater) => set(s => ({ activeBuild: typeof updater === 'function' ? updater(s.activeBuild) : updater })),
           setSessions: (updater) => set(s => ({ sessions: typeof updater === 'function' ? updater(s.sessions) : updater })),
@@ -221,6 +222,7 @@ export const useVisionStore = create((set, get) => {
     agentActivity: [],
     agentErrors: [],
     recentErrors: [],
+    spawnedAgents: [],
     sessionState: null,
     gates: [],
     gateEvent: null,

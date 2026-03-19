@@ -66,3 +66,5 @@
 2026-03-18T23:17:25+08:00 | ITEM-24: gate UI polish — policyMode display, gate history, artifact preview, revise feedback
 2026-03-19T00:53:28+08:00 | ITEM-25a: Phase 1 — explore & design subagent activity nesting
 2026-03-19T10:54:57+08:00 | ITEM-25a: Phase 1 approved — proceeding to blueprint
+2026-03-19T11:28:50+08:00 | ITEM-25a: Phase 7 — implement all 6 tasks from blueprint
+2026-03-19T11:31:14+08:00 | ITEM-25a: Wire spawnedAgents through message handler, store, App, sidebar, and AgentPanel

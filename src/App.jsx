@@ -340,7 +340,7 @@ function AppInner() {
   const {
     items, connections, connected, uiCommand, clearUICommand, recentChanges,
     createItem, updateItem, deleteItem, createConnection, deleteConnection,
-    agentActivity, agentErrors, sessionState, registerSnapshotProvider,
+    agentActivity, agentErrors, spawnedAgents, sessionState, registerSnapshotProvider,
     gates, gateEvent, resolveGate,
     settings, updateSettings, resetSettings,
     activeBuild, setActiveBuild,
@@ -351,7 +351,7 @@ function AppInner() {
     uiCommand: s.uiCommand, clearUICommand: s.clearUICommand, recentChanges: s.recentChanges,
     createItem: s.createItem, updateItem: s.updateItem, deleteItem: s.deleteItem,
     createConnection: s.createConnection, deleteConnection: s.deleteConnection,
-    agentActivity: s.agentActivity, agentErrors: s.agentErrors,
+    agentActivity: s.agentActivity, agentErrors: s.agentErrors, spawnedAgents: s.spawnedAgents,
     sessionState: s.sessionState, registerSnapshotProvider: s.registerSnapshotProvider,
     gates: s.gates, gateEvent: s.gateEvent, resolveGate: s.resolveGate,
     settings: s.settings, updateSettings: s.updateSettings, resetSettings: s.resetSettings,
@@ -971,6 +971,7 @@ function AppInner() {
                         connected={connected}
                         agentActivity={agentActivity}
                         agentErrors={agentErrors}
+                        spawnedAgents={spawnedAgents}
                         sessionState={sessionState}
                         onSelectItem={handleSelect}
                         onThemeChange={updateSettings}
