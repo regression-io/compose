@@ -38,7 +38,7 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
   // POST /api/agent/spawn — spawn a hidden Claude subagent
   app.post('/api/agent/spawn', requireSensitiveToken, (req, res) => {
     const { prompt, id } = req.body || {};
-    if (!prompt) return res.status(400).json({ error: 'prompt is required' });
+    if (!prompt || typeof prompt !== 'string') return res.status(400).json({ error: 'prompt is required and must be a string' });
 
     const agentId = id || `agent-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 

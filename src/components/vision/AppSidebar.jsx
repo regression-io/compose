@@ -153,6 +153,7 @@ function AppSidebar({
         agentErrors={agentErrors}
         sessionState={sessionState}
         onSelectItem={onSelectItem}
+        spawnedAgents={spawnedAgents}
       />
 
       {/* Search */}
