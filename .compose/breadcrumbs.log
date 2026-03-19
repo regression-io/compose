@@ -64,3 +64,5 @@
 2026-03-18T22:29:30+08:00 | Item 23: write policy enforcement design plan for Codex review
 2026-03-18T22:37:28+08:00 | Item 23: implement policy enforcement runtime per plan.md
 2026-03-18T23:17:25+08:00 | ITEM-24: gate UI polish — policyMode display, gate history, artifact preview, revise feedback
+2026-03-19T00:53:28+08:00 | ITEM-25a: Phase 1 — explore & design subagent activity nesting
+2026-03-19T10:54:57+08:00 | ITEM-25a: Phase 1 approved — proceeding to blueprint
