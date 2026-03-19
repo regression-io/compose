@@ -135,6 +135,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     ship: [],
   };
   const SKIPPABLE = new Set(['prd', 'architecture', 'report']);
+  const ITERATION_TYPES = new Set(['review', 'coverage']);
   const TERMINAL = new Set(['complete', 'killed']);
 
   app.get('/api/vision/items/:id/lifecycle', (req, res) => {
@@ -262,6 +263,86 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     } catch (err) {
       const status = err.message.includes('not found') ? 404 : 400;
       res.status(status).json({ error: err.message });
+    }
+  });
+
+  // ── Iteration loop endpoints ──────────────────────────────────────────
+
+  app.post('/api/vision/items/:id/lifecycle/iteration/start', (req, res) => {
+    try {
+      const item = store.items.get(req.params.id);
+      if (!item?.lifecycle) return res.status(404).json({ error: 'No lifecycle on this item' });
+      const { loopType, maxIterations } = req.body;
+      if (!ITERATION_TYPES.has(loopType)) {
+        return res.status(400).json({ error: `Invalid loopType: ${loopType}. Must be one of: ${[...ITERATION_TYPES].join(', ')}` });
+      }
+      if (item.lifecycle.iterationState?.status === 'running') {
+        return res.status(409).json({ error: 'An iteration loop is already running' });
+      }
+      const settingsMax = settingsStore?.get()?.iterations?.[loopType]?.maxIterations;
+      const max = maxIterations ?? settingsMax ?? 10;
+      const now = new Date().toISOString();
+      item.lifecycle.iterationState = {
+        loopType, loopId: `iter-${Date.now()}`, status: 'running',
+        count: 0, maxIterations: max, startedAt: now,
+        completedAt: null, outcome: null, iterations: [],
+      };
+      store.updateLifecycle(req.params.id, item.lifecycle);
+      scheduleBroadcast();
+      broadcastMessage({ type: 'iterationStarted', itemId: req.params.id, loopId: item.lifecycle.iterationState.loopId, loopType, maxIterations: max, timestamp: now });
+      res.json(item.lifecycle.iterationState);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/items/:id/lifecycle/iteration/report', (req, res) => {
+    try {
+      const item = store.items.get(req.params.id);
+      if (!item?.lifecycle?.iterationState) return res.status(404).json({ error: 'No iteration loop active' });
+      const iter = item.lifecycle.iterationState;
+      if (iter.status !== 'running') return res.status(409).json({ error: `Loop is ${iter.status}, not running` });
+      const { result } = req.body;
+      if (!result || typeof result !== 'object') return res.status(400).json({ error: 'result object required' });
+      const now = new Date().toISOString();
+      iter.count++;
+      iter.iterations.push({ n: iter.count, startedAt: now, result });
+      const exitMet = iter.loopType === 'review' ? result.clean === true
+                    : iter.loopType === 'coverage' ? result.passing === true
+                    : false;
+      let shouldContinue = true;
+      if (exitMet) {
+        iter.status = 'complete'; iter.outcome = 'clean'; iter.completedAt = now; shouldContinue = false;
+      } else if (iter.count >= iter.maxIterations) {
+        iter.status = 'complete'; iter.outcome = 'max_reached'; iter.completedAt = now; shouldContinue = false;
+      }
+      store.updateLifecycle(req.params.id, item.lifecycle);
+      scheduleBroadcast();
+      if (iter.status === 'complete') {
+        broadcastMessage({ type: 'iterationComplete', itemId: req.params.id, loopId: iter.loopId, loopType: iter.loopType, outcome: iter.outcome, finalCount: iter.count, timestamp: now });
+      } else {
+        broadcastMessage({ type: 'iterationUpdate', itemId: req.params.id, loopId: iter.loopId, loopType: iter.loopType, count: iter.count, maxIterations: iter.maxIterations, exitCriteriaMet: false, findingsCount: result.findings?.length ?? 0, timestamp: now });
+      }
+      res.json({ continue: shouldContinue, count: iter.count, maxIterations: iter.maxIterations, outcome: iter.outcome });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/vision/items/:id/lifecycle/iteration/abort', (req, res) => {
+    try {
+      const item = store.items.get(req.params.id);
+      if (!item?.lifecycle?.iterationState) return res.status(404).json({ error: 'No iteration loop active' });
+      const iter = item.lifecycle.iterationState;
+      if (iter.status !== 'running') return res.status(409).json({ error: `Loop already ${iter.status}` });
+      const now = new Date().toISOString();
+      iter.status = 'complete'; iter.outcome = 'aborted'; iter.completedAt = now;
+      store.updateLifecycle(req.params.id, item.lifecycle);
+      scheduleBroadcast();
+      broadcastMessage({ type: 'iterationComplete', itemId: req.params.id, loopId: iter.loopId, loopType: iter.loopType, outcome: 'aborted', finalCount: iter.count, timestamp: now });
+      res.json({ aborted: true });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
     }
   });
 

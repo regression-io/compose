@@ -1,0 +1,44 @@
+version: "0.1"
+
+# coverage-sweep pipeline
+#
+# Runs the test suite in a loop until all tests pass.
+# Same pattern as review-fix.stratum.yaml but for test coverage.
+#
+# Inputs:
+#   task — what to test (feature description, file paths, etc.)
+#
+# Usage:
+#   stratum_plan <this yaml> "coverage_sweep" {"task": "..."}
+
+contracts:
+  CoverageResult:
+    passing:  {type: boolean}
+    summary:  {type: string}
+    failures: {type: array}
+
+functions:
+  run_coverage:
+    mode: compute
+    intent: >
+      Run the project test suite. Return structured JSON:
+      { "passing": boolean, "summary": string, "failures": string[] }.
+      Set passing=true only if all tests pass with no failures.
+      If tests fail, list each failing test name in the failures array.
+    input:
+      task: {type: string}
+    output: CoverageResult
+    ensure:
+      - "result.passing == true"
+    retries: 15
+
+flows:
+  coverage_sweep:
+    input:
+      task: {type: string}
+    output: CoverageResult
+    steps:
+      - id: sweep
+        function: run_coverage
+        inputs:
+          task: "$.input.task"

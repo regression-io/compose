@@ -297,6 +297,18 @@ export async function toolCompleteFeature({ id }) {
   return _postLifecycle(id, 'complete', {});
 }
 
+export async function toolIterationStart({ id, loopType, maxIterations }) {
+  return _postLifecycle(id, 'iteration/start', { loopType, maxIterations });
+}
+
+export async function toolIterationReport({ id, result }) {
+  return _postLifecycle(id, 'iteration/report', { result });
+}
+
+export async function toolIterationAbort({ id, reason }) {
+  return _postLifecycle(id, 'iteration/abort', { reason });
+}
+
 // ---------------------------------------------------------------------------
 // Artifact tools — read/write directly (no REST delegation needed)
 // ---------------------------------------------------------------------------

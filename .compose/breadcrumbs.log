@@ -68,3 +68,7 @@
 2026-03-19T10:54:57+08:00 | ITEM-25a: Phase 1 approved — proceeding to blueprint
 2026-03-19T11:28:50+08:00 | ITEM-25a: Phase 7 — implement all 6 tasks from blueprint
 2026-03-19T11:31:14+08:00 | ITEM-25a: Wire spawnedAgents through message handler, store, App, sidebar, and AgentPanel
+2026-03-19T11:40:31+08:00 | ITEM-26: implement iteration orchestration from existing blueprint
+2026-03-19T11:43:02+08:00 | ITEM-26: fresh blueprint — existing design kept, blueprint restarted
+2026-03-19T11:46:40+08:00 | ITEM-26: implement iteration orchestration — 5 tasks from blueprint
+2026-03-19T11:47:25+08:00 | ITEM-26: Adding iteration orchestration routes, tool impls, and MCP registration

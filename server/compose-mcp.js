@@ -41,6 +41,9 @@ import {
   toolGetPendingGates,
   toolBindSession,
   toolAgentRun,
+  toolIterationStart,
+  toolIterationReport,
+  toolIterationAbort,
 } from './compose-mcp-tools.js';
 
 // ---------------------------------------------------------------------------
@@ -168,6 +171,43 @@ const TOOLS = [
     },
   },
   {
+    name: 'start_iteration_loop',
+    description: 'Start a review or coverage iteration loop on a feature. Returns loop state.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Item ID or semanticId' },
+        loopType: { type: 'string', enum: ['review', 'coverage'], description: 'Type of iteration loop' },
+        maxIterations: { type: 'number', description: 'Override max iterations (optional, defaults from settings)' },
+      },
+      required: ['id', 'loopType'],
+    },
+  },
+  {
+    name: 'report_iteration_result',
+    description: 'Report one iteration result. Compose evaluates exit criteria and returns whether to continue.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Item ID or semanticId' },
+        result: { type: 'object', description: 'Iteration result. Review: {clean: bool, findings: []}, Coverage: {passing: bool, failures: []}' },
+      },
+      required: ['id', 'result'],
+    },
+  },
+  {
+    name: 'abort_iteration_loop',
+    description: 'Abort the current iteration loop early.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Item ID or semanticId' },
+        reason: { type: 'string', description: 'Why the loop was aborted' },
+      },
+      required: ['id'],
+    },
+  },
+  {
     name: 'assess_feature_artifacts',
     description: 'Assess quality signals for all artifacts of a feature: section completeness, word count, last modified.',
     inputSchema: {
@@ -287,6 +327,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'get_feature_lifecycle':    result = toolGetFeatureLifecycle(args); break;
       case 'kill_feature':             result = await toolKillFeature(args); break;
       case 'complete_feature':         result = await toolCompleteFeature(args); break;
+      case 'start_iteration_loop':     result = await toolIterationStart(args); break;
+      case 'report_iteration_result':  result = await toolIterationReport(args); break;
+      case 'abort_iteration_loop':     result = await toolIterationAbort(args); break;
       case 'assess_feature_artifacts': result = toolAssessFeatureArtifacts(args); break;
       case 'scaffold_feature':         result = toolScaffoldFeature(args); break;
       case 'approve_gate':             result = await toolApproveGate(args); break;
