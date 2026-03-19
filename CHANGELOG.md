@@ -1,5 +1,55 @@
 # Changelog
 
+## 2026-03-19
+
+### Phase 4.5 Closed + Phase 6 Closed
+
+**18h: Acceptance Gate (Phase 4.5)**
+- Registered `agents` MCP server in `.mcp.json` — `agent_run` tool now discoverable
+- Copied `review-fix.stratum.yaml` to `pipelines/` (was only in worktree)
+- Fixed JSON code block extraction in `agent-mcp.js` schema mode
+- Golden flow tests: 6 MCP protocol tests + live smoke test stubs
+- `run-pipeline.mjs` script for end-to-end pipeline acceptance testing
+- Phase 4.5 fully closed (all 18a–18h items COMPLETE)
+
+**ITEM-23: Policy Enforcement Runtime**
+- `evaluatePolicy()` pure function — reads per-phase policy modes from settings
+- Build.js integration: skip (silent), flag (auto-approve + notify), gate (human approval)
+- Gate records enriched with `policyMode` and `resolvedBy` fields
+- Settings loaded lazily from disk at build start
+- 10 unit tests + 2 Stratum integration tests (skip + flag paths verified e2e)
+
+**ITEM-24: Gate UI Polish**
+- `resolvedBy` badge on resolved gates (human vs auto-flag/auto-skip)
+- Full gate history (replaces "Resolved Today" — last 10, expandable to 50)
+- Prior revision feedback displayed on re-gated pending gates
+- Handles both normalized outcome forms (approve/approved, revise/revised)
+
+**ITEM-25a: Subagent Activity Nesting**
+- `AgentRegistry` class — persistent parent-child tracking of spawned agents
+- `agent-spawn.js` registers with registry, derives agentType from prompt heuristics
+- `agentSpawned` WebSocket event broadcast on spawn
+- `GET /api/agents/tree` returns hierarchy for current session
+- AgentPanel "Subagents" section: pulsing dot for running, check/X for complete
+- 11 unit tests for AgentRegistry
+
+**ITEM-26: Iteration Orchestration**
+- 3 REST endpoints: `iteration/start`, `iteration/report`, `iteration/abort`
+- 3 MCP tools: `start_iteration_loop`, `report_iteration_result`, `abort_iteration_loop`
+- Server-side exit criteria evaluation (review: clean==true, coverage: passing==true)
+- Server-side max iteration enforcement (from settings: review=4, coverage=15)
+- `iterationState` on item.lifecycle with full iteration history
+- WebSocket broadcasts: iterationStarted/Update/Complete (client handler pre-existed)
+- `coverage-sweep.stratum.yaml` pipeline
+- 9 integration tests
+
+**COMP-UI-6: Polish and Teardown**
+- Deleted `compose-ui/` (old prototype), `SkeletonCard`, unused hooks
+- Zone error boundaries on header, sidebar, ops strip, agent bar
+- Migrated all legacy CSS token refs to modern `hsl(var(--*))` across 11 files
+- Deleted legacy CSS token block from `index.css`
+- Zero legacy token refs remaining in `src/`
+
 ## 2026-03-16
 
 ### COMP-DESIGN-1: Interactive Design Conversation
