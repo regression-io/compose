@@ -134,7 +134,7 @@ orchestration. See: [Lifecycle Engine Roadmap](plans/2026-02-15-lifecycle-engine
 | 24 | Gate UI — interactive approve/revise/kill in Vision Surface, gate queue, trade-offs display | COMPLETE — GateView with policyMode badges, full history, revision feedback, multi-channel (bar/toast/ops/palette) |
 | 25 | Session-lifecycle binding — sessions tagged to features and phases, contextualized activity | COMPLETE |
 | 25a | Subagent activity nesting — hierarchical view of parallel compose agents in Vision Surface; each compose-explorer/architect instance visible as a child of the parent phase *(inspired by Damocles)* | COMPLETE — AgentRegistry + AgentPanel subagents section, persistent tracking, WebSocket events |
-| 26 | Iteration orchestration — ralph loops as Compose primitive, completion promise monitoring, exit criteria enforcement | PLANNED |
+| 26 | Iteration orchestration — ralph loops as Compose primitive, completion promise monitoring, exit criteria enforcement | COMPLETE — 3 MCP tools, server-side exit criteria evaluation, max iteration enforcement, WS broadcasts |
 
 ---
 
