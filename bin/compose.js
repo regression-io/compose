@@ -260,14 +260,24 @@ function runInit(flags) {
     command: 'node',
     args: [join(PACKAGE_ROOT, 'server', 'compose-mcp.js')],
   }
+  // Register agents MCP server (provides agent_run for codex reviews)
+  if (!mcpConfig.mcpServers.agents) {
+    mcpConfig.mcpServers.agents = {
+      command: 'node',
+      args: [join(PACKAGE_ROOT, 'server', 'agent-mcp.js')],
+    }
+    console.log('Registered agents MCP server in .mcp.json')
+  }
   if (hasStratum && !mcpConfig.mcpServers.stratum) {
+    // Use absolute path — miniconda/pip binaries may not be on Claude Code's PATH
+    const stratumPath = spawnSync('which', ['stratum-mcp'], { encoding: 'utf-8' }).stdout.trim()
     mcpConfig.mcpServers.stratum = {
-      command: 'stratum-mcp',
+      command: stratumPath || 'stratum-mcp',
     }
     console.log('Registered stratum-mcp in .mcp.json')
   }
   writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2))
-  console.log(`Registered compose-mcp in ${mcpPath}`)
+  console.log(`Registered compose-mcp + agents in ${mcpPath}`)
 
   // 6b. Run stratum-mcp install to register hooks + CLAUDE.md in this project
   if (hasStratum) {
