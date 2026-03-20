@@ -53,22 +53,18 @@ Real-time visibility into what the agent is doing, errors it hits, and session l
 
 ---
 
-## Phase 4: Integration & UI Extensions — PLANNED
+## Phase 4: Integration & UI Extensions — PARKED
 
-Connectors to code and agents, and UI window management. Items 15/18 are connector work;
-item 16 (tab popout) is a UI extension grouped here because it shares the same dependency
-window and delivery milestone as the connector work, not because it is a connector.
+Independent enhancements. No downstream phases depend on these. Parked in favor of
+Phase 6.5/6.8/7 which are on the critical path.
 
-| # | Item | Status |
-|---|------|--------|
-| 15 | Git/file connector — link work items to code changes, diff awareness | PLANNED |
-| 15a | File checkpoint/rewind — snapshot affected files before agent changes; rewind surface in UI *(inspired by Damocles)* | PLANNED |
-| 16 | Tab popout — dockable/undockable tabs to separate monitors *(UI extension)* | PLANNED |
-| 17 | Persistence evolution — event-sourced, markdown generation from tracker | **SUPERSEDED** — Base44 dependency already cut; flat JSON store sufficient for current scale |
-| 18 | Agent connector (read-write) — direct sessions from Compose | **SUPERSEDED by 18a–18h** |
-
-Item 18 is fully replaced by Phase 4.5. It is not independently actionable. 18a–18h are the
-complete decomposition of what "agent connector (read-write)" meant at planning time.
+| Code | Item | Status |
+|------|------|--------|
+| COMP-GIT-1 | Git/file connector — link work items to code changes, diff awareness | PARKED |
+| COMP-GIT-2 | File checkpoint/rewind — snapshot affected files before agent changes; rewind surface in UI *(inspired by Damocles)* | PARKED |
+| COMP-UI-7 | Tab popout — dockable/undockable tabs to separate monitors *(UI extension)* | PARKED |
+| — | Persistence evolution — event-sourced, markdown generation from tracker | **SUPERSEDED** — Base44 dependency already cut; flat JSON store sufficient for current scale |
+| — | Agent connector (read-write) — direct sessions from Compose | **SUPERSEDED by Phase 4.5** |
 
 ---
 
@@ -101,9 +97,9 @@ See: [Architecture Foundation Plan](plans/2026-02-26-architecture-foundation-pla
 
 Compose as an installable tool: LaunchAgent, version-aware restart, CLI + npm distribution.
 
-| # | Item | Status |
-|---|------|--------|
-| 19 | Standalone app — LaunchAgent, version-aware restart, CLI + npm distribution | PLANNED |
+| Code | Item | Status |
+|------|------|--------|
+| COMP-DIST-1 | Standalone app — LaunchAgent, version-aware restart, CLI + npm distribution | PLANNED |
 
 ---
 
@@ -147,11 +143,11 @@ of Phase 6's lifecycle state machine work; both can progress simultaneously.
 Close the loop between agent and UI so users can design, review, and execute pipelines without
 leaving compose. Agent drafts → UI surfaces → user approves → stratum executes.
 
-| # | Item | Status |
-|---|------|--------|
-| 29 | Pipeline template library — predefined `.stratum.yaml` templates (feature dev, bug fix, refactor, content, research) selectable by agent or user | PLANNED |
-| 30 | `stratum_draft_pipeline` MCP tool — agent pushes a drafted spec into the PipelineEditor UI; user can review and tweak before execution begins | PLANNED |
-| 31 | PipelineEditor live refresh — poll or WebSocket so UI updates when agent calls `stratum_draft_pipeline` without requiring manual reload | PLANNED |
+| Code | Item | Status |
+|------|------|--------|
+| COMP-PIPE-1 | Pipeline template library — predefined `.stratum.yaml` templates (feature dev, bug fix, refactor, content, research) selectable by agent or user | PLANNED |
+| COMP-PIPE-2 | `stratum_draft_pipeline` MCP tool — agent pushes a drafted spec into the PipelineEditor UI; user can review and tweak before execution begins | PLANNED |
+| COMP-PIPE-3 | PipelineEditor live refresh — poll or WebSocket so UI updates when agent calls `stratum_draft_pipeline` without requiring manual reload | PLANNED |
 
 ---
 
@@ -174,11 +170,11 @@ demand. This keeps context bounded regardless of conversation history length.
 **Implementation split:** SmartMemory owns the pull-first catalog tool (in progress). Compose
 wires it in at skill entry — item 32 is integration work only, not a build.
 
-| # | Item | Status |
-|---|------|--------|
-| 32 | Memory catalog integration — wire SmartMemory's native pull-first catalog tool into compose skill entry; SmartMemory owns the implementation, compose calls it *(blocked on SmartMemory pull-first landing)* | PLANNED |
-| 33 | Feature-scoped memory ingestion — after each gate approval, ingest phase artifact (design.md, blueprint.md, decisions) into SmartMemory with `feature_id` tag; retrieval scoped to feature or cross-feature | PLANNED |
-| 34 | Compose skill entry integration — `/compose` skill calls `get_memory_catalog` before Phase 1; surfaces relevant prior decisions and patterns from similar past features | PLANNED |
+| Code | Item | Status |
+|------|------|--------|
+| COMP-MEM-1 | Memory catalog integration — wire SmartMemory's native pull-first catalog tool into compose skill entry; SmartMemory owns the implementation, compose calls it *(blocked on SmartMemory pull-first landing)* | PLANNED |
+| COMP-MEM-2 | Feature-scoped memory ingestion — after each gate approval, ingest phase artifact (design.md, blueprint.md, decisions) into SmartMemory with `feature_id` tag; retrieval scoped to feature or cross-feature | PLANNED |
+| COMP-MEM-3 | Compose skill entry integration — `/compose` skill calls `get_memory_catalog` before Phase 1; surfaces relevant prior decisions and patterns from similar past features | PLANNED |
 
 ---
 
@@ -197,15 +193,15 @@ harness does, after verifying ground truth itself (run tests, check files, call 
 - Phase 4.5: CC orchestrates, Stratum enforces what CC reports
 - Phase 7: Harness orchestrates, Stratum enforces what harness verifies independently
 
-| # | Item | Status |
-|---|------|--------|
-| 27 | Pipeline runner — deterministic harness (`server/pipeline-runner.js`) that calls `stratum_plan`, dispatches steps to agent workers via `agent_run`, verifies postconditions independently, calls `stratum_step_done` | PLANNED |
-| 27a | Stagnation detection — track environmental delta (files changed, tests passing) across iterations; trigger warning/abort when agent produces high activity but zero progress over an observation window *(inspired by Agent-Harness)* | PLANNED |
-| 27b | Effort budget — per-step tool-call budget that depletes with each action; harness halts the step when budget exhausted, preventing unbounded exploration within a single iteration *(inspired by Agent-Harness)* | PLANNED |
-| 28 | Independent verification — harness runs tests, checks file existence, and calls a reviewer agent as a separate verification step; no agent self-reports pass/fail | PLANNED |
-| 28a | Anti-gaming verification — harness checks environmental delta before accepting structured results; rejects `clean: true` if no files changed since last iteration, rejects `passing: true` if test output unchanged *(inspired by Agent-Harness)* | PLANNED |
-| 28b | Tamper-evident audit — SHA256 hash-chained JSONL audit trail for all harness decisions; each entry references the hash of the previous entry for non-repudiation *(inspired by Agent-Harness)* | PLANNED |
-| 29 | Multi-agent routing — harness selects which connector (`claude`, `codex`, others) to use per step based on step type; executor and reviewer never the same agent | PLANNED |
+| Code | Item | Status |
+|------|------|--------|
+| COMP-HARNESS-1 | Pipeline runner — deterministic harness (`server/pipeline-runner.js`) that calls `stratum_plan`, dispatches steps to agent workers via `agent_run`, verifies postconditions independently, calls `stratum_step_done` | PLANNED |
+| COMP-HARNESS-2 | Stagnation detection — track environmental delta (files changed, tests passing) across iterations; trigger warning/abort when agent produces high activity but zero progress over an observation window *(inspired by Agent-Harness)* | PLANNED |
+| COMP-HARNESS-3 | Effort budget — per-step tool-call budget that depletes with each action; harness halts the step when budget exhausted, preventing unbounded exploration within a single iteration *(inspired by Agent-Harness)* | PLANNED |
+| COMP-HARNESS-4 | Independent verification — harness runs tests, checks file existence, and calls a reviewer agent as a separate verification step; no agent self-reports pass/fail | PLANNED |
+| COMP-HARNESS-5 | Anti-gaming verification — harness checks environmental delta before accepting structured results; rejects `clean: true` if no files changed since last iteration, rejects `passing: true` if test output unchanged *(inspired by Agent-Harness)* | PLANNED |
+| COMP-HARNESS-6 | Tamper-evident audit — SHA256 hash-chained JSONL audit trail for all harness decisions; each entry references the hash of the previous entry for non-repudiation *(inspired by Agent-Harness)* | PLANNED |
+| COMP-HARNESS-7 | Multi-agent routing — harness selects which connector (`claude`, `codex`, others) to use per step based on step type; executor and reviewer never the same agent | PLANNED |
 
 ---
 
