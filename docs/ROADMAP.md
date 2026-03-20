@@ -200,7 +200,11 @@ harness does, after verifying ground truth itself (run tests, check files, call 
 | # | Item | Status |
 |---|------|--------|
 | 27 | Pipeline runner — deterministic harness (`server/pipeline-runner.js`) that calls `stratum_plan`, dispatches steps to agent workers via `agent_run`, verifies postconditions independently, calls `stratum_step_done` | PLANNED |
+| 27a | Stagnation detection — track environmental delta (files changed, tests passing) across iterations; trigger warning/abort when agent produces high activity but zero progress over an observation window *(inspired by Agent-Harness)* | PLANNED |
+| 27b | Effort budget — per-step tool-call budget that depletes with each action; harness halts the step when budget exhausted, preventing unbounded exploration within a single iteration *(inspired by Agent-Harness)* | PLANNED |
 | 28 | Independent verification — harness runs tests, checks file existence, and calls a reviewer agent as a separate verification step; no agent self-reports pass/fail | PLANNED |
+| 28a | Anti-gaming verification — harness checks environmental delta before accepting structured results; rejects `clean: true` if no files changed since last iteration, rejects `passing: true` if test output unchanged *(inspired by Agent-Harness)* | PLANNED |
+| 28b | Tamper-evident audit — SHA256 hash-chained JSONL audit trail for all harness decisions; each entry references the hash of the previous entry for non-repudiation *(inspired by Agent-Harness)* | PLANNED |
 | 29 | Multi-agent routing — harness selects which connector (`claude`, `codex`, others) to use per step based on step type; executor and reviewer never the same agent | PLANNED |
 
 ---
