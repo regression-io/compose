@@ -1,5 +1,8 @@
 {
   "mcpServers": {
+    "stratum": {
+      "command": "stratum-mcp"
+    },
     "agents": {
       "command": "node",
       "args": [
