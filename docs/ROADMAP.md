@@ -202,6 +202,8 @@ harness does, after verifying ground truth itself (run tests, check files, call 
 | COMP-HARNESS-5 | Anti-gaming verification — harness checks environmental delta before accepting structured results; rejects `clean: true` if no files changed since last iteration, rejects `passing: true` if test output unchanged. Persistent quality score across iterations that can go *down* on re-review — wontfix/suppress tactics widen the lenient/strict gap, actual improvement required to move the number *(inspired by Agent-Harness + Desloppify)* | PLANNED |
 | COMP-HARNESS-6 | Tamper-evident audit — SHA256 hash-chained JSONL audit trail for all harness decisions; each entry references the hash of the previous entry for non-repudiation *(inspired by Agent-Harness)* | PLANNED |
 | COMP-HARNESS-7 | Multi-agent routing — harness selects which connector (`claude`, `codex`, others) to use per step based on step type; executor and reviewer never the same agent | PLANNED |
+| COMP-HARNESS-8 | Tiered evaluation — fast-loop evals (cheap per-iteration: did flagged files change? did targeted test pass?) before full gates (expensive: full codex review, full test suite); skip full gate when fast check fails *(inspired by Itera)* | PLANNED |
+| COMP-HARNESS-9 | Iteration ledger — per-iteration JSONL log with mistake/fix/prevention rules; enriches iteration history beyond `{ n, result }` so the agent learns within a single review loop; ingested to SmartMemory via COMP-MEM-2 for cross-session learning *(inspired by Itera)* | PLANNED |
 
 ---
 
