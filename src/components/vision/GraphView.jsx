@@ -222,6 +222,31 @@ function buildStylesheet() {
     { selector: '.build-gate-pending', style: { 'border-color': '#f59e0b', 'border-width': 3, 'shadow-color': '#f59e0b', 'shadow-opacity': 0.5, 'shadow-blur': 8 } },
     { selector: '.build-blocked-downstream', style: { 'opacity': 0.35, 'border-color': '#94a3b8' } },
     { selector: '.build-error', style: { 'border-color': '#ef4444', 'border-width': 3, 'shadow-color': '#ef4444', 'shadow-opacity': 0.5, 'shadow-blur': 8 } },
+    // COMP-VIS-1: Agent topology overlay styles
+    { selector: '[?isAgentGroup]', style: {
+      'label': 'data(label)', 'text-valign': 'top', 'text-halign': 'center',
+      'font-size': '9px', 'color': '#64748b', 'text-transform': 'uppercase',
+      'background-color': '#0f1a2b', 'border-width': 1, 'border-color': '#1e3050',
+      'border-style': 'dashed', 'padding': '14px',
+    }},
+    { selector: '[?isAgentNode]', style: {
+      'label': 'data(label)', 'text-valign': 'center', 'text-halign': 'center',
+      'font-size': '8px', 'font-family': 'monospace', 'color': '#e2e8f0',
+      'text-wrap': 'wrap', 'text-max-width': '70px',
+      'width': '80px', 'height': '40px', 'shape': 'diamond',
+      'background-color': '#1e293b',
+      'border-style': 'solid', 'border-width': 2, 'border-color': 'data(agentColor)',
+    }},
+    { selector: '[agentStatus="complete"]', style: { 'border-style': 'dashed', 'opacity': 0.6 }},
+    { selector: '[agentStatus="failed"]', style: { 'border-color': '#ef4444', 'border-style': 'dashed', 'opacity': 0.6 }},
+    { selector: '[?isRelayEdge]', style: {
+      'width': 1, 'line-color': '#475569', 'line-style': 'dashed',
+      'line-dash-pattern': [8, 4],
+      'target-arrow-color': '#475569', 'target-arrow-shape': 'triangle',
+      'arrow-scale': 0.6, 'curve-style': 'bezier', 'opacity': 0.4,
+    }},
+    { selector: '.relay-active', style: { 'width': 2, 'line-color': '#3b82f6', 'opacity': 0.8, 'target-arrow-color': '#3b82f6' }},
+    { selector: '.relay-result', style: { 'width': 2, 'line-color': '#10b981', 'opacity': 0.8, 'target-arrow-color': '#10b981' }},
   ];
 }
 
@@ -363,7 +388,7 @@ function GatePopover({ featureCode, gates, items, badgePositions, onResolve, onC
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
-export default function GraphView({ items, connections, selectedItemId, onSelect, visibleTracks, hiddenGroups, buildStateMap, resolveGate, gates }) {
+export default function GraphView({ items, connections, selectedItemId, onSelect, visibleTracks, hiddenGroups, buildStateMap, resolveGate, gates, spawnedAgents, agentRelays, agentOverlay }) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
@@ -372,6 +397,19 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   const [showLegend, setShowLegend] = useState(false);
   const [gatePopoverNodeId, setGatePopoverNodeId] = useState(null);
   const [badgePositions, setBadgePositions] = useState([]);
+  const [showAgentTopology, setShowAgentTopology] = useState(false);
+
+  // COMP-VIS-1: Auto-enable on first running agent, auto-disable when all finish
+  const prevHadRunning = useRef(false);
+  useEffect(() => {
+    const hasRunning = spawnedAgents?.some(a => a.status === 'running');
+    if (hasRunning && !prevHadRunning.current) {
+      setShowAgentTopology(true);
+    } else if (!hasRunning && prevHadRunning.current && spawnedAgents?.length > 0) {
+      setShowAgentTopology(false);
+    }
+    prevHadRunning.current = !!hasRunning;
+  }, [spawnedAgents]);
 
   // All non-doc items with their groups
   const nonDocItems = useMemo(() =>
@@ -408,10 +446,20 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     return connections.filter(c => ids.has(c.fromId) && ids.has(c.toId));
   }, [connections, filteredItems]);
 
-  const elements = useMemo(
-    () => buildElements(filteredItems, filteredConnections, grouped),
-    [filteredItems, filteredConnections, grouped],
-  );
+  // COMP-VIS-1: Stable agent elements — depends on spawnedAgents (structural changes + status)
+  // Does NOT depend on agentRelays/activeEdgeIds (those are handled via CSS classes, not element rebuild)
+  const agentElements = useMemo(() => {
+    if (!agentOverlay || !agentOverlay.nodes.length) return [];
+    return [...agentOverlay.nodes, ...agentOverlay.edges];
+  }, [spawnedAgents]);
+
+  const elements = useMemo(() => {
+    const base = buildElements(filteredItems, filteredConnections, grouped);
+    if (showAgentTopology && agentElements.length > 0) {
+      return [...base, ...agentElements];
+    }
+    return base;
+  }, [filteredItems, filteredConnections, grouped, showAgentTopology, agentElements]);
 
   const stylesheet = useMemo(() => buildStylesheet(), []);
 
@@ -529,6 +577,48 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     return () => clearInterval(interval);
   }, [buildStateMap]);
 
+  // COMP-VIS-1: Marching ants animation for active relay edges
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    // Always clear relay classes first (handles toggle-off and stale edges)
+    cy.edges('[?isRelayEdge]').removeClass('relay-active relay-result');
+
+    if (!showAgentTopology || !agentOverlay?.activeEdgeIds?.size) return;
+    // Build agent ID set for parent resolution (mirrors graphOpsOverlays logic)
+    const agentIdSet = new Set((spawnedAgents || []).map(a => a.agentId));
+    const resolveNodeId = (id) => {
+      if (id === 'session') return 'agent-session';
+      return agentIdSet.has(id) ? `agent-${id}` : 'agent-session';
+    };
+
+    for (const edgeId of agentOverlay.activeEdgeIds) {
+      const edge = cy.getElementById(edgeId);
+      if (edge.length) {
+        const latestRelay = agentRelays?.findLast(r => {
+          const fromId = resolveNodeId(r.fromAgentId);
+          const toId = resolveNodeId(r.toAgentId);
+          const eid = r.direction === 'dispatch'
+            ? `relay-${fromId}-${toId}`
+            : `relay-${toId}-${fromId}`;
+          return eid === edgeId;
+        });
+        edge.addClass(latestRelay?.direction === 'result' ? 'relay-result' : 'relay-active');
+      }
+    }
+
+    // Animate dash offset for marching ants effect
+    const interval = setInterval(() => {
+      const edges = cy.edges('.relay-active, .relay-result');
+      if (!edges.length) return;
+      const offset = (Date.now() / 20) % 100;
+      edges.style('line-dash-offset', -offset);
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [showAgentTopology, agentOverlay?.activeEdgeIds, agentRelays]);
+
   // COMP-UX-1c: Badge positions from cy node rendered positions
   const updateBadgePositions = useCallback(() => {
     const cy = cyRef.current;
@@ -597,6 +687,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
           </div>
           <div className="flex items-center gap-1">
             <FilterBtn active={grouped} onClick={() => setGrouped(!grouped)}>Group</FilterBtn>
+            <FilterBtn active={showAgentTopology} onClick={() => setShowAgentTopology(v => !v)} title="Show/hide agent topology">Agents</FilterBtn>
             <Sep />
           <CtrlBtn onClick={handleZoomOut} title="Zoom out">&minus;</CtrlBtn>
           <CtrlBtn onClick={handleFit} title="Fit to view">Fit</CtrlBtn>

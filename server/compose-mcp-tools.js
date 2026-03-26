@@ -373,19 +373,33 @@ function _buildContext({ featureCode }) {
   }
 
   // Feature artifacts (if feature code detected)
+  // Cap total feature context to ~20KB to avoid exceeding model input limits.
+  // Prioritize design.md first, then most recent files by mtime.
+  const MAX_FEATURE_BYTES = 20_000;
   if (featureCode) {
     const featureRoot = resolveProjectPath('features');
     const featureDir = path.join(featureRoot, featureCode);
     if (fs.existsSync(featureDir)) {
       const artifacts = [];
+      let totalBytes = 0;
       try {
-        for (const file of fs.readdirSync(featureDir)) {
-          if (!file.endsWith('.md') && !file.endsWith('.json')) continue;
-          const filePath = path.join(featureDir, file);
-          if (!fs.statSync(filePath).isFile()) continue;
+        const files = fs.readdirSync(featureDir)
+          .filter(f => f.endsWith('.md') || f.endsWith('.json'))
+          .map(f => ({ name: f, path: path.join(featureDir, f), stat: fs.statSync(path.join(featureDir, f)) }))
+          .filter(f => f.stat.isFile())
+          // design.md first, then most recently modified
+          .sort((a, b) => {
+            if (a.name === 'design.md') return -1;
+            if (b.name === 'design.md') return 1;
+            return b.stat.mtimeMs - a.stat.mtimeMs;
+          });
+        for (const file of files) {
+          if (totalBytes >= MAX_FEATURE_BYTES) break;
           try {
-            const content = fs.readFileSync(filePath, 'utf-8');
-            artifacts.push(`### ${file}\n\n${content}`);
+            const content = fs.readFileSync(file.path, 'utf-8');
+            const trimmed = content.slice(0, MAX_FEATURE_BYTES - totalBytes);
+            artifacts.push(`### ${file.name}\n\n${trimmed}`);
+            totalBytes += trimmed.length;
           } catch { /* skip unreadable files */ }
         }
       } catch { /* ignore readdir errors */ }

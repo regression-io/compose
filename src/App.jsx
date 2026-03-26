@@ -55,7 +55,7 @@ import CommandPalette from './components/vision/shared/CommandPalette.jsx';
 import ItemFormDialog from './components/vision/shared/ItemFormDialog.jsx';
 import SettingsModal from './components/vision/shared/SettingsModal.jsx';
 import GateNotificationBar from './components/vision/shared/GateNotificationBar.jsx';
-import { computeBuildStateMap } from './components/vision/graphOpsOverlays.js';
+import { computeBuildStateMap, computeAgentOverlay } from './components/vision/graphOpsOverlays.js';
 
 /*
  * COMP-UI-1 — Cockpit shell (flat layout)
@@ -209,7 +209,7 @@ function CockpitView({
   items, filteredItems, phaseFilteredItems, phaseFilteredGates,
   connections, filteredConnections, sessions, activeBuild,
   gates, settings, selectedPhase, selectedItemId,
-  buildStateMap,
+  buildStateMap, agentOverlay, spawnedAgents, agentRelays,
   // docs navigation
   docsSelectedFile, onDocsSelectedFileChange, docsPreviousView, onDocsBack,
   // graph filtering
@@ -243,6 +243,9 @@ function CockpitView({
           buildStateMap={buildStateMap}
           resolveGate={onResolveGate}
           gates={gates}
+          spawnedAgents={spawnedAgents}
+          agentRelays={agentRelays}
+          agentOverlay={agentOverlay}
         />
       );
     case 'pipeline':
@@ -340,7 +343,7 @@ function AppInner() {
   const {
     items, connections, connected, uiCommand, clearUICommand, recentChanges,
     createItem, updateItem, deleteItem, createConnection, deleteConnection,
-    agentActivity, agentErrors, spawnedAgents, sessionState, registerSnapshotProvider,
+    agentActivity, agentErrors, spawnedAgents, agentRelays, sessionState, registerSnapshotProvider,
     gates, gateEvent, resolveGate,
     settings, updateSettings, resetSettings,
     activeBuild, setActiveBuild,
@@ -351,7 +354,7 @@ function AppInner() {
     uiCommand: s.uiCommand, clearUICommand: s.clearUICommand, recentChanges: s.recentChanges,
     createItem: s.createItem, updateItem: s.updateItem, deleteItem: s.deleteItem,
     createConnection: s.createConnection, deleteConnection: s.deleteConnection,
-    agentActivity: s.agentActivity, agentErrors: s.agentErrors, spawnedAgents: s.spawnedAgents,
+    agentActivity: s.agentActivity, agentErrors: s.agentErrors, spawnedAgents: s.spawnedAgents, agentRelays: s.agentRelays,
     sessionState: s.sessionState, registerSnapshotProvider: s.registerSnapshotProvider,
     gates: s.gates, gateEvent: s.gateEvent, resolveGate: s.resolveGate,
     settings: s.settings, updateSettings: s.updateSettings, resetSettings: s.resetSettings,
@@ -556,6 +559,12 @@ function AppInner() {
   const buildStateMap = useMemo(
     () => computeBuildStateMap(activeBuild, items, connections, gates),
     [activeBuild, items, connections, gates],
+  );
+
+  // COMP-VIS-1: Derived agent topology overlay for graph
+  const agentOverlay = useMemo(
+    () => computeAgentOverlay(spawnedAgents, agentRelays),
+    [spawnedAgents, agentRelays],
   );
 
   // Context selection handler (must be before handleSelect which depends on it)
@@ -1014,6 +1023,9 @@ function AppInner() {
                       visibleTracks={visibleTracks}
                       hiddenGroups={hiddenGroups}
                       buildStateMap={buildStateMap}
+                      agentOverlay={agentOverlay}
+                      spawnedAgents={spawnedAgents}
+                      agentRelays={agentRelays}
                       docsSelectedFile={docsSelectedFile}
                       onDocsSelectedFileChange={setDocsSelectedFile}
                       docsPreviousView={docsPreviousView}

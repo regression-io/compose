@@ -55,6 +55,11 @@ export class OpencodeConnector extends AgentConnector {
       agent: this._agentName, model: `${resolvedProviderID}/${resolvedModelID}`,
     };
 
+    // Build clean env: remove OPENAI_API_KEY so opencode uses OAuth
+    // (API key overrides OAuth and may lack Codex model access)
+    const cleanEnv = { ...process.env };
+    delete cleanEnv.OPENAI_API_KEY;
+
     const proc = spawn('opencode', [
       'run',
       '-m', `${resolvedProviderID}/${resolvedModelID}`,
@@ -63,7 +68,7 @@ export class OpencodeConnector extends AgentConnector {
     ], {
       cwd: resolvedCwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env },
+      env: cleanEnv,
     });
     this.#proc = proc;
 

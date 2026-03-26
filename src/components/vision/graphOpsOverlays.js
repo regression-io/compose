@@ -146,3 +146,104 @@ export function getDownstreamBlockedIds(blockerIds, connections) {
 
   return downstream;
 }
+
+// ─── COMP-VIS-1: Agent communication overlay ─────────────────────────────────
+
+const AGENT_COLORS = {
+  'compose-explorer': '#06b6d4',
+  'compose-architect': '#a855f7',
+  codex: '#10b981',
+  claude: '#3b82f6',
+};
+
+/**
+ * Derive Cytoscape elements for the agent communication overlay.
+ * Pure function — no side effects.
+ *
+ * @param {Array} spawnedAgents - From useVisionStore.spawnedAgents
+ * @param {Array} agentRelays - From useVisionStore.agentRelays
+ * @returns {{ nodes: Array, edges: Array, activeEdgeIds: Set }}
+ */
+export function computeAgentOverlay(spawnedAgents, agentRelays) {
+  if (!spawnedAgents || !spawnedAgents.length) {
+    return { nodes: [], edges: [], activeEdgeIds: new Set() };
+  }
+
+  const nodes = [];
+  const edgeMap = new Map();
+
+  // Compound group
+  nodes.push({
+    data: { id: 'agent-topology', label: 'Agent Topology', isAgentGroup: true },
+  });
+
+  // Root session node
+  nodes.push({
+    data: {
+      id: 'agent-session',
+      label: 'Session',
+      isAgentNode: true,
+      agentType: 'session',
+      agentStatus: 'running',
+      agentColor: '#64748b',
+      parent: 'agent-topology',
+    },
+  });
+
+  // Build set of known agent IDs for parent lookup
+  const agentIdSet = new Set(spawnedAgents.map(a => a.agentId));
+
+  // Agent nodes
+  for (const agent of spawnedAgents) {
+    const type = agent.agentType || 'claude';
+    const color = AGENT_COLORS[type] || '#3b82f6';
+    nodes.push({
+      data: {
+        id: `agent-${agent.agentId}`,
+        label: `${type}\n${agent.agentId.slice(0, 6)}`,
+        isAgentNode: true,
+        agentType: type,
+        agentStatus: agent.status || 'running',
+        agentColor: color,
+        parent: 'agent-topology',
+      },
+    });
+
+    // Hierarchy edge (parent → child)
+    // parentSessionId may be a session ID (not an agent) — fall back to root if not a known agent
+    const parentIsAgent = agent.parentSessionId && agentIdSet.has(agent.parentSessionId);
+    const parentId = parentIsAgent ? `agent-${agent.parentSessionId}` : 'agent-session';
+    const edgeId = `relay-${parentId}-agent-${agent.agentId}`;
+    if (!edgeMap.has(edgeId)) {
+      edgeMap.set(edgeId, {
+        data: {
+          id: edgeId,
+          source: parentId,
+          target: `agent-${agent.agentId}`,
+          isRelayEdge: true,
+        },
+      });
+    }
+  }
+
+  // Determine which edges are actively relaying (last 30s)
+  const cutoff = Date.now() - 30_000;
+  const activeEdgeIds = new Set();
+  const resolveNodeId = (id) => {
+    if (id === 'session') return 'agent-session';
+    // If the ID is a known agent, use agent-<id>; otherwise treat as root session
+    return agentIdSet.has(id) ? `agent-${id}` : 'agent-session';
+  };
+  for (const relay of (agentRelays || [])) {
+    if (new Date(relay.timestamp).getTime() < cutoff) continue;
+    const fromId = resolveNodeId(relay.fromAgentId);
+    const toId = resolveNodeId(relay.toAgentId);
+    // Edges are always parent→child; direction determines animation style
+    const edgeId = relay.direction === 'dispatch'
+      ? `relay-${fromId}-${toId}`
+      : `relay-${toId}-${fromId}`;
+    activeEdgeIds.add(edgeId);
+  }
+
+  return { nodes, edges: [...edgeMap.values()], activeEdgeIds };
+}

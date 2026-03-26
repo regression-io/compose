@@ -110,6 +110,20 @@ export const useVisionStore = create((set, get) => {
         .then(r => r.json())
         .then(data => set({ activeBuild: data.state ?? null }))
         .catch(() => {});
+      // COMP-VIS-1: Hydrate spawned agents on connect (only if no live events yet)
+      fetch('/api/agents/tree')
+        .then(r => r.json())
+        .then(data => {
+          const current = get().spawnedAgents;
+          if (current.length === 0) {
+            set({ spawnedAgents: (data.agents || []).map(a => ({
+              agentId: a.agentId, parentSessionId: a.parentSessionId,
+              agentType: a.agentType, status: a.status || 'running',
+              startedAt: a.startedAt, prompt: a.prompt,
+            }))});
+          }
+        })
+        .catch(() => {});
     };
 
     ws.onmessage = (event) => {
@@ -149,6 +163,7 @@ export const useVisionStore = create((set, get) => {
           },
           setSessionState: (updater) => set(s => ({ sessionState: typeof updater === 'function' ? updater(s.sessionState) : updater })),
           setSpawnedAgents: (updater) => set(s => ({ spawnedAgents: typeof updater === 'function' ? updater(s.spawnedAgents) : updater })),
+          setAgentRelays: (updater) => set(s => ({ agentRelays: typeof updater === 'function' ? updater(s.agentRelays) : updater })),
           setSettings: (v) => set({ settings: v }),
           setActiveBuild: (updater) => set(s => ({ activeBuild: typeof updater === 'function' ? updater(s.activeBuild) : updater })),
           setSessions: (updater) => set(s => ({ sessions: typeof updater === 'function' ? updater(s.sessions) : updater })),
@@ -223,6 +238,7 @@ export const useVisionStore = create((set, get) => {
     agentErrors: [],
     recentErrors: [],
     spawnedAgents: [],
+    agentRelays: [],
     sessionState: null,
     gates: [],
     gateEvent: null,

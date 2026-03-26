@@ -14,7 +14,7 @@ export function handleVisionMessage(msg, refs, setters) {
   const {
     setItems, setConnections, setGates, setGateEvent,
     setRecentChanges, setUICommand, setAgentActivity,
-    setAgentErrors, setSessionState, setSpawnedAgents, setSettings, setActiveBuild, setSessions, EMPTY_CHANGES,
+    setAgentErrors, setSessionState, setSpawnedAgents, setAgentRelays, setSettings, setActiveBuild, setSessions, EMPTY_CHANGES,
   } = setters;
 
   if (msg.type === 'visionState') {
@@ -63,6 +63,7 @@ export function handleVisionMessage(msg, refs, setters) {
   } else if (msg.type === 'agentSpawned') {
     setSpawnedAgents(prev => [...prev, {
       agentId: msg.agentId,
+      parentSessionId: msg.parentSessionId,
       agentType: msg.agentType,
       status: 'running',
       startedAt: msg.startedAt,
@@ -76,9 +77,15 @@ export function handleVisionMessage(msg, refs, setters) {
         : a
     ));
 
+  } else if (msg.type === 'agentRelay') {
+    setAgentRelays(prev => [...prev, msg].slice(-50));
+
   } else if (msg.type === 'sessionStart') {
     // COMP-STATE-4: always clear previous session and its end timer unconditionally
     if (sessionEndTimerRef.current) { clearTimeout(sessionEndTimerRef.current); sessionEndTimerRef.current = null; }
+    // COMP-VIS-1: Clear stale agents and relays from prior session
+    setSpawnedAgents(() => []);
+    setAgentRelays(() => []);
     setSessionState(prev => {
       // If hydration already set this session, preserve accumulated counts
       if (prev && prev.id === msg.sessionId) return { ...prev, active: true };

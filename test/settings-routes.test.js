@@ -30,7 +30,7 @@ const SETTINGS_DEFAULTS = {
     { id: 'ship', defaultPolicy: 'gate' },
   ],
   iterationDefaults: {
-    review: { maxIterations: 5 },
+    review: { maxIterations: 4 },
     coverage: { maxIterations: 15 },
   },
   policyModes: ['gate', 'flag', 'skip'],

@@ -82,6 +82,14 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
       prompt: prompt.slice(0, 200),
       startedAt: agent.startedAt,
     });
+    broadcastMessage({
+      type: 'agentRelay',
+      fromAgentId: parentSessionId || 'session',
+      toAgentId: agentId,
+      direction: 'dispatch',
+      messagePreview: (prompt || '').slice(0, 80),
+      timestamp: new Date().toISOString(),
+    });
 
     proc.stdout.on('data', (chunk) => {
       agent.output += chunk.toString();
@@ -103,6 +111,14 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
         agentType,
         status: agent.status,
         output: agent.output,
+      });
+      broadcastMessage({
+        type: 'agentRelay',
+        fromAgentId: agentId,
+        toAgentId: parentSessionId || 'session',
+        direction: 'result',
+        messagePreview: (agent.output || '').slice(0, 80),
+        timestamp: new Date().toISOString(),
       });
     });
 

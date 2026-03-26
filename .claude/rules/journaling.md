@@ -31,4 +31,4 @@ Sessions are numbered sequentially (0, 1, 2, 3...) within a date. If multiple en
 
 ## Why this matters
 
-This journal is both the story of Compose and a test case for what Compose will automate. Every entry is raw material for conversation distillation (Phase 3.2). Write entries that a future version of Compose could learn to generate from session transcripts.
+This journal is both the story of Compose and a test case for what Compose will automate. Every entry is raw material for conversation distillation. Write entries that a future version of Compose could learn to generate from session transcripts.
