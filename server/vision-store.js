@@ -208,6 +208,10 @@ export class VisionStore {
     const item = this.items.get(id);
     if (!item) throw new Error(`Item not found: ${id}`);
     item.lifecycle = lifecycle;
+    // Re-derive group when lifecycle gains a featureCode
+    if (lifecycle?.featureCode && !item.group) {
+      item.group = deriveGroup(item.title, lifecycle.featureCode);
+    }
     item.updatedAt = new Date().toISOString();
     this.items.set(id, item);
     this._save();

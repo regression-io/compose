@@ -136,7 +136,7 @@ function PendingGates({ gates, allGates, items, onResolveGate }) {
     const map = new Map();
     const resolved = (allGates || []).filter(g =>
       g.resolvedAt && (g.outcome === 'revised' || g.outcome === 'revise')
-    );
+    ).sort((a, b) => new Date(b.resolvedAt) - new Date(a.resolvedAt));
     for (const pg of gates || []) {
       const prior = resolved.find(rg =>
         rg.stepId === pg.stepId && rg.itemId === pg.itemId

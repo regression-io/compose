@@ -408,8 +408,8 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
       let artifactSnapshot = null;
       if (artifact) {
         try {
-          const fullPath = path.join(projectRoot, artifact);
-          if (fs.existsSync(fullPath)) {
+          const fullPath = path.resolve(projectRoot, artifact);
+          if (fullPath.startsWith(projectRoot + path.sep) && fs.existsSync(fullPath)) {
             artifactSnapshot = fs.readFileSync(fullPath, 'utf-8');
           }
         } catch (e) { /* snapshot is best-effort */ }
