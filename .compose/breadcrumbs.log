@@ -82,3 +82,4 @@
 2026-03-27T20:52:56+08:00 | Updating roadmap statuses and writing plan docs for COMP-UX-2a, 2c, 2d
 2026-03-27T22:06:55+08:00 | Codex review fixes: feature-scoped focus, group re-derive on edit, dashboard phase fields
 2026-03-27T22:42:41+08:00 | COMP-UX-5: Phase transition animations on Dashboard and Pipeline views
+2026-03-27T22:45:32+08:00 | COMP-UX-8: Mermaid diagram rendering in DocsView file preview

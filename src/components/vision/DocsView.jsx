@@ -1,11 +1,68 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, useId } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import mermaid from 'mermaid';
 import { ChevronRight, ChevronDown, FileText, Folder, FolderOpen, Search, X, ArrowLeft, Pencil, Eye, Save } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { Input } from '@/components/ui/input.jsx';
 import { ScrollArea } from '@/components/ui/scroll-area.jsx';
 import FeatureFocusToggle from '../shared/FeatureFocusToggle.jsx';
+
+// Initialize mermaid once with dark theme
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#3b82f6',
+    primaryTextColor: '#e2e8f0',
+    lineColor: '#475569',
+    secondaryColor: '#1e293b',
+    tertiaryColor: '#0f172a',
+  },
+});
+
+function MermaidBlock({ code }) {
+  const containerRef = useRef(null);
+  const uniqueId = useId();
+  const [svg, setSvg] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const id = `mermaid-${uniqueId.replace(/:/g, '')}`;
+    mermaid.render(id, code)
+      .then(({ svg: rendered }) => { if (!cancelled) setSvg(rendered); })
+      .catch(err => { if (!cancelled) setError(err.message || 'Invalid diagram'); });
+    return () => { cancelled = true; };
+  }, [code, uniqueId]);
+
+  if (error) {
+    return (
+      <pre className="text-[11px] text-destructive bg-destructive/10 border border-destructive/20 rounded p-3 overflow-x-auto">
+        {`Mermaid error: ${error}\n\n${code}`}
+      </pre>
+    );
+  }
+  if (!svg) {
+    return <div className="text-[11px] text-muted-foreground py-2">Rendering diagram...</div>;
+  }
+  return (
+    <div
+      ref={containerRef}
+      className="my-3 overflow-x-auto"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
+
+function MarkdownCode({ className, children, ...props }) {
+  const match = /language-(\w+)/.exec(className || '');
+  const lang = match?.[1];
+  if (lang === 'mermaid') {
+    return <MermaidBlock code={String(children).trim()} />;
+  }
+  return <code className={className} {...props}>{children}</code>;
+}
 
 /*
  * DocsView — hierarchical file tree + markdown preview split pane.
@@ -470,7 +527,10 @@ export default function DocsView({ items, selectedFile: externalSelectedFile, on
                     prose-li:text-muted-foreground prose-table:text-xs
                     prose-th:text-foreground prose-td:text-muted-foreground
                     prose-hr:border-border">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{ code: MarkdownCode }}
+                    >
                       {fileContent}
                     </ReactMarkdown>
                   </article>
