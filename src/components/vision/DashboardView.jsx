@@ -29,16 +29,28 @@ function PhaseTimeline({ currentPhase }) {
         const active = currentIdx === idx;
         const label = LIFECYCLE_PHASE_LABELS[phase] ?? phase;
         return (
-          <div key={phase} className="flex items-center gap-2">
+          <div
+            key={phase}
+            className="flex items-center gap-2"
+            style={{
+              animation: `phase-slide-in 300ms ease-out ${idx * 50}ms both`,
+            }}
+          >
             {done ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <CheckCircle2
+                className="w-3.5 h-3.5 text-emerald-400 shrink-0"
+                style={{ animation: 'phase-check-pop 400ms ease-out' }}
+              />
             ) : active ? (
-              <ArrowRight className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <ArrowRight
+                className="w-3.5 h-3.5 text-blue-400 shrink-0"
+                style={{ animation: 'phase-active-pulse 2s ease-in-out infinite' }}
+              />
             ) : (
               <Circle className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
             )}
             <span className={cn(
-              'text-[11px]',
+              'text-[11px] transition-colors duration-500',
               done && 'text-emerald-400',
               active && 'text-blue-400 font-medium',
               !done && !active && 'text-muted-foreground/50',
@@ -308,8 +320,11 @@ export default function DashboardView({
         {/* Progress bar */}
         <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
           <div
-            className="h-full rounded-full bg-blue-500 transition-all duration-300"
-            style={{ width: `${Math.round(progress * 100)}%` }}
+            className="h-full rounded-full bg-blue-500"
+            style={{
+              width: `${Math.round(progress * 100)}%`,
+              transition: 'width 800ms cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
           />
         </div>
         <p className="text-[10px] text-muted-foreground mt-1">
@@ -320,7 +335,7 @@ export default function DashboardView({
       {/* B. Two-column grid */}
       <div className="grid grid-cols-2 gap-4">
         {/* Left: Phase Timeline */}
-        <Card className="bg-card border-border">
+        <Card className="bg-card border-border" style={{ animation: 'phase-card-enter 400ms ease-out' }}>
           <CardHeader className="p-3 pb-2">
             <CardTitle className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
               Phase Timeline
@@ -332,7 +347,7 @@ export default function DashboardView({
         </Card>
 
         {/* Right: Active Agents + Artifacts */}
-        <Card className="bg-card border-border">
+        <Card className="bg-card border-border" style={{ animation: 'phase-card-enter 400ms ease-out 100ms both' }}>
           <CardHeader className="p-3 pb-2">
             <CardTitle className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
               Agents &amp; Artifacts

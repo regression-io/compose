@@ -177,6 +177,25 @@
   animation: vision-pulse 600ms ease-out;
 }
 
+/* ── COMP-UX-5: Phase transition animations ── */
+@keyframes phase-slide-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes phase-check-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.3); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes phase-active-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes phase-card-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Resolution sparkle — shimmer on the green left-border */
 @keyframes resolution-shimmer {
   0% { background-position: 0% 0%; opacity: 0; }
