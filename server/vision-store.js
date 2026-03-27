@@ -269,6 +269,7 @@ export class VisionStore {
   /** Create a gate record */
   createGate(gate) {
     gate.policyMode = gate.policyMode ?? 'gate';
+    gate.artifactSnapshot = gate.artifactSnapshot ?? null;
     this.gates.set(gate.id, gate);
     this._save();
     return gate;

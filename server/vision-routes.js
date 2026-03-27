@@ -405,6 +405,15 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     try {
       const { flowId, stepId, itemId, artifact, options, fromPhase, toPhase, summary, comment, policyMode } = req.body;
       const round = req.body.round ?? 1;
+      let artifactSnapshot = null;
+      if (artifact) {
+        try {
+          const fullPath = path.join(projectRoot, artifact);
+          if (fs.existsSync(fullPath)) {
+            artifactSnapshot = fs.readFileSync(fullPath, 'utf-8');
+          }
+        } catch (e) { /* snapshot is best-effort */ }
+      }
       if (!flowId || !stepId) {
         return res.status(400).json({ error: 'flowId and stepId are required' });
       }
@@ -426,6 +435,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
         toPhase: toPhase || null,
         summary: summary || null,
         comment: comment || null,
+        artifactSnapshot: artifactSnapshot || null,
         status: 'pending',
         createdAt: new Date().toISOString(),
       };

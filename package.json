@@ -39,6 +39,7 @@
     "cytoscape-dagre": "^2.5.0",
     "cytoscape-fcose": "^2.2.0",
     "date-fns": "^3.6.0",
+    "diff": "^8.0.4",
     "express": "^4.21.0",
     "lucide-react": "^0.563.0",
     "mermaid": "^11.13.0",

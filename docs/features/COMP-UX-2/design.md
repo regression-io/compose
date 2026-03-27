@@ -164,7 +164,7 @@ Features that build on a fully functional base. Ordered by value.
 | Code | Feature | Why | Effort |
 |------|---------|-----|--------|
 | COMP-UX-3 | **Inline gate resolution on Dashboard** | Gates are THE interaction; resolve without switching tabs | **COMPLETE** — delivered by COMP-UX-2c |
-| COMP-UX-4 | **Artifact revision diff** | Show what changed between gate revisions; makes review meaningful | Medium |
+| COMP-UX-4 | **Artifact revision diff** | Show what changed between gate revisions; makes review meaningful | **COMPLETE** |
 | COMP-UX-5 | **Phase transition animations** | Visual confirmation of progress; polish | **COMPLETE** |
 | COMP-UX-8 | **Mermaid in Docs view** | Render diagrams in artifacts; makes design docs visual | **COMPLETE** |
 

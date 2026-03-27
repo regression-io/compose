@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS } from './constants.js';
 import FeatureFocusToggle from '../shared/FeatureFocusToggle.jsx';
+import ArtifactDiff from '../shared/ArtifactDiff.jsx';
 
 function relativeTime(isoString) {
   if (!isoString) return '';
@@ -93,8 +94,15 @@ function PendingGateRow({ gate, item, priorRevision, isExpanded, expandedAction,
           </p>
           <ArtifactAssessment gate={gate} />
           {priorRevision ? (
-            <div className="text-[10px] px-2 py-1 rounded bg-amber-400/10 border border-amber-400/20 text-amber-400">
-              Prior revision: {priorRevision}
+            <div className="space-y-1">
+              <div className="text-[10px] px-2 py-1 rounded bg-amber-400/10 border border-amber-400/20 text-amber-400">
+                Prior revision: {priorRevision.comment || 'No comment'}
+              </div>
+              {priorRevision.priorSnapshot && priorRevision.currentSnapshot && (
+                <div className="px-2">
+                  <ArtifactDiff oldText={priorRevision.priorSnapshot} newText={priorRevision.currentSnapshot} />
+                </div>
+              )}
             </div>
           ) : null}
         </div>
@@ -273,7 +281,13 @@ export default function GateView({ gates, items, onResolve, onSelect, featureCod
         (rg.outcome === 'revised' || rg.outcome === 'revise') &&
         rg.comment
       );
-      if (prior) revisions.set(pg.id, prior.comment);
+      if (prior) {
+        revisions.set(pg.id, {
+          comment: prior.comment,
+          priorSnapshot: prior.artifactSnapshot || null,
+          currentSnapshot: pg.artifactSnapshot || null,
+        });
+      }
     }
 
     return { pending: p, resolved: r, priorRevisions: revisions };

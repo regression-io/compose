@@ -83,3 +83,5 @@
 2026-03-27T22:06:55+08:00 | Codex review fixes: feature-scoped focus, group re-derive on edit, dashboard phase fields
 2026-03-27T22:42:41+08:00 | COMP-UX-5: Phase transition animations on Dashboard and Pipeline views
 2026-03-27T22:45:32+08:00 | COMP-UX-8: Mermaid diagram rendering in DocsView file preview
+2026-03-27T23:16:17+08:00 | COMP-UX-4: Artifact revision diff — snapshot on gate creation, diff component, GateView + Dashboard integration
+2026-03-27T23:18:53+08:00 | COMP-UX-4: Artifact revision diff — snapshot on gate create, ArtifactDiff component, wire into GateView + DashboardView

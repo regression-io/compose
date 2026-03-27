@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { CheckCircle2, Circle, ArrowRight, Bot, FileText, Terminal } from 'lucide-react';
 import { LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS } from './constants.js';
+import ArtifactDiff from '../shared/ArtifactDiff.jsx';
 
 const PHASES = ['explore_design', 'prd', 'architecture', 'blueprint', 'plan', 'execute', 'report'];
 
@@ -130,7 +131,23 @@ function ActiveAgents({ spawnedAgents, activeBuild }) {
   );
 }
 
-function PendingGates({ gates, items, onResolveGate }) {
+function PendingGates({ gates, allGates, items, onResolveGate }) {
+  const priorMap = useMemo(() => {
+    const map = new Map();
+    const resolved = (allGates || []).filter(g =>
+      g.resolvedAt && (g.outcome === 'revised' || g.outcome === 'revise')
+    );
+    for (const pg of gates || []) {
+      const prior = resolved.find(rg =>
+        rg.stepId === pg.stepId && rg.itemId === pg.itemId
+      );
+      if (prior?.artifactSnapshot && pg.artifactSnapshot) {
+        map.set(pg.id, { priorSnapshot: prior.artifactSnapshot, currentSnapshot: pg.artifactSnapshot });
+      }
+    }
+    return map;
+  }, [gates, allGates]);
+
   if (!gates || gates.length === 0) {
     return (
       <p className="text-[11px] text-muted-foreground/50 px-1">No gates pending.</p>
@@ -152,6 +169,14 @@ function PendingGates({ gates, items, onResolveGate }) {
                   {gate.stepId || gate.fromPhase || 'gate'}
                   {completeness != null && ` \u00b7 ${Math.round(completeness * 100)}% complete`}
                 </p>
+                {priorMap.has(gate.id) && (
+                  <div className="mt-1">
+                    <ArtifactDiff
+                      oldText={priorMap.get(gate.id).priorSnapshot}
+                      newText={priorMap.get(gate.id).currentSnapshot}
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <Button
@@ -371,7 +396,7 @@ export default function DashboardView({
             </span>
           )}
         </div>
-        <PendingGates gates={pendingGates} items={items} onResolveGate={onResolveGate} />
+        <PendingGates gates={pendingGates} allGates={gates} items={items} onResolveGate={onResolveGate} />
       </div>
 
       {/* D. Recent Sessions */}
