@@ -5,6 +5,7 @@ import { ChevronRight, ChevronDown, FileText, Folder, FolderOpen, Search, X, Arr
 import { cn } from '@/lib/utils.js';
 import { Input } from '@/components/ui/input.jsx';
 import { ScrollArea } from '@/components/ui/scroll-area.jsx';
+import FeatureFocusToggle from '../shared/FeatureFocusToggle.jsx';
 
 /*
  * DocsView — hierarchical file tree + markdown preview split pane.
@@ -150,7 +151,7 @@ function getDirPath(node, depth) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function DocsView({ items, selectedFile: externalSelectedFile, onSelectedFileChange, previousView, onBack }) {
+export default function DocsView({ items, selectedFile: externalSelectedFile, onSelectedFileChange, previousView, onBack, featureCode, focusActive, onToggleFocus }) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [internalSelectedFile, setInternalSelectedFile] = useState(null);
@@ -273,22 +274,28 @@ export default function DocsView({ items, selectedFile: externalSelectedFile, on
       .catch(() => { setFileContent(null); setContentLoading(false); });
   }, [selectedFile]);
 
-  // Tracked paths
+  // COMP-UX-2a: Feature focus filter
+  const displayFiles = useMemo(() => {
+    if (!focusActive || !featureCode) return files;
+    return files.filter(f => f.includes(`features/${featureCode}/`));
+  }, [files, focusActive, featureCode]);
+
+  // Tracked paths (computed against displayFiles so counts are consistent)
   const trackedPaths = useMemo(() => {
     const paths = new Set();
     const fileName = (p) => p.split('/').pop();
     for (const item of items) {
       const text = `${item.title || ''} ${item.description || ''} ${item.planLink || ''}`.toLowerCase();
-      for (const file of files) {
+      for (const file of displayFiles) {
         if (text.includes(file.toLowerCase()) || text.includes(fileName(file).replace('.md', '').toLowerCase())) {
           paths.add(file);
         }
       }
     }
     return paths;
-  }, [items, files]);
+  }, [items, displayFiles]);
 
-  const tree = useMemo(() => buildFileTree(files), [files]);
+  const tree = useMemo(() => buildFileTree(displayFiles), [displayFiles]);
   const filteredTree = useMemo(() => filterTree(tree, searchQuery), [tree, searchQuery]);
 
   const onToggleDir = useCallback((dirPath) => {
@@ -312,8 +319,11 @@ export default function DocsView({ items, selectedFile: externalSelectedFile, on
     <div ref={containerRef} className="flex-1 flex min-h-0">
       {/* Left: file tree */}
       <div className="shrink-0 flex flex-col min-h-0" style={{ width: `${treeWidth}px` }}>
-        {/* Search */}
+        {/* Search + Focus */}
         <div className="px-2 py-2 shrink-0" style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+          <div className="flex items-center gap-2 mb-1.5">
+            <FeatureFocusToggle featureCode={featureCode} active={focusActive} onToggle={onToggleFocus} />
+          </div>
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -332,9 +342,9 @@ export default function DocsView({ items, selectedFile: externalSelectedFile, on
             )}
           </div>
           <div className="flex items-center justify-between mt-1.5 px-1">
-            <span className="text-[10px] text-muted-foreground">{files.length} files</span>
+            <span className="text-[10px] text-muted-foreground">{displayFiles.length} files</span>
             <span className="text-[10px] text-muted-foreground">
-              {files.length - trackedPaths.size} untracked
+              {displayFiles.length - trackedPaths.size} untracked
             </span>
           </div>
         </div>

@@ -43,9 +43,13 @@ const PROJECT_ROOT = getTargetRoot();
  * @param {{ store: object, scheduleBroadcast: function, broadcastMessage: function, projectRoot: string }} deps
  */
 export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMessage, projectRoot = PROJECT_ROOT, settingsStore }) {
-  // GET /api/vision/items — full state
-  app.get('/api/vision/items', (_req, res) => {
-    res.json(store.getState());
+  // GET /api/vision/items — full state (optional ?group= filter)
+  app.get('/api/vision/items', (req, res) => {
+    let state = store.getState();
+    if (req.query.group) {
+      state = { ...state, items: state.items.filter(i => i.group === req.query.group) };
+    }
+    res.json(state);
   });
 
   // POST /api/vision/items — create item

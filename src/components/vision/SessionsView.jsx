@@ -7,6 +7,7 @@ import StatusBadge from './shared/StatusBadge.jsx';
 import AgentAvatar from './shared/AgentAvatar.jsx';
 import RelativeTime from './shared/RelativeTime.jsx';
 import EmptyState from './shared/EmptyState.jsx';
+import FeatureFocusToggle from '../shared/FeatureFocusToggle.jsx';
 
 const STATUS_COLORS_SESSION = {
   active:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -33,7 +34,7 @@ const AGENT_COLORS = {
  * Note: visionState WS payload does not yet include sessions. This component
  * renders an empty state gracefully until server-side broadcast is extended.
  */
-export default function SessionsView({ sessions = [], items = [], onSelectItem }) {
+export default function SessionsView({ sessions = [], items = [], onSelectItem, featureCode, focusActive, onToggleFocus }) {
   const [search, setSearch] = useState('');
   const [agentFilter, setAgentFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -43,15 +44,22 @@ export default function SessionsView({ sessions = [], items = [], onSelectItem }
     [sessions]
   );
 
-  const filtered = useMemo(
-    () => filterSessions(sessions, { search, agentFilter, statusFilter }),
-    [sessions, search, agentFilter, statusFilter]
-  );
+  const filtered = useMemo(() => {
+    let result = filterSessions(sessions, { search, agentFilter, statusFilter });
+    // COMP-UX-2a: Feature focus filter
+    if (focusActive && featureCode) {
+      result = result.filter(s =>
+        s.featureCode === featureCode || s.feature_code === featureCode
+      );
+    }
+    return result;
+  }, [sessions, search, agentFilter, statusFilter, focusActive, featureCode]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-border shrink-0">
+        <FeatureFocusToggle featureCode={featureCode} active={focusActive} onToggle={onToggleFocus} />
         {/* Active count */}
         <div className="flex items-center gap-1 text-[10px]">
           <span className={cn(

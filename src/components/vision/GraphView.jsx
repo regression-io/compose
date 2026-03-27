@@ -3,6 +3,7 @@ import cytoscape from 'cytoscape';
 import cytoscapeDagre from 'cytoscape-dagre';
 import cytoscapeFcose from 'cytoscape-fcose';
 import { TYPE_COLORS, PHASE_LABELS, CONFIDENCE_LABELS } from './constants.js';
+import FeatureFocusToggle from '../shared/FeatureFocusToggle.jsx';
 
 try { cytoscape.use(cytoscapeDagre); } catch (e) { /* already registered */ }
 try { cytoscape.use(cytoscapeFcose); } catch (e) { /* already registered */ }
@@ -55,51 +56,37 @@ const STATUS_FILTERS = [
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-// Derive group key for an item — feature code prefix (e.g. "STRAT-ENG", "COMP-UI")
-// COMP-UX-2b: Dynamic prefix derivation from item data (replaces hardcoded KNOWN_PREFIXES)
-function deriveGroupPrefixes(items) {
-  const prefixes = new Set();
-  // Match "COMP-UX", "STRAT-ENG" (multi-token) and "TEST", "INIT" (single-token before dash+digit)
-  const PREFIX_RE = /^([A-Z]+-[A-Z]+|[A-Z]+)(?=-\d)/;
-  for (const item of items) {
-    const titleMatch = (item.title || '').match(PREFIX_RE);
-    if (titleMatch) prefixes.add(titleMatch[1]);
-    const fc = item.lifecycle?.featureCode || item.featureCode;
-    if (fc) {
-      const fcMatch = fc.match(PREFIX_RE);
-      if (fcMatch) prefixes.add(fcMatch[1]);
-    }
-  }
-  // Sort longest-first so "COMP-UX" matches before "COMP"
-  return [...prefixes].sort((a, b) => b.length - a.length);
+function getGroup(item) {
+  return item.group || 'other';
 }
 
-function getGroup(item, knownPrefixes) {
-  const title = item.title || '';
-  for (const prefix of knownPrefixes) {
-    if (title.startsWith(prefix + '-') || title.startsWith(prefix + ':') || title.startsWith(prefix + ' ')) {
-      return prefix;
-    }
-  }
-  const fc = item.lifecycle?.featureCode || item.featureCode;
-  if (fc) {
-    for (const prefix of knownPrefixes) {
-      if (fc.startsWith(prefix + '-') || fc === prefix) return prefix;
-    }
-  }
-  return 'other';
-}
-
-function buildElements(items, connections, grouped, knownPrefixes) {
+function buildElements(items, connections, grouped, focusActive, featureCode) {
   const elements = [];
   const itemIds = new Set(items.map(i => i.id));
+
+  // COMP-UX-2a: Build set of item IDs belonging to the focused feature
+  let focusItemIds = null;
+  if (focusActive && featureCode) {
+    focusItemIds = new Set(
+      items.filter(i =>
+        i.featureCode === featureCode ||
+        i.lifecycle?.featureCode === featureCode ||
+        (i.title || '').startsWith(featureCode)
+      ).map(i => i.id)
+    );
+    // Include 1-hop neighbors (items connected to focused items)
+    for (const conn of connections) {
+      if (focusItemIds.has(conn.fromId) && itemIds.has(conn.toId)) focusItemIds.add(conn.toId);
+      if (focusItemIds.has(conn.toId) && itemIds.has(conn.fromId)) focusItemIds.add(conn.fromId);
+    }
+  }
 
   // Compound parent nodes by feature group, sorted by priority
   const sortedGroups = [];
   if (grouped) {
-    const groupSet = [...new Set(items.map(i => getGroup(i, knownPrefixes)).filter(Boolean))];
+    const groupSet = [...new Set(items.map(i => getGroup(i)).filter(Boolean))];
     const groupPriority = groupSet.map(group => {
-      const members = items.filter(i => getGroup(i, knownPrefixes) === group);
+      const members = items.filter(i => getGroup(i) === group);
       const blocked = members.filter(i => ['blocked', 'parked'].includes(i.status)).length;
       const active = members.filter(i => ['in_progress', 'review', 'ready'].includes(i.status)).length;
       const planned = members.filter(i => i.status === 'planned').length;
@@ -111,6 +98,7 @@ function buildElements(items, connections, grouped, knownPrefixes) {
     );
     for (const { group, active, blocked, total } of groupPriority) {
       sortedGroups.push(group);
+      const hasAnyFocused = focusItemIds && items.some(i => getGroup(i) === group && focusItemIds.has(i.id));
       elements.push({
         data: {
           id: `group-${group}`,
@@ -118,6 +106,7 @@ function buildElements(items, connections, grouped, knownPrefixes) {
           isGroup: true,
           groupType: group,
         },
+        ...(focusItemIds && !hasAnyFocused ? { classes: 'focus-dimmed' } : {}),
       });
     }
   }
@@ -128,7 +117,8 @@ function buildElements(items, connections, grouped, knownPrefixes) {
     let rawTitle = (item.title || slug).replace(/`/g, '');
     if (rawTitle.includes('/')) rawTitle = rawTitle.split('/').pop().replace(/\.md$/, '');
     const title = rawTitle.length > 28 ? rawTitle.slice(0, 28) + '\u2026' : rawTitle;
-    const group = getGroup(item, knownPrefixes);
+    const group = getGroup(item);
+    const dimmed = focusItemIds && !focusItemIds.has(item.id);
 
     elements.push({
       data: {
@@ -144,6 +134,7 @@ function buildElements(items, connections, grouped, knownPrefixes) {
         featureCode: item.lifecycle?.featureCode || item.featureCode || null,
         ...(grouped && group ? { parent: `group-${group}` } : {}),
       },
+      ...(dimmed ? { classes: 'focus-dimmed' } : {}),
     });
   }
 
@@ -226,6 +217,7 @@ function buildStylesheet() {
     { selector: 'edge[edgeStyle="dashed"]', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3], 'target-arrow-shape': 'diamond' } },
     { selector: 'edge[edgeType="blocks"]', style: { 'target-arrow-shape': 'tee' } },
     { selector: '.dimmed', style: { opacity: 0.35 } },
+    { selector: '.focus-dimmed', style: { opacity: 0.15 } },
     { selector: '.highlighted', style: { 'border-width': 3, 'border-color': '#60a5fa' } },
     // COMP-UX-1c: Build state overlay styles
     { selector: '.build-building', style: { 'border-color': '#3b82f6', 'border-width': 3, 'shadow-color': '#3b82f6', 'shadow-opacity': 0.6, 'shadow-blur': 12 } },
@@ -398,7 +390,7 @@ function GatePopover({ featureCode, gates, items, badgePositions, onResolve, onC
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
-export default function GraphView({ items, connections, selectedItemId, onSelect, visibleTracks, hiddenGroups, buildStateMap, resolveGate, gates, spawnedAgents, agentRelays, agentOverlay }) {
+export default function GraphView({ items, connections, selectedItemId, onSelect, visibleTracks, hiddenGroups, buildStateMap, resolveGate, gates, spawnedAgents, agentRelays, agentOverlay, featureCode, focusActive, onToggleFocus }) {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
@@ -430,10 +422,6 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     [items],
   );
 
-  // COMP-UX-2b: Derive group prefixes dynamically from item data
-  const knownPrefixes = useMemo(() => deriveGroupPrefixes(nonDocItems), [nonDocItems]);
-
-  // Available groups (for filter bar)
   // Filter by status, visible tracks, and group
   const filteredItems = useMemo(() => {
     let result = nonDocItems;
@@ -449,10 +437,10 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
       result = result.filter(i => visibleTracks.has(getTrack(i)));
     }
     if (hiddenGroups?.size > 0) {
-      result = result.filter(i => !hiddenGroups.has(getGroup(i, knownPrefixes)));
+      result = result.filter(i => !hiddenGroups.has(getGroup(i)));
     }
     return result;
-  }, [nonDocItems, statusFilter, visibleTracks, hiddenGroups, knownPrefixes]);
+  }, [nonDocItems, statusFilter, visibleTracks, hiddenGroups]);
 
   const filteredConnections = useMemo(() => {
     const ids = new Set(filteredItems.map(i => i.id));
@@ -467,12 +455,12 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   }, [spawnedAgents]);
 
   const elements = useMemo(() => {
-    const base = buildElements(filteredItems, filteredConnections, grouped, knownPrefixes);
+    const base = buildElements(filteredItems, filteredConnections, grouped, focusActive, featureCode);
     if (showAgentTopology && agentElements.length > 0) {
       return [...base, ...agentElements];
     }
     return base;
-  }, [filteredItems, filteredConnections, grouped, showAgentTopology, agentElements]);
+  }, [filteredItems, filteredConnections, grouped, showAgentTopology, agentElements, focusActive, featureCode]);
 
   const stylesheet = useMemo(() => buildStylesheet(), []);
 
@@ -687,6 +675,8 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
       <div className="shrink-0" style={{ background: '#1e293b', borderBottom: '1px solid #334155' }}>
         <div className="flex items-center justify-between px-3 py-1.5">
           <div className="flex items-center gap-2">
+            <FeatureFocusToggle featureCode={featureCode} active={focusActive} onToggle={onToggleFocus} />
+            {featureCode && <Sep />}
             <span style={{ fontSize: 11, color: '#64748b' }}>Status:</span>
             {STATUS_FILTERS.map(f => (
               <FilterBtn key={f.key} active={statusFilter === f.key} onClick={() => setStatusFilter(f.key)}>

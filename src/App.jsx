@@ -48,6 +48,7 @@ import ChallengeModal from './components/vision/ChallengeModal.jsx';
 import SettingsPanel from './components/vision/SettingsPanel.jsx';
 import PipelineView from './components/vision/PipelineView.jsx';
 import SessionsView from './components/vision/SessionsView.jsx';
+import DashboardView from './components/vision/DashboardView.jsx';
 import DesignView from './components/vision/DesignView.jsx';
 import DesignSidebar from './components/vision/DesignSidebar.jsx';
 import { useDesignStore } from './components/vision/useDesignStore.js';
@@ -219,8 +220,24 @@ function CockpitView({
   onCreateConnection, onDeleteConnection, onRefreshBuild, onSelectStep,
   onResolveGate, onUpdateSettings, onResetSettings,
   projectRoot,
+  // COMP-UX-2a: Feature focus
+  featureCode, focusActive, onToggleFocus,
 }) {
   switch (activeView) {
+    case 'dashboard':
+      return (
+        <DashboardView
+          items={phaseFilteredItems}
+          gates={phaseFilteredGates}
+          sessions={sessions}
+          activeBuild={activeBuild}
+          spawnedAgents={spawnedAgents}
+          featureCode={featureCode}
+          onSelect={onSelect}
+          onResolveGate={onResolveGate}
+          onOpenGate={onOpenGate}
+        />
+      );
     case 'tree':
       return (
         <TreeView
@@ -229,6 +246,9 @@ function CockpitView({
           selectedItemId={selectedItemId}
           onSelect={onSelect}
           onCreate={onCreate}
+          featureCode={featureCode}
+          focusActive={focusActive}
+          onToggleFocus={onToggleFocus}
         />
       );
     case 'graph':
@@ -246,6 +266,9 @@ function CockpitView({
           spawnedAgents={spawnedAgents}
           agentRelays={agentRelays}
           agentOverlay={agentOverlay}
+          featureCode={featureCode}
+          focusActive={focusActive}
+          onToggleFocus={onToggleFocus}
         />
       );
     case 'pipeline':
@@ -262,6 +285,9 @@ function CockpitView({
           sessions={sessions}
           items={items}
           onSelectItem={onSelect}
+          featureCode={featureCode}
+          focusActive={focusActive}
+          onToggleFocus={onToggleFocus}
         />
       );
     case 'gates':
@@ -271,6 +297,9 @@ function CockpitView({
           items={phaseFilteredItems}
           onResolve={onResolveGate}
           onSelect={onSelect}
+          featureCode={featureCode}
+          focusActive={focusActive}
+          onToggleFocus={onToggleFocus}
         />
       );
     case 'docs':
@@ -281,6 +310,9 @@ function CockpitView({
           onSelectedFileChange={onDocsSelectedFileChange}
           previousView={docsPreviousView}
           onBack={onDocsBack}
+          featureCode={featureCode}
+          focusActive={focusActive}
+          onToggleFocus={onToggleFocus}
         />
       );
     case 'design':
@@ -363,11 +395,14 @@ function AppInner() {
     selectedPhase: s.selectedPhase, setSelectedPhase: s.setSelectedPhase,
   })));
 
+  // COMP-UX-2a: Derive active feature code from session state
+  const activeFeatureCode = sessionState?.featureCode || null;
+
   // ── Local vision state (absorbed from VisionTracker) ────────────────────
   const [selectedItemId, setSelectedItemId] = useState(null);
   const hadSessionView = useRef(!!localStorage.getItem('compose:activeView'));
   const [activeView, setActiveView] = useState(() =>
-    localStorage.getItem('compose:activeView') || 'graph'
+    localStorage.getItem('compose:activeView') || 'dashboard'
   );
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -391,6 +426,8 @@ function AppInner() {
   });
   // COMP-UX-1: Group filter (shared between sidebar and graph)
   const [hiddenGroups, setHiddenGroups] = useState(new Set());
+  // COMP-UX-2a: Feature-aware focus filter
+  const [focusFeature, setFocusFeature] = useState(false);
   const handleToggleGroup = useCallback((group) => {
     setHiddenGroups(prev => {
       const next = new Set(prev);
@@ -1031,6 +1068,9 @@ function AppInner() {
                       docsPreviousView={docsPreviousView}
                       onDocsBack={navigateBackFromDocs}
                       projectRoot={projectRoot}
+                      featureCode={activeFeatureCode}
+                      focusActive={focusFeature}
+                      onToggleFocus={() => setFocusFeature(f => !f)}
                     />
                   </PanelErrorBoundary>
                 </div>

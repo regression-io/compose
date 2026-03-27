@@ -12,9 +12,10 @@
  *   onOpenPalette {fn}      called when Cmd+K button is clicked
  */
 import React from 'react';
-import { Network, GitBranch, Activity, ShieldCheck, Search, FileText, Workflow, MessageSquare } from 'lucide-react';
+import { Network, GitBranch, Activity, ShieldCheck, Search, FileText, Workflow, MessageSquare, LayoutDashboard } from 'lucide-react';
 
 const TAB_META = {
+  dashboard: { label: 'Dashboard', icon: LayoutDashboard },
   tree:      { label: 'Items',     icon: GitBranch },
   graph:     { label: 'Graph',     icon: Network },
   pipeline:  { label: 'Pipeline',  icon: Workflow },

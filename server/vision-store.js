@@ -20,6 +20,15 @@ function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+const PREFIX_RE = /^([A-Z]+-[A-Z]+|[A-Z]+)(?=-\d)/;
+function deriveGroup(title, featureCode) {
+  const titleMatch = (title || '').match(PREFIX_RE);
+  if (titleMatch) return titleMatch[1];
+  const fcMatch = (featureCode || '').match(PREFIX_RE);
+  if (fcMatch) return fcMatch[1];
+  return null;
+}
+
 export class VisionStore {
   constructor(dataDir) {
     this._dataDir = dataDir || getDefaultDataDir();
@@ -61,6 +70,10 @@ export class VisionStore {
           }
           if (!item.slug && item.title) item.slug = slugify(item.title);
           if (!item.files) item.files = [];
+          if (!item.group) {
+            item.group = deriveGroup(item.title, item.featureCode || item.lifecycle?.featureCode);
+            if (item.group) migrated = true;
+          }
           this.items.set(item.id, item);
         }
       }
@@ -111,7 +124,7 @@ export class VisionStore {
   }
 
   /** Create a new vision item */
-  createItem({ type, title, description = '', confidence = 0, status = 'planned', phase, position, parentId, files, priority, assignedTo, governance, featureCode }) {
+  createItem({ type, title, description = '', confidence = 0, status = 'planned', phase, position, parentId, files, priority, assignedTo, governance, featureCode, group }) {
     if (!VALID_TYPES.includes(type)) throw new Error(`Invalid type: ${type}`);
     if (!title) throw new Error('title required');
     if (!VALID_STATUSES.includes(status)) throw new Error(`Invalid status: ${status}`);
@@ -134,6 +147,7 @@ export class VisionStore {
       assignedTo: assignedTo || null,
       governance: governance || null,
       featureCode: featureCode || null,
+      group: group || deriveGroup(title, featureCode),
       slug: slugify(title),
       position: position || { x: 100 + Math.random() * 400, y: 100 + Math.random() * 300 },
       createdAt: now,
@@ -163,7 +177,7 @@ export class VisionStore {
       throw new Error(`Invalid phase: ${updates.phase}`);
     }
 
-    const allowed = ['type', 'title', 'description', 'confidence', 'status', 'phase', 'position', 'parentId', 'summary', 'files', 'featureCode', 'stratumFlowId', 'evidence'];
+    const allowed = ['type', 'title', 'description', 'confidence', 'status', 'phase', 'position', 'parentId', 'summary', 'files', 'featureCode', 'stratumFlowId', 'evidence', 'group'];
     for (const key of allowed) {
       if (updates[key] !== undefined) {
         item[key] = updates[key];
@@ -172,6 +186,10 @@ export class VisionStore {
     // Regenerate slug when title changes
     if (updates.title !== undefined) {
       item.slug = slugify(updates.title);
+    }
+    // Re-derive group when title or featureCode changes (unless group was explicitly set)
+    if ((updates.title !== undefined || updates.featureCode !== undefined) && updates.group === undefined) {
+      item.group = deriveGroup(item.title, item.featureCode || item.lifecycle?.featureCode);
     }
     // Ensure files is always an array
     if (updates.files !== undefined) {
