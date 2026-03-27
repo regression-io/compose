@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.j
 import { CheckCircle2, Circle, ArrowRight, Bot, FileText, Terminal } from 'lucide-react';
 import { LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS } from './constants.js';
 import ArtifactDiff from '../shared/ArtifactDiff.jsx';
+import AgentCard from '../shared/AgentCard.jsx';
 
 const PHASES = ['explore_design', 'prd', 'architecture', 'blueprint', 'plan', 'execute', 'report'];
 
@@ -65,7 +66,7 @@ function PhaseTimeline({ currentPhase }) {
   );
 }
 
-function ActiveAgents({ spawnedAgents, activeBuild }) {
+function ActiveAgents({ spawnedAgents, activeBuild, sessionState, agentActivity }) {
   const running = (spawnedAgents || []).filter(a => a.status === 'running');
   const recent = (spawnedAgents || [])
     .filter(a => a.status !== 'running')
@@ -95,20 +96,22 @@ function ActiveAgents({ spawnedAgents, activeBuild }) {
         {running.length === 0 && recent.length === 0 && (
           <p className="text-[11px] text-muted-foreground/50 mt-1">No agents active</p>
         )}
-        <div className="mt-1 space-y-1">
+        <div className="mt-1 space-y-1.5">
           {running.map((a, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Bot className="w-3 h-3 text-emerald-400" />
-              <span className="text-[11px] text-foreground">{a.type || a.agent || 'agent'}</span>
-              <span className="text-[10px] text-emerald-400">running</span>
-            </div>
+            <AgentCard
+              key={a.agentId || i}
+              agent={a}
+              toolCount={sessionState?.toolCount || 0}
+              errorCount={sessionState?.errorCount || 0}
+              currentTool={agentActivity?.tool}
+              currentCategory={agentActivity?.category}
+            />
           ))}
           {recent.map((a, i) => (
-            <div key={`r-${i}`} className="flex items-center gap-2">
-              <Bot className="w-3 h-3 text-muted-foreground/50" />
-              <span className="text-[11px] text-muted-foreground">{a.type || a.agent || 'agent'}</span>
-              <span className="text-[10px] text-muted-foreground/50">{a.status}</span>
-            </div>
+            <AgentCard
+              key={a.agentId || `r-${i}`}
+              agent={a}
+            />
           ))}
         </div>
       </div>
@@ -259,6 +262,8 @@ export default function DashboardView({
   activeBuild,
   spawnedAgents = [],
   featureCode,
+  sessionState,
+  agentActivity,
   onSelect,
   onResolveGate,
   onOpenGate,
@@ -379,7 +384,7 @@ export default function DashboardView({
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <ActiveAgents spawnedAgents={spawnedAgents} activeBuild={activeBuild} />
+            <ActiveAgents spawnedAgents={spawnedAgents} activeBuild={activeBuild} sessionState={sessionState} agentActivity={agentActivity} />
           </CardContent>
         </Card>
       </div>

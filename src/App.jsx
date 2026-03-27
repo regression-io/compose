@@ -222,6 +222,8 @@ function CockpitView({
   projectRoot,
   // COMP-UX-2a: Feature focus
   featureCode, focusActive, onToggleFocus,
+  // COMP-UX-7: Live metrics
+  sessionState, agentActivity,
 }) {
   switch (activeView) {
     case 'dashboard':
@@ -233,6 +235,8 @@ function CockpitView({
           activeBuild={activeBuild}
           spawnedAgents={spawnedAgents}
           featureCode={featureCode}
+          sessionState={sessionState}
+          agentActivity={agentActivity}
           onSelect={onSelect}
           onResolveGate={onResolveGate}
           onOpenGate={onOpenGate}
@@ -1071,6 +1075,8 @@ function AppInner() {
                       featureCode={activeFeatureCode}
                       focusActive={focusFeature}
                       onToggleFocus={() => setFocusFeature(f => !f)}
+                      sessionState={sessionState}
+                      agentActivity={agentActivity}
                     />
                   </PanelErrorBoundary>
                 </div>

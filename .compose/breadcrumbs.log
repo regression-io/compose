@@ -85,3 +85,5 @@
 2026-03-27T22:45:32+08:00 | COMP-UX-8: Mermaid diagram rendering in DocsView file preview
 2026-03-27T23:16:17+08:00 | COMP-UX-4: Artifact revision diff — snapshot on gate creation, diff component, GateView + Dashboard integration
 2026-03-27T23:18:53+08:00 | COMP-UX-4: Artifact revision diff — snapshot on gate create, ArtifactDiff component, wire into GateView + DashboardView
+2026-03-28T00:32:20+08:00 | COMP-UX-7: Live metrics on agent cards — AgentCard component, Dashboard wiring
+2026-03-28T00:33:40+08:00 | COMP-UX-7: Replace minimal agent rows with rich AgentCard metrics (elapsed time, tool count, errors, current tool)
