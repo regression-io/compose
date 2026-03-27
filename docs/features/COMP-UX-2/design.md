@@ -42,6 +42,16 @@ Fix every view to be fully functional for compose users. Add a Dashboard as the 
 
 ---
 
+## Sub-Features
+
+| Code | Workstream | Design |
+|------|-----------|--------|
+| [COMP-UX-2a](../COMP-UX-2a/design.md) | Feature-aware filtering | All views get "Focus: AUTH-3" toggle |
+| [COMP-UX-2b](../COMP-UX-2b/design.md) | Fix broken views | Sessions, Pipeline, Design, Settings, Graph |
+| [COMP-UX-2c](../COMP-UX-2c/design.md) | Dashboard landing view | Feature progress, gates, agents, artifacts |
+
+---
+
 ## Workstream 1: Feature-Aware Filtering (all views)
 
 **The #1 gap.** When a feature is bound (`sessionState.featureCode`), every view should offer a "Focus: AUTH-3" toggle that filters to that feature's items, gates, sessions, and artifacts.

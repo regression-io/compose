@@ -63,7 +63,11 @@ Phase 6.5/6.8/7 which are on the critical path.
 | COMP-GIT-1 | Git/file connector — link work items to code changes, diff awareness | PARKED |
 | COMP-GIT-2 | File checkpoint/rewind — snapshot affected files before agent changes; rewind surface in UI *(inspired by Damocles)* | PARKED |
 | COMP-UI-7 | Tab popout — dockable/undockable tabs to separate monitors *(UI extension)* | PARKED |
-| COMP-VIS-1 | Live agent communication graph — animated packet flow on GraphView edges when agents message each other in real time; topology overlay showing active relays, message direction, and throughput *(inspired by Meridian)* | PLANNED |
+| COMP-VIS-1 | Live agent communication graph — animated packet flow on GraphView edges when agents message each other in real time; topology overlay showing active relays, message direction, and throughput *(inspired by Meridian)* | COMPLETE |
+| COMP-UX-2 | Cockpit refocus — make existing views fully functional for compose users | IN_PROGRESS |
+| COMP-UX-2a | Feature-aware filtering — "Focus: AUTH-3" toggle across Graph, Tree, Gates, Sessions, Docs | PLANNED |
+| COMP-UX-2b | Fix broken views — wire Sessions data, dynamic Pipeline steps, connect Design to lifecycle, clean Settings | PLANNED |
+| COMP-UX-2c | Dashboard landing view — feature progress, phase timeline, inline gates, active agents, artifacts | PLANNED |
 | — | Persistence evolution — event-sourced, markdown generation from tracker | **SUPERSEDED** — Base44 dependency already cut; flat JSON store sufficient for current scale |
 | — | Agent connector (read-write) — direct sessions from Compose | **SUPERSEDED by Phase 4.5** |
 
