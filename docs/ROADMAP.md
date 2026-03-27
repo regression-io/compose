@@ -68,6 +68,7 @@ Phase 6.5/6.8/7 which are on the critical path.
 | COMP-UX-2a | Feature-aware filtering — "Focus: AUTH-3" toggle across Graph, Tree, Gates, Sessions, Docs | PLANNED |
 | COMP-UX-2b | Fix broken views — wire Sessions data, dynamic Pipeline steps, connect Design to lifecycle, clean Settings | PLANNED |
 | COMP-UX-2c | Dashboard landing view — feature progress, phase timeline, inline gates, active agents, artifacts | PLANNED |
+| COMP-UX-2d | First-class group field — replace regex prefix derivation with proper schema field on vision items | PLANNED |
 | — | Persistence evolution — event-sourced, markdown generation from tracker | **SUPERSEDED** — Base44 dependency already cut; flat JSON store sufficient for current scale |
 | — | Agent connector (read-write) — direct sessions from Compose | **SUPERSEDED by Phase 4.5** |
 

@@ -49,6 +49,7 @@ Fix every view to be fully functional for compose users. Add a Dashboard as the 
 | [COMP-UX-2a](../COMP-UX-2a/design.md) | Feature-aware filtering | All views get "Focus: AUTH-3" toggle |
 | [COMP-UX-2b](../COMP-UX-2b/design.md) | Fix broken views | Sessions, Pipeline, Design, Settings, Graph |
 | [COMP-UX-2c](../COMP-UX-2c/design.md) | Dashboard landing view | Feature progress, gates, agents, artifacts |
+| [COMP-UX-2d](../COMP-UX-2d/design.md) | First-class group field | Replace regex prefix derivation with proper data model |
 
 ---
 
