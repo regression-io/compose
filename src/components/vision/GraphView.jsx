@@ -70,7 +70,8 @@ function deriveGroupPrefixes(items) {
       if (fcMatch) prefixes.add(fcMatch[1]);
     }
   }
-  return prefixes;
+  // Sort longest-first so "COMP-UX" matches before "COMP"
+  return [...prefixes].sort((a, b) => b.length - a.length);
 }
 
 function getGroup(item, knownPrefixes) {
@@ -140,6 +141,7 @@ function buildElements(items, connections, grouped, knownPrefixes) {
         title: item.title,
         description: item.description,
         slug,
+        featureCode: item.lifecycle?.featureCode || item.featureCode || null,
         ...(grouped && group ? { parent: `group-${group}` } : {}),
       },
     });
@@ -446,7 +448,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
       };
       result = result.filter(i => visibleTracks.has(getTrack(i)));
     }
-    if (hiddenGroups.size > 0) {
+    if (hiddenGroups?.size > 0) {
       result = result.filter(i => !hiddenGroups.has(getGroup(i, knownPrefixes)));
     }
     return result;
@@ -565,7 +567,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
       const className = `build-${state.replace(/_/g, '-')}`;
       const node = cy.nodes().filter(n => {
         const d = n.data();
-        return d.slug === featureCode || d.title === featureCode;
+        return d.slug === featureCode || d.title === featureCode || d.featureCode === featureCode;
       });
       if (node.length) node.addClass(className);
     }
@@ -642,7 +644,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
       if (state !== 'gate_pending' && state !== 'error' && state !== 'building') continue;
       const node = cy.nodes().filter(n => {
         const d = n.data();
-        return d.slug === featureCode || d.title === featureCode;
+        return d.slug === featureCode || d.title === featureCode || d.featureCode === featureCode;
       });
       if (!node.length) continue;
       const pos = node.renderedPosition();

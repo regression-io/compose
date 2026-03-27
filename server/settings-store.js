@@ -52,7 +52,7 @@ export class SettingsStore {
         agentRun: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
         summarizer: process.env.SUMMARIZER_MODEL || 'haiku',
       },
-      ui: { theme: 'system', defaultView: 'attention' },
+      ui: { theme: 'system', defaultView: 'graph' },
     };
   }
 

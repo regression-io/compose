@@ -252,16 +252,23 @@ export class SessionManager {
     // Current active session
     if (this.currentSession) {
       const s = this.currentSession;
-      let reads = 0, writes = 0;
+      let reads = 0, writes = 0, lastSummary = null;
       if (s.items instanceof Map) {
-        for (const v of s.items.values()) { reads += v.reads || 0; writes += v.writes || 0; }
+        for (const v of s.items.values()) {
+          reads += v.reads || 0;
+          writes += v.writes || 0;
+          if (v.summaries?.length) {
+            const s_ = v.summaries[v.summaries.length - 1];
+            lastSummary = typeof s_ === 'string' ? s_ : s_?.summary || null;
+          }
+        }
       }
       sessions.push({
         id: s.id,
         status: 'active',
         agent: 'claude',
         featureCode: s.featureCode || null,
-        summary: s.summaries?.[s.summaries.length - 1] || null,
+        summary: lastSummary,
         startedAt: s.startedAt,
         reads, writes,
         errors: s.errors?.length || 0,
@@ -282,7 +289,10 @@ export class SessionManager {
           for (const v of Object.values(s.items)) {
             reads += v.reads || 0;
             writes += v.writes || 0;
-            if (v.summaries?.length) lastSummary = v.summaries[v.summaries.length - 1];
+            if (v.summaries?.length) {
+            const s_ = v.summaries[v.summaries.length - 1];
+            lastSummary = typeof s_ === 'string' ? s_ : s_?.summary || null;
+          }
           }
         }
         sessions.push({

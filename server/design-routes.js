@@ -309,11 +309,9 @@ export function attachDesignRoutes(app, { getSessionManager, getConnector, getPr
         return res.status(404).json({ error: `No session found for ${scope}${featureCode ? `:${featureCode}` : ''}` });
       }
 
-      // Mark session complete
-      const completedSession = sessionManager.completeSession(scope, featureCode);
-
-      // If no connector available or no projectRoot, skip doc generation
+      // If no connector available or no projectRoot, mark complete and skip doc generation
       if (!getConnector() || !projectRoot) {
+        const completedSession = sessionManager.completeSession(scope, featureCode);
         res.json({ session: completedSession });
         return;
       }
@@ -361,9 +359,9 @@ Output ONLY the Markdown content, no code fences.`;
           }
         }
       } catch (err) {
-        // If generation fails, still return the completed session
+        // If generation fails, don't complete — let user retry
         console.error('[design] Doc generation failed:', err.message);
-        res.json({ session: completedSession });
+        res.status(500).json({ error: `Doc generation failed: ${err.message}` });
         return;
       }
 
@@ -379,11 +377,14 @@ Output ONLY the Markdown content, no code fences.`;
       const absPath = path.join(projectRoot, designDocPath);
       if (!docContent.trim()) {
         console.error('[design] Generated doc is empty — refusing to overwrite');
-        res.json({ session: completedSession, error: 'Doc generation produced empty content' });
+        res.status(500).json({ error: 'Doc generation produced empty content' });
         return;
       }
       fs.mkdirSync(path.dirname(absPath), { recursive: true });
       fs.writeFileSync(absPath, docContent, 'utf-8');
+
+      // Mark session complete only after doc successfully written
+      const completedSession = sessionManager.completeSession(scope, featureCode);
 
       broadcastDesignEvent(key, 'complete', { designDocPath });
 
@@ -395,7 +396,7 @@ Output ONLY the Markdown content, no code fences.`;
           const itemsRes = await fetch(`${apiBase}/api/vision/items?keyword=${encodeURIComponent(featureCode)}`);
           const itemsData = await itemsRes.json();
           const featureItem = itemsData.items?.find(i =>
-            i.title?.startsWith(featureCode) || i.lifecycle?.featureCode === featureCode
+            i.title?.startsWith(featureCode) || i.lifecycle?.featureCode === featureCode || i.featureCode === featureCode
           );
           await fetch(`${apiBase}/api/vision/gates`, {
             method: 'POST',
