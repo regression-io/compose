@@ -220,7 +220,7 @@ export class VisionServer {
       console.log(`[vision] Client connected (${this.clients.size} total)`);
 
       try {
-        ws.send(JSON.stringify({ type: 'visionState', ...this.store.getState() }));
+        ws.send(JSON.stringify({ type: 'visionState', ...this.store.getState(), sessions: this.sessionManager?.getRecentSessions?.() || [] }));
         ws.send(JSON.stringify({ type: 'settingsState', settings: this.settingsStore.get() }));
       } catch (err) {
         console.error('[vision] Error sending initial state:', err.message);
@@ -267,7 +267,7 @@ export class VisionServer {
 
   /** Broadcast full state to all connected clients */
   broadcastState() {
-    this.broadcastMessage({ type: 'visionState', ...this.store.getState() });
+    this.broadcastMessage({ type: 'visionState', ...this.store.getState(), sessions: this.sessionManager?.getRecentSessions?.() || [] });
   }
 
   /** Broadcast any message to all connected clients */

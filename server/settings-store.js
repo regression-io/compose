@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getDataDir as getDefaultDataDir } from './project-root.js';
 
-const VALID_VIEWS = ['attention', 'gates', 'roadmap', 'list', 'board', 'tree', 'graph', 'docs', 'settings'];
+const VALID_VIEWS = ['graph', 'tree', 'pipeline', 'gates', 'docs', 'design', 'sessions', 'settings'];
 const VALID_THEMES = ['light', 'dark', 'system'];
 
 export class SettingsStore {

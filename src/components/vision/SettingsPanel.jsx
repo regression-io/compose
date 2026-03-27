@@ -7,7 +7,7 @@ const POLICY_PHASES = [
 ];
 const POLICY_MODES = ['gate', 'flag', 'skip'];
 const THEMES = ['light', 'dark', 'system'];
-const VIEWS = ['attention', 'gates', 'roadmap', 'list', 'board', 'tree', 'graph', 'docs', 'settings'];
+const VIEWS = ['graph', 'tree', 'pipeline', 'gates', 'docs', 'design', 'sessions', 'settings'];
 
 function Section({ title, children }) {
   return (
@@ -156,7 +156,7 @@ export default function SettingsPanel({ settings, onSettingsChange, onReset }) {
         <FieldRow label="Default view">
           <select
             className={selectClass}
-            value={settings.ui?.defaultView || 'attention'}
+            value={VIEWS.includes(settings.ui?.defaultView) ? settings.ui.defaultView : 'graph'}
             onChange={(e) => handleDefaultView(e.target.value)}
           >
             {VIEWS.map(v => <option key={v} value={v}>{v}</option>)}

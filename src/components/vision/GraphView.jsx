@@ -56,41 +56,49 @@ const STATUS_FILTERS = [
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 // Derive group key for an item — feature code prefix (e.g. "STRAT-ENG", "COMP-UI")
-// Known feature code prefixes — only these get their own groups
-const KNOWN_PREFIXES = new Set([
-  'COMP-UX', 'COMP-UI', 'COMP-RT', 'COMP-BENCH',
-  'STRAT-ENG', 'STRAT-COMP', 'STRAT-PAR',
-  'INIT', 'TEST',
-]);
+// COMP-UX-2b: Dynamic prefix derivation from item data (replaces hardcoded KNOWN_PREFIXES)
+function deriveGroupPrefixes(items) {
+  const prefixes = new Set();
+  // Match "COMP-UX", "STRAT-ENG" (multi-token) and "TEST", "INIT" (single-token before dash+digit)
+  const PREFIX_RE = /^([A-Z]+-[A-Z]+|[A-Z]+)(?=-\d)/;
+  for (const item of items) {
+    const titleMatch = (item.title || '').match(PREFIX_RE);
+    if (titleMatch) prefixes.add(titleMatch[1]);
+    const fc = item.lifecycle?.featureCode || item.featureCode;
+    if (fc) {
+      const fcMatch = fc.match(PREFIX_RE);
+      if (fcMatch) prefixes.add(fcMatch[1]);
+    }
+  }
+  return prefixes;
+}
 
-function getGroup(item) {
+function getGroup(item, knownPrefixes) {
   const title = item.title || '';
-  // Try matching known prefix at start of title
-  for (const prefix of KNOWN_PREFIXES) {
+  for (const prefix of knownPrefixes) {
     if (title.startsWith(prefix + '-') || title.startsWith(prefix + ':') || title.startsWith(prefix + ' ')) {
       return prefix;
     }
   }
-  // Try lifecycle featureCode
   const fc = item.lifecycle?.featureCode || item.featureCode;
   if (fc) {
-    for (const prefix of KNOWN_PREFIXES) {
+    for (const prefix of knownPrefixes) {
       if (fc.startsWith(prefix + '-') || fc === prefix) return prefix;
     }
   }
   return 'other';
 }
 
-function buildElements(items, connections, grouped) {
+function buildElements(items, connections, grouped, knownPrefixes) {
   const elements = [];
   const itemIds = new Set(items.map(i => i.id));
 
   // Compound parent nodes by feature group, sorted by priority
   const sortedGroups = [];
   if (grouped) {
-    const groupSet = [...new Set(items.map(i => getGroup(i)).filter(Boolean))];
+    const groupSet = [...new Set(items.map(i => getGroup(i, knownPrefixes)).filter(Boolean))];
     const groupPriority = groupSet.map(group => {
-      const members = items.filter(i => getGroup(i) === group);
+      const members = items.filter(i => getGroup(i, knownPrefixes) === group);
       const blocked = members.filter(i => ['blocked', 'parked'].includes(i.status)).length;
       const active = members.filter(i => ['in_progress', 'review', 'ready'].includes(i.status)).length;
       const planned = members.filter(i => i.status === 'planned').length;
@@ -119,7 +127,7 @@ function buildElements(items, connections, grouped) {
     let rawTitle = (item.title || slug).replace(/`/g, '');
     if (rawTitle.includes('/')) rawTitle = rawTitle.split('/').pop().replace(/\.md$/, '');
     const title = rawTitle.length > 28 ? rawTitle.slice(0, 28) + '\u2026' : rawTitle;
-    const group = getGroup(item);
+    const group = getGroup(item, knownPrefixes);
 
     elements.push({
       data: {
@@ -420,6 +428,9 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     [items],
   );
 
+  // COMP-UX-2b: Derive group prefixes dynamically from item data
+  const knownPrefixes = useMemo(() => deriveGroupPrefixes(nonDocItems), [nonDocItems]);
+
   // Available groups (for filter bar)
   // Filter by status, visible tracks, and group
   const filteredItems = useMemo(() => {
@@ -436,10 +447,10 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
       result = result.filter(i => visibleTracks.has(getTrack(i)));
     }
     if (hiddenGroups.size > 0) {
-      result = result.filter(i => !hiddenGroups.has(getGroup(i)));
+      result = result.filter(i => !hiddenGroups.has(getGroup(i, knownPrefixes)));
     }
     return result;
-  }, [nonDocItems, statusFilter, visibleTracks, hiddenGroups]);
+  }, [nonDocItems, statusFilter, visibleTracks, hiddenGroups, knownPrefixes]);
 
   const filteredConnections = useMemo(() => {
     const ids = new Set(filteredItems.map(i => i.id));
@@ -454,7 +465,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   }, [spawnedAgents]);
 
   const elements = useMemo(() => {
-    const base = buildElements(filteredItems, filteredConnections, grouped);
+    const base = buildElements(filteredItems, filteredConnections, grouped, knownPrefixes);
     if (showAgentTopology && agentElements.length > 0) {
       return [...base, ...agentElements];
     }
@@ -698,7 +709,16 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
         </div>
       </div>
 
-      {/* Graph + overlays */}
+      {/* COMP-UX-2b: Empty state when no items match filters */}
+      {filteredItems.length === 0 && !showAgentTopology ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>No items match the current filters</div>
+            <div style={{ fontSize: 11, color: '#475569' }}>Try adjusting the status or group filters</div>
+          </div>
+        </div>
+      ) : (
+      /* Graph + overlays */
       <div className="flex-1 relative min-h-0">
         <div ref={containerRef} className="w-full h-full" />
 
@@ -773,6 +793,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
           />
         )}
       </div>
+      )}
     </div>
   );
 }

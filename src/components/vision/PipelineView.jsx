@@ -35,11 +35,28 @@ export default function PipelineView({ activeBuild, onSelectStep, onRefresh }) {
     : {};
   const currentStepId = activeBuild?.currentStepId ?? null;
 
+  // COMP-UX-2b: Always show full template; merge live status from activeBuild.steps
+  const liveStepMap = Array.isArray(activeBuild?.steps)
+    ? Object.fromEntries(activeBuild.steps.map(s => [s.id, s]))
+    : {};
+  const stepSource = PIPELINE_STEPS.map(t => {
+    const live = liveStepMap[t.id];
+    return live ? { ...t, ...live } : t;
+  });
+  // Append any dynamic steps not in the template (custom Stratum steps)
+  if (activeBuild?.steps) {
+    for (const s of activeBuild.steps) {
+      if (!PIPELINE_STEPS.find(t => t.id === s.id)) {
+        stepSource.push({ id: s.id, name: s.id.replace(/_/g, ' '), agent: 'claude', phase: 'implementation', ...s });
+      }
+    }
+  }
+
   // Group steps by phase
   const phaseGroups = Object.keys(PIPELINE_PHASE_CONFIG).map(phase => ({
     phase,
     config: PIPELINE_PHASE_CONFIG[phase],
-    steps: PIPELINE_STEPS.filter(s => s.phase === phase),
+    steps: stepSource.filter(s => s.phase === phase),
   }));
 
   return (

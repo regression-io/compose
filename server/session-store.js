@@ -98,7 +98,7 @@ export function readSessionsByFeature(featureCode, limit, sessionsFile) {
     const raw = fs.readFileSync(sessionsFile, 'utf8');
     const sessions = JSON.parse(raw);
     return sessions
-      .filter(s => s.featureCode === featureCode)
+      .filter(s => featureCode === null || featureCode === undefined ? true : s.featureCode === featureCode)
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
       .slice(0, limit);
   } catch {

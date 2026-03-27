@@ -386,6 +386,37 @@ Output ONLY the Markdown content, no code fences.`;
       fs.writeFileSync(absPath, docContent, 'utf-8');
 
       broadcastDesignEvent(key, 'complete', { designDocPath });
+
+      // COMP-UX-2b: Create lifecycle gate after design completion
+      if (scope === 'feature' && featureCode) {
+        try {
+          const apiBase = `http://127.0.0.1:${process.env.PORT || 4001}`;
+          // Look up the vision item for this featureCode
+          const itemsRes = await fetch(`${apiBase}/api/vision/items?keyword=${encodeURIComponent(featureCode)}`);
+          const itemsData = await itemsRes.json();
+          const featureItem = itemsData.items?.find(i =>
+            i.title?.startsWith(featureCode) || i.lifecycle?.featureCode === featureCode
+          );
+          await fetch(`${apiBase}/api/vision/gates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              flowId: `design-${featureCode}`,
+              stepId: 'design_gate',
+              round: 1,
+              itemId: featureItem?.id || null,
+              artifact: designDocPath,
+              fromPhase: 'explore_design',
+              toPhase: 'prd',
+              summary: `Design doc generated for ${featureCode}. Approve to advance.`,
+              policyMode: 'gate',
+            }),
+          });
+        } catch (gateErr) {
+          console.warn('[design] Gate creation failed (non-fatal):', gateErr.message);
+        }
+      }
+
       res.json({ session: completedSession, designDocPath });
     } catch (err) {
       if (err.message.includes('No session found')) {

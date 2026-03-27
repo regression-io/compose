@@ -38,6 +38,7 @@ export function attachSessionRoutes(app, { sessionManager, scheduleBroadcast, br
       source: source || 'startup',
       timestamp: new Date().toISOString(),
     });
+    scheduleBroadcast(); // COMP-UX-2b: refresh sessions list in visionState
 
     res.json({ sessionId: session.id, context });
   });
@@ -66,6 +67,7 @@ export function attachSessionRoutes(app, { sessionManager, scheduleBroadcast, br
       phaseAtEnd: session.phaseAtEnd || null,
       timestamp: new Date().toISOString(),
     });
+    scheduleBroadcast(); // COMP-UX-2b: refresh sessions list in visionState
 
     res.json({ sessionId: session.id, persisted: true, journalSpawned });
   });

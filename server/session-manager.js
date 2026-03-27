@@ -246,6 +246,62 @@ export class SessionManager {
     return { bound: true, featureCode, itemId, phase };
   }
 
+  /** COMP-UX-2b: Return recent sessions for visionState broadcast. */
+  getRecentSessions(limit = 20) {
+    const sessions = [];
+    // Current active session
+    if (this.currentSession) {
+      const s = this.currentSession;
+      let reads = 0, writes = 0;
+      if (s.items instanceof Map) {
+        for (const v of s.items.values()) { reads += v.reads || 0; writes += v.writes || 0; }
+      }
+      sessions.push({
+        id: s.id,
+        status: 'active',
+        agent: 'claude',
+        featureCode: s.featureCode || null,
+        summary: s.summaries?.[s.summaries.length - 1] || null,
+        startedAt: s.startedAt,
+        reads, writes,
+        errors: s.errors?.length || 0,
+        workType: s.phaseAtBind || 'general',
+        toolCount: s.toolCount || 0,
+      });
+    }
+    // Persisted sessions (most recent first)
+    try {
+      const persisted = readSessionsByFeature(null, limit, this._sessionsFile);
+      for (const s of persisted) {
+        if (sessions.length >= limit) break;
+        if (sessions.some(x => x.id === s.id)) continue;
+        // Aggregate reads/writes/summaries from per-item data
+        let reads = 0, writes = 0;
+        let lastSummary = null;
+        if (s.items && typeof s.items === 'object') {
+          for (const v of Object.values(s.items)) {
+            reads += v.reads || 0;
+            writes += v.writes || 0;
+            if (v.summaries?.length) lastSummary = v.summaries[v.summaries.length - 1];
+          }
+        }
+        sessions.push({
+          id: s.id,
+          status: 'completed',
+          agent: 'claude',
+          featureCode: s.featureCode || null,
+          summary: lastSummary,
+          startedAt: s.startedAt,
+          reads, writes,
+          errors: s.errors?.length || 0,
+          workType: s.phaseAtBind || 'general',
+          toolCount: s.toolCount || 0,
+        });
+      }
+    } catch { /* sessions file may not exist yet */ }
+    return sessions;
+  }
+
   /** Expose sessions file path for use by routes. */
   get sessionsFile() { return this._sessionsFile; }
 
