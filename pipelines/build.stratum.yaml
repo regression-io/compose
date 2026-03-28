@@ -39,6 +39,36 @@ contracts:
   TaskGraph:
     tasks: {type: array}
 
+  LensFinding:
+    lens:       {type: string}
+    file:       {type: string}
+    line:       {type: number}
+    severity:   {type: string, values: [must-fix, should-fix, nit]}
+    finding:    {type: string}
+    confidence: {type: number}
+
+  LensTask:
+    id:              {type: string}
+    lens_name:       {type: string}
+    lens_focus:      {type: string}
+    confidence_gate: {type: number}
+    exclusions:      {type: string}
+
+  TriageResult:
+    tasks:    {type: array}
+
+  LensResult:
+    clean:    {type: boolean}
+    findings: {type: array, items: LensFinding}
+
+  MergedReviewResult:
+    clean:      {type: boolean}
+    summary:    {type: string}
+    findings:   {type: array, items: LensFinding}
+    lenses_run: {type: array}
+    auto_fixes: {type: array, items: LensFinding}
+    asks:       {type: array, items: LensFinding}
+
 functions:
   design_gate:
     mode: gate
@@ -76,6 +106,65 @@ flows:
         ensure:
           - "result.clean == True"
         retries: 5
+
+  # --- Sub-flow: parallel_review ---
+  # Multi-lens review: triage selects lenses, parallel dispatch runs them,
+  # merge deduplicates and classifies findings. Falls back to review_check
+  # if parallel dispatch is unavailable.
+  parallel_review:
+    input:
+      task:      {type: string}
+      blueprint: {type: string}
+      diff:      {type: string}
+    output: MergedReviewResult
+    steps:
+      - id: triage
+        agent: claude
+        intent: >
+          Read the file list from the diff input. Decide which review lenses to activate.
+          Always include diff-quality and contract-compliance.
+          Add security if files touch auth, crypto, SQL, HTTP handlers.
+          Add framework if detected framework files (React, Express, Next.js, etc).
+          Return JSON: { "tasks": LensTask[] } where each task has id, lens_name,
+          lens_focus, confidence_gate, exclusions.
+        inputs:
+          diff: "$.input.diff"
+        output_contract: TriageResult
+
+      - id: review_lenses
+        type: parallel_dispatch
+        source: "$.steps.triage.output.tasks"
+        max_concurrent: 4
+        isolation: none
+        intent_template: >
+          You are a {lens_name} reviewer. Review ONLY through the {lens_name} lens.
+          Focus: {lens_focus}
+          Confidence gate: only report findings with confidence >= {confidence_gate}.
+          False-positive exclusions: {exclusions}
+          Return JSON: { "clean": boolean, "findings": LensFinding[] }
+          where each finding has: lens, file, line, severity (must-fix|should-fix|nit),
+          finding (description), confidence (1-10).
+        require: all
+
+      - id: merge
+        agent: claude
+        intent: >
+          Merge findings from all review lenses. The input contains the parallel
+          dispatch aggregate with tasks[].result for each lens.
+          1. Collect all findings arrays from completed task results.
+          2. Deduplicate: same file + same issue = one finding, keep highest confidence.
+          3. Assign severity: must-fix (blocks ship), should-fix (next iteration), nit (logged).
+          4. Classify: auto_fixes (mechanical: formatting, simple tests, obvious typos)
+             vs asks (requires judgment).
+          5. lenses_run = IDs of lenses that produced must-fix or should-fix findings.
+          Return JSON: MergedReviewResult with clean, summary, findings, lenses_run,
+          auto_fixes, asks. Set clean=true only if zero must-fix and zero should-fix findings.
+        inputs:
+          results: "$.steps.review_lenses.output"
+          task: "$.input.task"
+          blueprint: "$.input.blueprint"
+        output_contract: MergedReviewResult
+        depends_on: [review_lenses]
 
   # --- Sub-flow: coverage ---
   # Single-step: claude runs tests, stratum retries via ensure_failed.
@@ -265,14 +354,18 @@ flows:
           Feature: {task.id}
         depends_on: [decompose]
 
-      # Sub-flow: Review (codex reviews; build.js dispatches claude fix on ensure_failed)
+      # Sub-flow: Review (parallel multi-lens review; falls back to review_check)
+      # Parent-step ensure drives the fix loop: ensure_failed -> build.js fix ->
+      # retry the whole parallel_review sub-flow, which re-runs fresh triage/lenses/merge.
       - id: review
-        flow: review_check
+        flow: parallel_review
         inputs:
           task: "$.steps.execute.output.outcome"
-          blueprint: "$.input.description"
+          blueprint: "$.steps.blueprint.output.artifact"
+          diff: "$.steps.execute.output.files_changed"
         ensure:
           - "result.clean == True"
+        retries: 5
         depends_on: [execute]
 
       # Sub-flow: Coverage (claude runs tests; build.js dispatches fix on ensure_failed)
