@@ -57,6 +57,7 @@ import ItemFormDialog from './components/vision/shared/ItemFormDialog.jsx';
 import SettingsModal from './components/vision/shared/SettingsModal.jsx';
 import GateNotificationBar from './components/vision/shared/GateNotificationBar.jsx';
 import { computeBuildStateMap, computeAgentOverlay } from './components/vision/graphOpsOverlays.js';
+import { withComposeToken } from './lib/compose-api.js';
 
 /*
  * COMP-UI-1 — Cockpit shell (flat layout)
@@ -630,6 +631,18 @@ function AppInner() {
     });
   }, [onContextSelect]);
 
+  // COMP-AGT: Stop a spawned agent via the vision-server API
+  const handleStopAgent = useCallback(async (agentId) => {
+    try {
+      await fetch(`/api/agent/${agentId}/stop`, {
+        method: 'POST',
+        headers: withComposeToken({ 'Content-Type': 'application/json' }),
+      });
+    } catch (err) {
+      console.error(`[App] Failed to stop agent ${agentId}:`, err.message);
+    }
+  }, []);
+
   // COMP-UX-1f: Build lifecycle — detect transitions and update ops strip / graph
   const prevBuildRef = useRef(activeBuild);
   useEffect(() => {
@@ -1029,6 +1042,7 @@ function AppInner() {
                         agentRelays={agentRelays}
                         sessionState={sessionState}
                         onSelectItem={handleSelect}
+                        onStopAgent={handleStopAgent}
                         onThemeChange={updateSettings}
                         onNewItem={() => setCreateOpen(true)}
                       />

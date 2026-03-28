@@ -128,9 +128,10 @@ function clearDraft(dataDir) {
  *   scheduleBroadcast: function,
  *   getDataDir: function,
  *   getPipelinesDir: function,
+ *   stratumClient?: { validate: function } | null,
  * }} deps
  */
-export function attachPipelineRoutes(app, { broadcastMessage, scheduleBroadcast, getDataDir, getPipelinesDir }) {
+export function attachPipelineRoutes(app, { broadcastMessage, scheduleBroadcast, getDataDir, getPipelinesDir, stratumClient }) {
 
   // GET /api/pipeline/templates
   app.get('/api/pipeline/templates', (_req, res) => {
@@ -214,13 +215,37 @@ export function attachPipelineRoutes(app, { broadcastMessage, scheduleBroadcast,
   });
 
   // POST /api/pipeline/draft/approve
-  app.post('/api/pipeline/draft/approve', (req, res) => {
+  app.post('/api/pipeline/draft/approve', async (req, res) => {
     const { draftId } = req.body || {};
     const dataDir = getDataDir();
     const draft = loadDraft(dataDir);
 
     if (!draft) return res.status(404).json({ error: 'No draft to approve' });
     if (draft.draftId !== draftId) return res.status(409).json({ error: 'Draft ID mismatch' });
+
+    // Validate spec before approval
+    if (stratumClient && typeof stratumClient.validate === 'function') {
+      try {
+        const result = await stratumClient.validate(draft.spec);
+        if (result?.valid === false) {
+          return res.status(422).json({ error: `Spec validation failed: ${result.error || 'unknown error'}` });
+        }
+      } catch (err) {
+        // Stratum unavailable at runtime — fall back to YAML parse check
+        try {
+          YAML.parse(draft.spec);
+        } catch (parseErr) {
+          return res.status(422).json({ error: `Invalid YAML: ${parseErr.message}` });
+        }
+      }
+    } else {
+      // No stratum client — basic YAML parse check
+      try {
+        YAML.parse(draft.spec);
+      } catch (parseErr) {
+        return res.status(422).json({ error: `Invalid YAML: ${parseErr.message}` });
+      }
+    }
 
     // Write approved spec to approved-specs/
     const approvedDir = join(dataDir, 'approved-specs');

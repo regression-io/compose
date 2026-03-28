@@ -91,7 +91,8 @@ export default function PipelineView({ activeBuild, pipelineDraft, onSelectStep,
   }
 
   // ── Mode: Draft — show read-only steps with Approve/Reject ────────────
-  if (pipelineDraft && !activeBuild) {
+  // Draft takes priority over active build — user must resolve the draft first.
+  if (pipelineDraft) {
     const draftSteps = pipelineDraft.steps || [];
     const draftMeta = pipelineDraft.metadata || {};
     return (

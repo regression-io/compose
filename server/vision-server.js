@@ -105,6 +105,7 @@ export class VisionServer {
       scheduleBroadcast: () => this.scheduleBroadcast(),
       getDataDir: () => getDataDir(),
       getPipelinesDir: () => path.join(getTargetRoot(), 'pipelines'),
+      stratumClient: null, // V1: no MCP client in server context; fallback YAML parse is acceptable
     });
 
     // ── Design conversation routes ──────────────────────────────────────────
@@ -180,6 +181,9 @@ export class VisionServer {
     });
 
     // ── Agent spawn routes + lifecycle services ────────────────────────────
+    // TODO: Load lifecycle config (silenceKillMs, defaultTimeoutMs, memoryLimitMB,
+    // gcIntervalMs, gcMaxAgeMs) from .compose/compose.json and pass to HealthMonitor
+    // and WorktreeGC constructors. Defaults work fine for V1.
     const agentRegistry = new AgentRegistry(getDataDir());
     this._healthMonitor = new HealthMonitor({
       broadcastMessage: (msg) => this.broadcastMessage(msg),

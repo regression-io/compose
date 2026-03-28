@@ -264,6 +264,7 @@ function AttentionQueueSidebar({
   agentRelays,
   sessionState,
   onSelectItem,
+  onStopAgent,
   onThemeChange,
   onNewItem,
 }) {
@@ -343,6 +344,7 @@ function AttentionQueueSidebar({
         agentErrors={agentErrors}
         sessionState={sessionState}
         onSelectItem={onSelectItem}
+        onStopAgent={onStopAgent}
         spawnedAgents={spawnedAgents}
         agentRelays={agentRelays}
       />

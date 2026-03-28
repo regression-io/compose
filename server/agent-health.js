@@ -10,6 +10,20 @@
 
 import { execSync } from 'node:child_process';
 
+const GRACEFUL_KILL_MS = 5000; // 5s grace before SIGKILL
+
+/**
+ * Send SIGTERM, then escalate to SIGKILL after a grace period.
+ * Cleans up the escalation timer when the process exits on its own.
+ */
+export function gracefulKill(proc, graceMs = GRACEFUL_KILL_MS) {
+  try { proc.kill('SIGTERM'); } catch { /* already dead */ }
+  const killTimer = setTimeout(() => {
+    try { proc.kill('SIGKILL'); } catch { /* already dead */ }
+  }, graceMs);
+  proc.once('close', () => clearTimeout(killTimer));
+}
+
 const DEFAULT_SILENCE_WARNING_MS = 60_000;       // 60s silence → warning
 const DEFAULT_SILENCE_KILL_MS    = 5 * 60_000;   // 5min silence → kill
 const DEFAULT_TIMEOUT_MS         = 10 * 60_000;  // 10min wall-clock
@@ -149,7 +163,7 @@ export class HealthMonitor {
     entry.terminalReason = reason;
     this._clearTimers(entry);
 
-    try { entry.proc.kill('SIGTERM'); } catch { /* already dead */ }
+    gracefulKill(entry.proc);
 
     this.#broadcastMessage({
       type: 'agentKilled',

@@ -113,3 +113,6 @@
 2026-03-28T20:08:38+08:00 | B4: Attaching pipeline routes in vision-server.js
 2026-03-28T20:09:02+08:00 | B5: Adding pipelineDraft state to useVisionStore + WS message handlers
 2026-03-28T20:10:13+08:00 | B6: Creating TemplateSelector.jsx and updating PipelineView.jsx for draft/template modes
+2026-03-28T20:40:33+08:00 | Fix 3 Codex findings: build.js hardcoded flow name, pipeline-routes.js approval skips validation, PipelineView mode priority
+2026-03-28T20:40:41+08:00 | Fix 4 Codex findings: SIGKILL escalation in HealthMonitor, auth header on stop proxy, onStopAgent wiring in sidebars, TODO for lifecycle config
+2026-03-28T20:51:39+08:00 | Fix SDK stop proxy missing r.ok check and wire stratumClient:null to pipeline-routes

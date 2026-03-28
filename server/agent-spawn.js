@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 import { getTargetRoot } from './project-root.js';
+import { gracefulKill } from './agent-health.js';
 
 const PROJECT_ROOT = getTargetRoot();
 
@@ -210,11 +211,17 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
     const currentSessionId = sessionManager?.currentSession?.id ?? null;
     if (agentId === currentSessionId) {
       const agentPort = process.env.AGENT_PORT || 4002;
+      const headers = { 'Content-Type': 'application/json' };
+      if (process.env.COMPOSE_API_TOKEN) headers['x-compose-token'] = process.env.COMPOSE_API_TOKEN;
       fetch(`http://127.0.0.1:${agentPort}/api/agent/interrupt`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }).then(r => r.json())
-        .then(data => res.json({ ok: true, proxied: true, ...data }))
+        headers,
+      }).then(r => {
+          if (!r.ok) {
+            return res.status(r.status).json({ ok: false, error: `Interrupt proxy failed: ${r.status}` });
+          }
+          return r.json().then(data => res.json({ ok: true, proxied: true, ...data }));
+        })
         .catch(err => res.status(502).json({ error: `Interrupt proxy failed: ${err.message}` }));
       return;
     }
@@ -225,17 +232,7 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
     // Set terminal reason before killing
     if (healthMonitor) healthMonitor.setTerminalReason(agentId, 'manual_stop');
 
-    try {
-      agent.process.kill('SIGTERM');
-    } catch { /* already dead */ }
-
-    // Escalate to SIGKILL after 5s grace period
-    const killTimer = setTimeout(() => {
-      try { agent.process.kill('SIGKILL'); } catch { /* already dead */ }
-    }, 5000);
-
-    // Clean up the escalation timer when the process exits
-    agent.process.once('close', () => clearTimeout(killTimer));
+    gracefulKill(agent.process);
 
     res.json({ ok: true, agentId, action: 'SIGTERM sent, SIGKILL in 5s if needed' });
   });
