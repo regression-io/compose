@@ -69,6 +69,7 @@ Phase 6.5/6.8/7 which are on the critical path.
 | COMP-UX-2b | Fix broken views — wire Sessions data, dynamic Pipeline steps, connect Design to lifecycle, clean Settings | COMPLETE |
 | COMP-UX-2c | Dashboard landing view — feature progress, phase timeline, inline gates, active agents, artifacts | COMPLETE |
 | COMP-UX-2d | First-class group field — replace regex prefix derivation with proper schema field on vision items | COMPLETE |
+| COMP-UX-11 | Feature event timeline — chronological timeline panel on Dashboard showing phase transitions, gates, sessions, iterations, errors | COMPLETE |
 | — | Persistence evolution — event-sourced, markdown generation from tracker | **SUPERSEDED** — Base44 dependency already cut; flat JSON store sufficient for current scale |
 | — | Agent connector (read-write) — direct sessions from Compose | **SUPERSEDED by Phase 4.5** |
 

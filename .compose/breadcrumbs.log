@@ -92,3 +92,13 @@
 2026-03-28T12:09:54+08:00 | COMP-UX-9: Adding iteration progress strip — iterationStates Map in store, WS handler, OpsStrip entry, Dashboard card
 2026-03-28T12:18:50+08:00 | COMP-UX-6: Per-agent log viewer tabs + activity feed — design phase
 2026-03-28T12:35:02+08:00 | COMP-UX-6: Thread agentRelays to AgentPanel, create AgentLogViewer + AgentRelayFeed, add tab bar to AgentPanel
+2026-03-28T13:39:28+08:00 | Writing COMP-UX-11 design doc — feature event timeline
+2026-03-28T13:42:17+08:00 | Blueprint research — reading all critical files for COMP-UX-11
+2026-03-28T13:43:34+08:00 | Writing COMP-UX-11 blueprint — all file:line references from explorer agents
+2026-03-28T15:04:32+08:00 | Task 1: Installing @tanstack/react-virtual
+2026-03-28T15:04:50+08:00 | Task 2: TDD — timelineAssembler test + implementation
+2026-03-28T15:10:12+08:00 | Task 3+4: Adding featureTimeline state + WS message routing
+2026-03-28T15:12:00+08:00 | Task 5+6: Building TimelineEvent + EventTimeline components
+2026-03-28T15:13:34+08:00 | Task 7: Integrating EventTimeline into DashboardView as collapsible panel
+2026-03-28T16:21:24+08:00 | Fixing 4 Codex findings: session click ID, lifecycle hydration, feature scoping, gate normalization
+2026-03-28T16:30:04+08:00 | Phase 9: Updating docs — CHANGELOG, ROADMAP

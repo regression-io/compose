@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-03-28
+
+### COMP-UX-11: Feature Event Timeline
+
+- Collapsible right panel on Dashboard showing chronological feature lifecycle events
+- 5 event categories: Phase, Gate, Session, Iteration, Error — each with distinct icons and severity colors
+- Historical hydration from sessions.json + gates; live updates via WebSocket
+- Virtualized scrolling (`@tanstack/react-virtual`) for large event histories
+- Filter chips to narrow by event category
+- Added client-side handlers for previously unhandled `lifecycleStarted` and `lifecycleTransition` WebSocket messages
+- Gate outcome normalization handles both short-form (`approve`) and long-form (`approved`) variants
+- New files: `timelineAssembler.js`, `EventTimeline.jsx`, `TimelineEvent.jsx`
+- 11 unit tests for timeline assembler
+
 ## 2026-03-19
 
 ### Phase 4.5 Closed + Phase 6 Closed

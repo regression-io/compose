@@ -1,12 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils.js';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.jsx';
-import { CheckCircle2, Circle, ArrowRight, Bot, FileText, Terminal } from 'lucide-react';
+import { CheckCircle2, Circle, ArrowRight, Bot, FileText, Terminal, List } from 'lucide-react';
 import { LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS } from './constants.js';
 import ArtifactDiff from '../shared/ArtifactDiff.jsx';
 import AgentCard from '../shared/AgentCard.jsx';
+import EventTimeline from './EventTimeline.jsx';
 
 const PHASES = ['explore_design', 'prd', 'architecture', 'blueprint', 'plan', 'execute', 'report'];
 
@@ -274,6 +275,17 @@ export default function DashboardView({
     [items, featureCode],
   );
 
+  const [timelineOpen, setTimelineOpen] = useState(() => {
+    try { return localStorage.getItem('compose:timeline-open') === 'true'; } catch { return false; }
+  });
+  const toggleTimeline = useCallback(() => {
+    setTimelineOpen(prev => {
+      const next = !prev;
+      try { localStorage.setItem('compose:timeline-open', String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
   const currentPhase = featureItem?.lifecycle?.currentPhase || featureItem?.phase || activeBuild?.currentStepId || activeBuild?.currentStep || null;
 
   const phaseIdx = PHASES.indexOf(currentPhase);
@@ -332,7 +344,9 @@ export default function DashboardView({
   }
 
   return (
-    <div className="flex-1 overflow-auto p-4 space-y-4">
+    <div className="flex-1 flex flex-row overflow-hidden">
+      {/* Main dashboard content */}
+      <div className="flex-1 overflow-auto p-4 space-y-4 min-w-0">
       {/* A. Feature Header */}
       <div>
         <div className="flex items-center gap-2">
@@ -347,6 +361,18 @@ export default function DashboardView({
               {LIFECYCLE_PHASE_LABELS[currentPhase] ?? currentPhase}
             </Badge>
           )}
+          <button
+            className={cn(
+              'ml-auto flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors shrink-0',
+              timelineOpen
+                ? 'bg-foreground/10 text-foreground'
+                : 'text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30',
+            )}
+            onClick={toggleTimeline}
+          >
+            <List className="w-3 h-3" />
+            Timeline
+          </button>
         </div>
         {/* Progress bar */}
         <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -451,6 +477,23 @@ export default function DashboardView({
           <RecentSessions sessions={sessions} items={items} onSelect={onSelect} />
         </div>
       </div>
+      </div>
+
+      {/* E. Event Timeline Panel (COMP-UX-11) */}
+      {timelineOpen && (
+        <div className="w-80 border-l border-border flex flex-col shrink-0">
+          <div className="px-3 py-2 border-b border-border">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+              Event Timeline
+            </span>
+          </div>
+          <EventTimeline
+            featureCode={featureCode}
+            itemId={featureItem?.id}
+            onSelectItem={onSelect}
+          />
+        </div>
+      )}
     </div>
   );
 }

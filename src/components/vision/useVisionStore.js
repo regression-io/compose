@@ -167,6 +167,7 @@ export const useVisionStore = create((set, get) => {
           setSettings: (v) => set({ settings: v }),
           setActiveBuild: (updater) => set(s => ({ activeBuild: typeof updater === 'function' ? updater(s.activeBuild) : updater })),
           setSessions: (updater) => set(s => ({ sessions: typeof updater === 'function' ? updater(s.sessions) : updater })),
+          setFeatureTimeline: (updater) => set(s => ({ featureTimeline: typeof updater === 'function' ? updater(s.featureTimeline) : updater })),
           setIterationStates: (updater) => set(s => ({ iterationStates: typeof updater === 'function' ? updater(s.iterationStates) : updater })),
           EMPTY_CHANGES,
         });
@@ -247,6 +248,7 @@ export const useVisionStore = create((set, get) => {
     activeBuild: null,
     iterationStates: new Map(),
     sessions: [],
+    featureTimeline: [],
     selectedPhase: (() => {
       try { return localStorage.getItem('compose:selectedPhase') || null; } catch { return null; }
     })(),
@@ -257,6 +259,10 @@ export const useVisionStore = create((set, get) => {
     registerSnapshotProvider: (provider) => { refs.snapshotProvider = provider; },
 
     setActiveBuild: (v) => set({ activeBuild: v }),
+
+    setFeatureTimeline: (updater) => set(s => ({
+      featureTimeline: typeof updater === 'function' ? updater(s.featureTimeline) : updater,
+    })),
 
     setSelectedPhase: (phase) => {
       set({ selectedPhase: phase });
