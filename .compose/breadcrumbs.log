@@ -90,3 +90,5 @@
 2026-03-28T08:42:09+08:00 | COMP-UX-9: Iteration progress strip — store field, OpsStrip entry, Dashboard card
 2026-03-28T09:24:41+08:00 | COMP-UX-9: Iteration progress strip — Map-based store, OpsStrip entry, Dashboard card, per-loopId timers
 2026-03-28T12:09:54+08:00 | COMP-UX-9: Adding iteration progress strip — iterationStates Map in store, WS handler, OpsStrip entry, Dashboard card
+2026-03-28T12:18:50+08:00 | COMP-UX-6: Per-agent log viewer tabs + activity feed — design phase
+2026-03-28T12:35:02+08:00 | COMP-UX-6: Thread agentRelays to AgentPanel, create AgentLogViewer + AgentRelayFeed, add tab bar to AgentPanel

@@ -261,6 +261,7 @@ function AttentionQueueSidebar({
   agentActivity,
   agentErrors,
   spawnedAgents,
+  agentRelays,
   sessionState,
   onSelectItem,
   onThemeChange,
@@ -343,6 +344,7 @@ function AttentionQueueSidebar({
         sessionState={sessionState}
         onSelectItem={onSelectItem}
         spawnedAgents={spawnedAgents}
+        agentRelays={agentRelays}
       />
 
       {/* ── Attention queue (blocked + pending gates + decisions) ── */}

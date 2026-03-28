@@ -172,7 +172,7 @@ Features that build on a fully functional base. Ordered by value.
 
 | Code | Feature | Inspired by | Effort |
 |------|---------|-------------|--------|
-| COMP-UX-6 | **Per-agent terminal tabs** | Kangentic | Medium-Large |
+| COMP-UX-6 | **Per-agent log viewer tabs** | Kangentic | **COMPLETE** |
 | COMP-UX-7 | **Live metrics on agent cards** | Kangentic | **COMPLETE** |
 | COMP-UX-9 | **Iteration progress strip** | idea_tiered_evaluation | **COMPLETE** |
 

@@ -1025,6 +1025,7 @@ function AppInner() {
                         agentActivity={agentActivity}
                         agentErrors={agentErrors}
                         spawnedAgents={spawnedAgents}
+                        agentRelays={agentRelays}
                         sessionState={sessionState}
                         onSelectItem={handleSelect}
                         onThemeChange={updateSettings}
