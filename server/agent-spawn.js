@@ -33,7 +33,7 @@ function deriveAgentType(prompt) {
   return 'claude';
 }
 
-export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadcastMessage, requireSensitiveToken, registry, sessionManager }) {
+export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadcastMessage, requireSensitiveToken, registry, sessionManager, healthMonitor, worktreeGC }) {
   const _agents = new Map();
   // POST /api/agent/spawn — spawn a hidden Claude subagent
   app.post('/api/agent/spawn', requireSensitiveToken, (req, res) => {
@@ -99,7 +99,40 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
       agent.stderr += chunk.toString();
     });
 
+    // COMP-AGT-1: Wire health monitor after stdout/stderr listeners
+    if (healthMonitor) healthMonitor.track(agentId, proc);
+
     proc.on('close', (code) => {
+      // COMP-AGT-1: Untrack from health monitor, preserve terminal reason
+      if (healthMonitor) {
+        const terminalReason = healthMonitor.getTerminalReason(agentId);
+        healthMonitor.untrack(agentId);
+        if (terminalReason) {
+          agent.status = 'killed';
+          agent.terminalReason = terminalReason;
+          agent.exitCode = code;
+          if (registry) {
+            registry.updateStatus(agentId, 'killed', terminalReason);
+          }
+          broadcastMessage({
+            type: 'agentComplete',
+            agentId,
+            agentType,
+            status: 'killed',
+            terminalReason,
+            output: agent.output,
+          });
+          broadcastMessage({
+            type: 'agentRelay',
+            fromAgentId: agentId,
+            toAgentId: parentSessionId || 'session',
+            direction: 'result',
+            messagePreview: `Killed: ${terminalReason}`,
+            timestamp: new Date().toISOString(),
+          });
+          return; // skip normal close handling
+        }
+      }
       agent.status = code === 0 ? 'complete' : 'failed';
       agent.exitCode = code;
       if (registry) {
@@ -166,5 +199,56 @@ export function attachAgentSpawnRoutes(app, { projectRoot = PROJECT_ROOT, broadc
     const parentId = sessionManager?.currentSession?.id ?? null;
     const agents = parentId ? registry.getChildren(parentId) : registry.getAll();
     res.json({ sessionId: parentId, agents });
+  });
+
+  // POST /api/agent/:id/stop — COMP-AGT-1: graceful stop (SIGTERM → 5s → SIGKILL)
+  app.post('/api/agent/:id/stop', requireSensitiveToken, (req, res) => {
+    const agentId = req.params.id;
+    const agent = _agents.get(agentId);
+
+    // For SDK sessions, proxy to agent-server's interrupt endpoint
+    const currentSessionId = sessionManager?.currentSession?.id ?? null;
+    if (agentId === currentSessionId) {
+      const agentPort = process.env.AGENT_PORT || 4002;
+      fetch(`http://127.0.0.1:${agentPort}/api/agent/interrupt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }).then(r => r.json())
+        .then(data => res.json({ ok: true, proxied: true, ...data }))
+        .catch(err => res.status(502).json({ error: `Interrupt proxy failed: ${err.message}` }));
+      return;
+    }
+
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (agent.status !== 'running') return res.json({ ok: true, status: agent.status, note: 'already stopped' });
+
+    // Set terminal reason before killing
+    if (healthMonitor) healthMonitor.setTerminalReason(agentId, 'manual_stop');
+
+    try {
+      agent.process.kill('SIGTERM');
+    } catch { /* already dead */ }
+
+    // Escalate to SIGKILL after 5s grace period
+    const killTimer = setTimeout(() => {
+      try { agent.process.kill('SIGKILL'); } catch { /* already dead */ }
+    }, 5000);
+
+    // Clean up the escalation timer when the process exits
+    agent.process.once('close', () => clearTimeout(killTimer));
+
+    res.json({ ok: true, agentId, action: 'SIGTERM sent, SIGKILL in 5s if needed' });
+  });
+
+  // POST /api/agent/gc — COMP-AGT-1: trigger worktree garbage collection
+  app.post('/api/agent/gc', requireSensitiveToken, async (_req, res) => {
+    if (!worktreeGC) return res.status(503).json({ error: 'WorktreeGC not available' });
+    try {
+      const removed = await worktreeGC.runNow();
+      broadcastMessage({ type: 'agentGC', removed, timestamp: new Date().toISOString() });
+      res.json({ ok: true, removed });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 }

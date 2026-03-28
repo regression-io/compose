@@ -10,10 +10,12 @@ function formatElapsed(ms) {
   return `${hrs}h ${totalMin % 60}m`;
 }
 
-export default function AgentCard({ agent, toolCount, errorCount, currentTool, currentCategory }) {
+export default function AgentCard({ agent, toolCount, errorCount, currentTool, currentCategory, onStop }) {
   const isRunning = agent.status === 'running';
-  const isFailed = agent.status === 'failed' || agent.status === 'error';
+  const isKilled = agent.status === 'killed';
+  const isFailed = agent.status === 'failed' || agent.status === 'error' || isKilled;
   const isComplete = !isRunning && !isFailed;
+  const isSilent = agent.silent;
 
   const [elapsed, setElapsed] = useState(() => {
     const start = agent.startedAt ? new Date(agent.startedAt).getTime() : Date.now();
@@ -43,23 +45,34 @@ export default function AgentCard({ agent, toolCount, errorCount, currentTool, c
           <span
             className={cn(
               'w-1.5 h-1.5 rounded-full inline-block',
-              isRunning && 'bg-green-400',
+              isRunning && !isSilent && 'bg-green-400',
+              isRunning && isSilent && 'bg-yellow-400',
               isComplete && 'bg-emerald-400',
               isFailed && 'bg-red-400',
             )}
-            style={isRunning ? { animation: 'phase-active-pulse 2s ease-in-out infinite' } : undefined}
+            style={isRunning && !isSilent ? { animation: 'phase-active-pulse 2s ease-in-out infinite' } : undefined}
           />
           <span className={cn(
             'text-[10px]',
-            isRunning && 'text-green-400',
+            isRunning && !isSilent && 'text-green-400',
+            isRunning && isSilent && 'text-yellow-400',
             isComplete && 'text-emerald-400',
             isFailed && 'text-red-400',
           )}>
-            {agent.status}
+            {isSilent ? 'silent' : agent.status}
           </span>
           <span className="text-[10px] text-muted-foreground tabular-nums">
             {formatElapsed(elapsed)}
           </span>
+          {isRunning && onStop && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onStop(agent.agentId || agent.id); }}
+              className="text-[10px] text-muted-foreground hover:text-destructive cursor-pointer ml-0.5"
+              title="Stop agent"
+            >
+              x
+            </button>
+          )}
         </span>
       </div>
 

@@ -105,3 +105,11 @@
 2026-03-28T16:42:30+08:00 | Phase 1 explore: COMP-AGT-1-4 + COMP-PIPE-1-3 in parallel
 2026-03-28T16:51:25+08:00 | Phase 4: Blueprints for COMP-AGT + COMP-PIPE in parallel
 2026-03-28T17:57:14+08:00 | Phase 7: Executing COMP-AGT + COMP-PIPE in parallel agents
+2026-03-28T20:02:56+08:00 | Phase 7: Executing COMP-AGT-1-4 + COMP-PIPE-1-3 in parallel agents
+2026-03-28T20:05:32+08:00 | B1: Adding metadata blocks to existing pipeline templates + creating new templates (bug-fix, refactor, content, research)
+2026-03-28T20:06:34+08:00 | B2: Writing TDD tests for pipeline-routes.js, then implementing the route module
+2026-03-28T20:06:49+08:00 | COMP-AGT-1-4: Adding agent lifecycle control — stop endpoint, health monitor wiring, GC endpoint to agent-spawn.js
+2026-03-28T20:08:18+08:00 | B3: Updating lib/build.js to accept template option for pipeline selection
+2026-03-28T20:08:38+08:00 | B4: Attaching pipeline routes in vision-server.js
+2026-03-28T20:09:02+08:00 | B5: Adding pipelineDraft state to useVisionStore + WS message handlers
+2026-03-28T20:10:13+08:00 | B6: Creating TemplateSelector.jsx and updating PipelineView.jsx for draft/template modes

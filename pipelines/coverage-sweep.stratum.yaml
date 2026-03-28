@@ -1,3 +1,11 @@
+metadata:
+  id: coverage-sweep
+  label: "Coverage Sweep"
+  description: "Run test suite in a loop until all tests pass"
+  category: quality
+  steps: 1
+  estimated_minutes: 10
+
 version: "0.1"
 
 # coverage-sweep pipeline

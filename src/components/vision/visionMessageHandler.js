@@ -17,7 +17,7 @@ export function handleVisionMessage(msg, refs, setters) {
   const {
     setItems, setConnections, setGates, setGateEvent,
     setRecentChanges, setUICommand, setAgentActivity,
-    setAgentErrors, setSessionState, setSpawnedAgents, setAgentRelays, setSettings, setActiveBuild, setSessions, setIterationStates, setFeatureTimeline, EMPTY_CHANGES,
+    setAgentErrors, setSessionState, setSpawnedAgents, setAgentRelays, setSettings, setPipelineDraft, setActiveBuild, setSessions, setIterationStates, setFeatureTimeline, EMPTY_CHANGES,
   } = setters;
 
   // COMP-UX-11: Helper to push a timeline event
@@ -82,10 +82,40 @@ export function handleVisionMessage(msg, refs, setters) {
       prompt: msg.prompt,
     }]);
 
-  } else if (msg.type === 'agentComplete') {
+  } else if (msg.type === 'agentSilent') {
+    // COMP-AGT-1: Mark agent as silent (warning state)
     setSpawnedAgents(prev => prev.map(a =>
       a.agentId === msg.agentId
-        ? { ...a, status: msg.status, completedAt: new Date().toISOString() }
+        ? { ...a, silent: true, silentSinceMs: msg.silentSinceMs }
+        : a
+    ));
+
+  } else if (msg.type === 'agentKilled') {
+    // COMP-AGT-1: Terminal state — agentComplete cannot downgrade it
+    setSpawnedAgents(prev => prev.map(a =>
+      a.agentId === msg.agentId
+        ? { ...a, status: 'killed', terminalReason: msg.reason, completedAt: new Date().toISOString() }
+        : a
+    ));
+
+  } else if (msg.type === 'agentGC') {
+    // COMP-AGT-1: Worktree GC notification — informational only
+    if (msg.removed?.length > 0) {
+      setAgentActivity(prev => {
+        const next = [...prev, {
+          tool: 'gc', category: 'executing',
+          detail: `Cleaned ${msg.removed.length} orphan worktree(s)`,
+          items: [], timestamp: msg.timestamp,
+        }];
+        return next.length > 20 ? next.slice(-20) : next;
+      });
+    }
+
+  } else if (msg.type === 'agentComplete') {
+    // COMP-AGT-1: Do not downgrade 'killed' status
+    setSpawnedAgents(prev => prev.map(a =>
+      a.agentId === msg.agentId
+        ? (a.status === 'killed' ? a : { ...a, status: msg.status, completedAt: new Date().toISOString() })
         : a
     ));
 
@@ -326,6 +356,14 @@ export function handleVisionMessage(msg, refs, setters) {
   } else if (msg.type === 'buildState') {
     // Per STRAT-COMP-4: flat payload — the message itself IS the state object
     if (setActiveBuild) setActiveBuild(msg);
+
+  } else if (msg.type === 'pipelineDraft') {
+    // COMP-PIPE-1-3: Pipeline draft created — set draft state
+    if (setPipelineDraft) setPipelineDraft(msg);
+
+  } else if (msg.type === 'pipelineDraftResolved') {
+    // COMP-PIPE-1-3: Pipeline draft approved/rejected — clear draft state
+    if (setPipelineDraft) setPipelineDraft(null);
 
   } else if (msg.type === 'snapshotRequest' && msg.requestId) {
     // Collect UI state from provider and DOM, send back

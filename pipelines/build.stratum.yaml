@@ -1,3 +1,11 @@
+metadata:
+  id: build
+  label: "Feature Build"
+  description: "Execute a feature through the full Compose lifecycle — design, plan, implement, review, test, ship"
+  category: development
+  steps: 16
+  estimated_minutes: 120
+
 version: "0.3"
 
 workflow:

@@ -2,6 +2,30 @@
 
 ## 2026-03-28
 
+### COMP-AGT-1-4: Agent Lifecycle Control
+
+- `server/agent-health.js`: HealthMonitor class — stdout+stderr liveness probes, 60s silence warning, 5min auto-kill, wall-clock timeout, memory RSS polling, terminal reason tracking
+- `server/worktree-gc.js`: WorktreeGC class — .owner file ownership, orphan scanning, age-based pruning, git worktree remove + rm fallback
+- `server/agent-spawn.js`: `POST /api/agent/:id/stop` (SIGTERM→grace→SIGKILL), `POST /api/agent/gc`, health monitor wiring, terminal state precedence
+- `server/agent-server.js`: 5s interrupt escalation timer for SDK sessions
+- `server/agent-registry.js`: getRunning() and updateStatus() methods
+- `lib/build.js`: .owner file on worktree creation, disk quota check (500MB default)
+- UI: kill button per agent tab, silence warning yellow dot, agentKilled terminal state
+- 16 tests (agent-health: 10, worktree-gc: 6)
+
+### COMP-PIPE-1-3: Pipeline Authoring Loop
+
+- 4 new pipeline templates: bug-fix (6 steps), refactor (7), content (4), research (3)
+- Metadata blocks on all 7 templates (id, label, description, category, steps, estimated_minutes)
+- `server/pipeline-routes.js`: template listing, spec fetch, draft CRUD with draftId concurrency, approve/reject with safe lifecycle
+- `lib/build.js`: template selection via `opts.template`
+- Store: `pipelineDraft` state + WS handlers for `pipelineDraft`/`pipelineDraftResolved`
+- `TemplateSelector.jsx`: template card picker
+- `PipelineView.jsx`: three modes — Empty (template selector), Draft (read-only + approve/reject), Active (existing)
+- Version-aware step derivation (v0.1 flows + v0.3 workflow)
+- Approved specs written to `.compose/data/approved-specs/` (not template library)
+- 18 tests for pipeline-routes
+
 ### Phase 6.9: Agent Fleet Management — Roadmap
 
 Added 17 items (COMP-AGT-1 through COMP-AGT-17) across 5 feature groups:

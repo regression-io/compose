@@ -56,7 +56,7 @@ const SessionTimer = React.memo(function SessionTimer({ startedAt, active, durat
  * COMP-UX-6: Per-agent log viewer tabs. When agents are spawned, a tab bar appears
  * with "Session" (existing content) and one tab per agent showing log output + relay feed.
  */
-function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem, spawnedAgents, agentRelays }) {
+function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem, spawnedAgents, agentRelays, onStopAgent }) {
   const [selectedAgent, setSelectedAgent] = React.useState(null);
   const [agentState, setAgentState] = React.useState({
     status: 'idle', tool: null, category: null, activityLog: [], currentActivity: null,
@@ -112,23 +112,36 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem, sp
             )}
           >Session</button>
           {spawnedAgents.map(a => (
-            <button
-              key={a.agentId}
-              onClick={() => setSelectedAgent(a.agentId)}
-              className={cn(
-                'text-[10px] px-2 py-0.5 rounded cursor-pointer transition-colors border flex items-center gap-1 shrink-0',
-                selectedAgent === a.agentId
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-transparent text-muted-foreground border-border hover:text-foreground'
+            <span key={a.agentId} className="flex items-center gap-0 shrink-0">
+              <button
+                onClick={() => setSelectedAgent(a.agentId)}
+                className={cn(
+                  'text-[10px] px-2 py-0.5 rounded-l cursor-pointer transition-colors border flex items-center gap-1 shrink-0',
+                  selectedAgent === a.agentId
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-transparent text-muted-foreground border-border hover:text-foreground'
+                )}
+              >
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{
+                  background: a.status === 'killed' ? 'hsl(var(--destructive))'
+                    : a.silent ? 'hsl(45 93% 47%)'
+                    : a.status === 'running' ? 'hsl(var(--success))'
+                    : a.status === 'complete' ? 'hsl(142 71% 45%)' : 'hsl(var(--destructive))',
+                  animation: a.status === 'running' && !a.silent ? 'phase-active-pulse 2s ease-in-out infinite' : 'none',
+                }} />
+                {a.agentType}
+                {a.silent && <span className="text-[8px] text-yellow-500 ml-0.5" title="Agent silent">!</span>}
+              </button>
+              {a.status === 'running' && onStopAgent && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onStopAgent(a.agentId); }}
+                  className="text-[10px] px-1 py-0.5 rounded-r border border-l-0 border-border hover:bg-destructive/20 hover:text-destructive cursor-pointer transition-colors"
+                  title="Stop agent"
+                >
+                  x
+                </button>
               )}
-            >
-              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{
-                background: a.status === 'running' ? 'hsl(var(--success))' :
-                  a.status === 'complete' ? 'hsl(142 71% 45%)' : 'hsl(var(--destructive))',
-                animation: a.status === 'running' ? 'phase-active-pulse 2s ease-in-out infinite' : 'none',
-              }} />
-              {a.agentType}
-            </button>
+            </span>
           ))}
         </div>
       )}

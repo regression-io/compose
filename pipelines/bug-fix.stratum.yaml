@@ -1,0 +1,141 @@
+metadata:
+  id: bug-fix
+  label: "Bug Fix"
+  description: "Diagnose and fix a bug — reproduce, root-cause, fix, test, verify, ship"
+  category: maintenance
+  steps: 6
+  estimated_minutes: 30
+
+version: "0.1"
+
+# bug-fix pipeline
+#
+# Six-step flow for targeted bug resolution:
+#   1. reproduce  — confirm the bug exists with a failing test
+#   2. diagnose   — trace root cause through code and logs
+#   3. fix        — implement the minimal correct fix
+#   4. test       — run full test suite, ensure no regressions
+#   5. verify     — confirm original reproduction case now passes
+#   6. ship       — commit and report
+#
+# Inputs:
+#   task — bug description (symptoms, steps to reproduce, affected files)
+#
+# Usage:
+#   stratum_plan <this yaml> "bug_fix" {"task": "..."}
+
+contracts:
+  BugFixResult:
+    phase:    {type: string}
+    summary:  {type: string}
+    outcome:  {type: string, values: [complete, failed]}
+
+  TestResult:
+    passing:  {type: boolean}
+    summary:  {type: string}
+    failures: {type: array}
+
+functions:
+  reproduce:
+    mode: compute
+    intent: >
+      Write a failing test that demonstrates the bug. The test must fail
+      before any fix is applied. Return a summary of the reproduction.
+    input:
+      task: {type: string}
+    output: BugFixResult
+    retries: 2
+
+  diagnose:
+    mode: compute
+    intent: >
+      Trace the root cause of the bug through the codebase. Read relevant
+      source files, logs, and stack traces. Return a summary identifying
+      the root cause and affected code paths.
+    input:
+      task: {type: string}
+    output: BugFixResult
+    retries: 1
+
+  fix:
+    mode: compute
+    intent: >
+      Implement the minimal correct fix for the diagnosed root cause.
+      Change only what is necessary. Return a summary of changes made.
+    input:
+      task: {type: string}
+    output: BugFixResult
+    retries: 2
+
+  test:
+    mode: compute
+    intent: >
+      Run the full test suite. Return structured JSON:
+      { "passing": boolean, "summary": string, "failures": string[] }.
+    input:
+      task: {type: string}
+    output: TestResult
+    ensure:
+      - "result.passing == true"
+    retries: 5
+
+  verify:
+    mode: compute
+    intent: >
+      Re-run the reproduction test from step 1. Confirm it now passes.
+      Return a summary confirming the fix resolves the original bug.
+    input:
+      task: {type: string}
+    output: BugFixResult
+    retries: 1
+
+  ship:
+    mode: compute
+    intent: >
+      Commit all changes with a descriptive message. Update CHANGELOG.md
+      if appropriate. Return a summary of what was shipped.
+    input:
+      task: {type: string}
+    output: BugFixResult
+    retries: 1
+
+flows:
+  bug_fix:
+    input:
+      task: {type: string}
+    output: BugFixResult
+    steps:
+      - id: reproduce
+        function: reproduce
+        inputs:
+          task: "$.input.task"
+
+      - id: diagnose
+        function: diagnose
+        inputs:
+          task: "$.input.task"
+        depends_on: [reproduce]
+
+      - id: fix
+        function: fix
+        inputs:
+          task: "$.input.task"
+        depends_on: [diagnose]
+
+      - id: test
+        function: test
+        inputs:
+          task: "$.input.task"
+        depends_on: [fix]
+
+      - id: verify
+        function: verify
+        inputs:
+          task: "$.input.task"
+        depends_on: [test]
+
+      - id: ship
+        function: ship
+        inputs:
+          task: "$.input.task"
+        depends_on: [verify]

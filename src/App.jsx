@@ -282,6 +282,7 @@ function CockpitView({
       return (
         <PipelineView
           activeBuild={activeBuild}
+          pipelineDraft={pipelineDraft}
           onSelectStep={onSelectStep}
           onRefresh={onRefreshBuild}
         />
@@ -385,7 +386,7 @@ function AppInner() {
     agentActivity, agentErrors, spawnedAgents, agentRelays, sessionState, registerSnapshotProvider,
     gates, gateEvent, resolveGate,
     settings, updateSettings, resetSettings,
-    activeBuild, setActiveBuild,
+    activeBuild, setActiveBuild, pipelineDraft,
     sessions, iterationStates,
     selectedPhase, setSelectedPhase,
   } = useVisionStore(useShallow(s => ({
@@ -397,7 +398,7 @@ function AppInner() {
     sessionState: s.sessionState, registerSnapshotProvider: s.registerSnapshotProvider,
     gates: s.gates, gateEvent: s.gateEvent, resolveGate: s.resolveGate,
     settings: s.settings, updateSettings: s.updateSettings, resetSettings: s.resetSettings,
-    activeBuild: s.activeBuild, setActiveBuild: s.setActiveBuild,
+    activeBuild: s.activeBuild, setActiveBuild: s.setActiveBuild, pipelineDraft: s.pipelineDraft,
     sessions: s.sessions, iterationStates: s.iterationStates,
     selectedPhase: s.selectedPhase, setSelectedPhase: s.setSelectedPhase,
   })));

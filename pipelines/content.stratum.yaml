@@ -1,0 +1,112 @@
+metadata:
+  id: content
+  label: "Content"
+  description: "Write documentation or content — research, draft, review, publish"
+  category: documentation
+  steps: 4
+  estimated_minutes: 20
+
+version: "0.1"
+
+# content pipeline
+#
+# Four-step flow for documentation and content creation:
+#   1. research  — gather context, read existing docs, identify gaps
+#   2. draft     — write the content
+#   3. review    — review for accuracy, completeness, and clarity
+#   4. publish   — finalize and commit
+#
+# Inputs:
+#   task — what to write (doc type, topic, target audience)
+#
+# Usage:
+#   stratum_plan <this yaml> "content" {"task": "..."}
+
+contracts:
+  ContentResult:
+    phase:    {type: string}
+    artifact: {type: string}
+    summary:  {type: string}
+    outcome:  {type: string, values: [complete, failed]}
+
+  ReviewResult:
+    clean:    {type: boolean}
+    summary:  {type: string}
+    findings: {type: array}
+
+functions:
+  research:
+    mode: compute
+    intent: >
+      Gather context for the content. Read existing documentation, related
+      code, and prior art. Identify gaps and outline key topics to cover.
+      Return a summary of research findings.
+    input:
+      task: {type: string}
+    output: ContentResult
+    retries: 1
+
+  draft:
+    mode: compute
+    intent: >
+      Write the content based on research findings. Follow existing
+      documentation conventions and standards. Write to the appropriate
+      file path. Return the artifact path.
+    input:
+      task: {type: string}
+    output: ContentResult
+    ensure:
+      - "result.outcome == 'complete'"
+    retries: 2
+
+  review:
+    mode: compute
+    intent: >
+      Review the drafted content for accuracy, completeness, and clarity.
+      Check that all claims are supported by code or documentation.
+      Return { "clean": boolean, "summary": string, "findings": string[] }.
+    input:
+      task: {type: string}
+    output: ReviewResult
+    ensure:
+      - "result.clean == true"
+    retries: 3
+
+  publish:
+    mode: compute
+    intent: >
+      Finalize the content. Update any cross-references (README, CHANGELOG,
+      index files). Commit with a descriptive message.
+    input:
+      task: {type: string}
+    output: ContentResult
+    retries: 1
+
+flows:
+  content:
+    input:
+      task: {type: string}
+    output: ContentResult
+    steps:
+      - id: research
+        function: research
+        inputs:
+          task: "$.input.task"
+
+      - id: draft
+        function: draft
+        inputs:
+          task: "$.input.task"
+        depends_on: [research]
+
+      - id: review
+        function: review
+        inputs:
+          task: "$.input.task"
+        depends_on: [draft]
+
+      - id: publish
+        function: publish
+        inputs:
+          task: "$.input.task"
+        depends_on: [review]

@@ -53,6 +53,22 @@ export class AgentRegistry {
   getAll() { return [...this.#agents.values()]; }
   get(agentId) { return this.#agents.get(agentId) ?? null; }
 
+  /** COMP-AGT-1: Return all agents with status 'running'. */
+  getRunning() {
+    return [...this.#agents.values()].filter(a => a.status === 'running');
+  }
+
+  /** COMP-AGT-1: Update status and optional terminal reason for an agent. */
+  updateStatus(agentId, status, terminalReason) {
+    const record = this.#agents.get(agentId);
+    if (!record) return null;
+    record.status = status;
+    if (terminalReason) record.terminalReason = terminalReason;
+    if (status !== 'running') record.completedAt = new Date().toISOString();
+    this._save();
+    return record;
+  }
+
   prune(keep = 50) {
     const all = [...this.#agents.values()]
       .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));

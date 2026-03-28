@@ -110,6 +110,11 @@ export const useVisionStore = create((set, get) => {
         .then(r => r.json())
         .then(data => set({ activeBuild: data.state ?? null }))
         .catch(() => {});
+      // COMP-PIPE-1-3: Hydrate pipeline draft on connect
+      fetch('/api/pipeline/draft')
+        .then(r => r.json())
+        .then(data => set({ pipelineDraft: data.draft ?? null }))
+        .catch(() => {});
       // COMP-VIS-1: Hydrate spawned agents on connect (only if no live events yet)
       fetch('/api/agents/tree')
         .then(r => r.json())
@@ -165,6 +170,7 @@ export const useVisionStore = create((set, get) => {
           setSpawnedAgents: (updater) => set(s => ({ spawnedAgents: typeof updater === 'function' ? updater(s.spawnedAgents) : updater })),
           setAgentRelays: (updater) => set(s => ({ agentRelays: typeof updater === 'function' ? updater(s.agentRelays) : updater })),
           setSettings: (v) => set({ settings: v }),
+          setPipelineDraft: (v) => set({ pipelineDraft: v }),
           setActiveBuild: (updater) => set(s => ({ activeBuild: typeof updater === 'function' ? updater(s.activeBuild) : updater })),
           setSessions: (updater) => set(s => ({ sessions: typeof updater === 'function' ? updater(s.sessions) : updater })),
           setFeatureTimeline: (updater) => set(s => ({ featureTimeline: typeof updater === 'function' ? updater(s.featureTimeline) : updater })),
@@ -245,6 +251,7 @@ export const useVisionStore = create((set, get) => {
     gates: [],
     gateEvent: null,
     settings: null,
+    pipelineDraft: null,
     activeBuild: null,
     iterationStates: new Map(),
     sessions: [],
@@ -259,6 +266,8 @@ export const useVisionStore = create((set, get) => {
     registerSnapshotProvider: (provider) => { refs.snapshotProvider = provider; },
 
     setActiveBuild: (v) => set({ activeBuild: v }),
+
+    setPipelineDraft: (v) => set({ pipelineDraft: v }),
 
     setFeatureTimeline: (updater) => set(s => ({
       featureTimeline: typeof updater === 'function' ? updater(s.featureTimeline) : updater,

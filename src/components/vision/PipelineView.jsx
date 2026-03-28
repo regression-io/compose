@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
-import { ArrowRight, Bot, Cpu, User, ShieldCheck, RefreshCw } from 'lucide-react';
+import { ArrowRight, Bot, Cpu, User, ShieldCheck, RefreshCw, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { PIPELINE_STEPS, PIPELINE_PHASE_CONFIG } from './constants.js';
 import EmptyState from './shared/EmptyState.jsx';
+import TemplateSelector from './TemplateSelector.jsx';
 
 /**
  * PipelineView — Visual step diagram for the Stratum build pipeline.
  *
  * Modes:
- *   Live     — activeBuild is present; steps show live status
- *   Template — activeBuild is null; shows 24-step template as reference
+ *   Empty    — no activeBuild, no draft: show TemplateSelector
+ *   Draft    — pipelineDraft exists: show read-only steps with Approve/Reject
+ *   Active   — activeBuild exists: existing live pipeline view
  *
  * Props:
- *   activeBuild  — from useVisionStore().activeBuild (may be null)
- *   onSelectStep — (stepId) => void — routes to ContextPanel
+ *   activeBuild    — from useVisionStore().activeBuild (may be null)
+ *   pipelineDraft  — from useVisionStore().pipelineDraft (may be null)
+ *   onSelectStep   — (stepId) => void — routes to ContextPanel
+ *   onRefresh      — () => void
+ *
+ * COMP-PIPE-1-3: Pipeline authoring loop — three-mode view.
  */
-export default function PipelineView({ activeBuild, onSelectStep, onRefresh }) {
+export default function PipelineView({ activeBuild, pipelineDraft, onSelectStep, onRefresh }) {
   const [selectedStepId, setSelectedStepId] = useState(null);
+  const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
 
   const handleSelect = (stepId) => {
     const next = selectedStepId === stepId ? null : stepId;
@@ -28,8 +36,138 @@ export default function PipelineView({ activeBuild, onSelectStep, onRefresh }) {
     if (onRefresh) onRefresh();
   };
 
+  const handleApprove = async () => {
+    if (!pipelineDraft?.draftId) return;
+    setApproving(true);
+    try {
+      await fetch('/api/pipeline/draft/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftId: pipelineDraft.draftId }),
+      });
+    } catch (err) {
+      console.error('[PipelineView] Approve failed:', err);
+    }
+    setApproving(false);
+  };
+
+  const handleReject = async () => {
+    if (!pipelineDraft?.draftId) return;
+    setRejecting(true);
+    try {
+      await fetch('/api/pipeline/draft/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftId: pipelineDraft.draftId }),
+      });
+    } catch (err) {
+      console.error('[PipelineView] Reject failed:', err);
+    }
+    setRejecting(false);
+  };
+
+  // ── Mode: Empty — show template selector ──────────────────────────────
+  if (!activeBuild && !pipelineDraft) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex items-center gap-3 px-3 py-2 border-b border-border shrink-0 h-9">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Pipeline Templates
+          </span>
+          <div className="ml-auto">
+            <button
+              onClick={handleRefresh}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded border border-border"
+            >
+              <RefreshCw className="w-3 h-3" /> Refresh
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <TemplateSelector />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Mode: Draft — show read-only steps with Approve/Reject ────────────
+  if (pipelineDraft && !activeBuild) {
+    const draftSteps = pipelineDraft.steps || [];
+    const draftMeta = pipelineDraft.metadata || {};
+    return (
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* Toolbar */}
+        <div className="flex items-center gap-3 px-3 py-2 border-b border-border shrink-0 h-9">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Draft Review
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={handleReject}
+              disabled={rejecting || approving}
+              className={cn(
+                'flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border',
+                'text-red-400 border-red-500/30 hover:bg-red-500/10',
+                rejecting && 'opacity-60',
+              )}
+            >
+              <X className="w-3 h-3" /> Reject
+            </button>
+            <button
+              onClick={handleApprove}
+              disabled={approving || rejecting}
+              className={cn(
+                'flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border',
+                'text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10',
+                approving && 'opacity-60',
+              )}
+            >
+              <Check className="w-3 h-3" /> Approve
+            </button>
+          </div>
+        </div>
+
+        {/* Draft banner */}
+        <div className="mx-3 mt-3 px-3 py-2 rounded-lg border ring-1 ring-amber-500/30 border-amber-500/20 bg-amber-500/5 text-[11px]">
+          <span className="text-amber-400 font-medium">Draft: {draftMeta.label || draftMeta.id || 'Pipeline'}</span>
+          <span className="text-muted-foreground ml-2">
+            {draftMeta.description || ''}
+          </span>
+          {draftMeta.category && (
+            <span className="text-muted-foreground ml-2">
+              · {draftMeta.category}
+            </span>
+          )}
+        </div>
+
+        {/* Read-only step list */}
+        <div className="flex-1 overflow-auto p-3">
+          <div className="space-y-1">
+            {draftSteps.map((step, i) => (
+              <div
+                key={step.id || i}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-800/40 bg-card"
+              >
+                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 bg-slate-500/15 text-slate-400 text-[10px] font-mono">
+                  {i + 1}
+                </div>
+                <span className="text-xs text-foreground">{step.id}</span>
+                {step.agent && (
+                  <span className="text-[10px] text-muted-foreground ml-auto">{step.agent}</span>
+                )}
+                {step.function && (
+                  <span className="text-[10px] text-muted-foreground ml-auto">fn:{step.function}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Mode: Active — existing live pipeline view ────────────────────────
   // Build a lookup of stepId → live status from activeBuild.steps
-  // (synced from stepHistory by build.js → syncStepHistory → active-build.json)
   const liveStatusMap = Array.isArray(activeBuild?.steps)
     ? Object.fromEntries(activeBuild.steps.map(s => [s.id, s.status]))
     : {};
@@ -84,15 +222,6 @@ export default function PipelineView({ activeBuild, onSelectStep, onRefresh }) {
           </button>
         </div>
       </div>
-
-      {/* COMP-UI-5: EmptyState when no active build */}
-      {!activeBuild && (
-        <EmptyState
-          title="No active build"
-          description="Start a pipeline run to see live progress"
-          className="py-8"
-        />
-      )}
 
       {/* Live banner */}
       {activeBuild && (

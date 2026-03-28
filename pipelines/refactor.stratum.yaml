@@ -1,0 +1,169 @@
+metadata:
+  id: refactor
+  label: "Refactor"
+  description: "Safe refactoring — snapshot tests, plan changes, execute, verify behavior preserved"
+  category: maintenance
+  steps: 7
+  estimated_minutes: 45
+
+version: "0.1"
+
+# refactor pipeline
+#
+# Seven-step flow for safe refactoring:
+#   1. snapshot    — capture current test results as baseline
+#   2. analyze     — identify code smells, duplication, and improvement targets
+#   3. plan        — write a step-by-step refactoring plan
+#   4. execute     — apply refactoring changes incrementally
+#   5. test        — run full test suite, compare against snapshot
+#   6. review      — codex reviews refactored code for correctness
+#   7. ship        — commit and report
+#
+# Inputs:
+#   task — what to refactor (module, pattern, or scope description)
+#
+# Usage:
+#   stratum_plan <this yaml> "refactor" {"task": "..."}
+
+contracts:
+  RefactorResult:
+    phase:    {type: string}
+    summary:  {type: string}
+    outcome:  {type: string, values: [complete, failed]}
+
+  TestResult:
+    passing:  {type: boolean}
+    summary:  {type: string}
+    failures: {type: array}
+
+  ReviewResult:
+    clean:    {type: boolean}
+    summary:  {type: string}
+    findings: {type: array}
+
+functions:
+  snapshot:
+    mode: compute
+    intent: >
+      Run the full test suite and capture results as a baseline snapshot.
+      Record pass/fail counts and test names. Return a summary of the
+      current test state before any changes.
+    input:
+      task: {type: string}
+    output: RefactorResult
+    retries: 1
+
+  analyze:
+    mode: compute
+    intent: >
+      Analyze the target code for refactoring opportunities. Identify code
+      smells, duplication, coupling issues, and improvement targets.
+      Return a structured summary of findings.
+    input:
+      task: {type: string}
+    output: RefactorResult
+    retries: 1
+
+  plan:
+    mode: compute
+    intent: >
+      Write a step-by-step refactoring plan. Each step should be a safe,
+      incremental change that preserves behavior. Include file paths and
+      expected changes.
+    input:
+      task: {type: string}
+    output: RefactorResult
+    retries: 1
+
+  execute:
+    mode: compute
+    intent: >
+      Apply the refactoring changes incrementally following the plan.
+      Make each change as small as possible. Return a summary of all
+      modifications made.
+    input:
+      task: {type: string}
+    output: RefactorResult
+    retries: 3
+
+  test:
+    mode: compute
+    intent: >
+      Run the full test suite. Compare results against the baseline snapshot.
+      Return structured JSON: { "passing": boolean, "summary": string, "failures": string[] }.
+      All tests that passed before must still pass.
+    input:
+      task: {type: string}
+    output: TestResult
+    ensure:
+      - "result.passing == true"
+    retries: 5
+
+  review:
+    mode: compute
+    intent: >
+      Review the refactored code for correctness and quality. Verify that
+      behavior is preserved and the code is cleaner than before.
+      Return { "clean": boolean, "summary": string, "findings": string[] }.
+    input:
+      task: {type: string}
+    output: ReviewResult
+    ensure:
+      - "result.clean == true"
+    retries: 3
+
+  ship:
+    mode: compute
+    intent: >
+      Commit all changes with a descriptive message. Return a summary.
+    input:
+      task: {type: string}
+    output: RefactorResult
+    retries: 1
+
+flows:
+  refactor:
+    input:
+      task: {type: string}
+    output: RefactorResult
+    steps:
+      - id: snapshot
+        function: snapshot
+        inputs:
+          task: "$.input.task"
+
+      - id: analyze
+        function: analyze
+        inputs:
+          task: "$.input.task"
+        depends_on: [snapshot]
+
+      - id: plan
+        function: plan
+        inputs:
+          task: "$.input.task"
+        depends_on: [analyze]
+
+      - id: execute
+        function: execute
+        inputs:
+          task: "$.input.task"
+        depends_on: [plan]
+
+      - id: test
+        function: test
+        inputs:
+          task: "$.input.task"
+        depends_on: [execute]
+
+      - id: review
+        function: review
+        inputs:
+          task: "$.input.task"
+        depends_on: [test]
+
+      - id: ship
+        function: ship
+        inputs:
+          task: "$.input.task"
+        depends_on: [review]

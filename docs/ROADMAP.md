@@ -152,9 +152,9 @@ leaving compose. Agent drafts → UI surfaces → user approves → stratum exec
 
 | Code | Item | Status |
 |------|------|--------|
-| COMP-PIPE-1 | Pipeline template library — predefined `.stratum.yaml` templates (feature dev, bug fix, refactor, content, research) selectable by agent or user | PLANNED |
-| COMP-PIPE-2 | `stratum_draft_pipeline` MCP tool — agent pushes a drafted spec into the PipelineEditor UI; user can review and tweak before execution begins | PLANNED |
-| COMP-PIPE-3 | PipelineEditor live refresh — poll or WebSocket so UI updates when agent calls `stratum_draft_pipeline` without requiring manual reload | PLANNED |
+| COMP-PIPE-1 | Pipeline template library — 7 templates with metadata blocks, `GET /api/pipeline/templates` + `/templates/:id/spec` endpoints, TemplateSelector UI | COMPLETE |
+| COMP-PIPE-2 | Pipeline draft flow — REST-based draft CRUD with draftId concurrency, approve/reject lifecycle, approved specs to `.compose/data/approved-specs/` | COMPLETE |
+| COMP-PIPE-3 | PipelineView live refresh — WS `pipelineDraft`/`pipelineDraftResolved` messages, three-mode PipelineView (empty/draft/active), version-aware step derivation | COMPLETE |
 
 ---
 
@@ -198,10 +198,10 @@ and resource limits to enforce its authority over workers).
 
 | Code | Item | Status |
 |------|------|--------|
-| COMP-AGT-1 | Agent interrupt & cancellation — store process handle on spawn; `POST /api/agent/:id/stop` sends SIGTERM then SIGKILL after grace period; UI kill button on AgentPanel tabs | PLANNED |
-| COMP-AGT-2 | Health monitoring — periodic liveness probe (stdout activity within N seconds); "agent went silent" detection; stale agent warning in AgentPanel; auto-kill after configurable silence threshold | PLANNED |
-| COMP-AGT-3 | Resource limits — per-task wall-clock timeout (configurable, default 10m); memory RSS check via `process.memoryUsage()`; disk quota per worktree; enforce in agent-spawn and parallel dispatch | PLANNED |
-| COMP-AGT-4 | Worktree garbage collection — periodic scan for orphan `.compose/par/*` directories; cleanup on server start; `POST /api/agent/gc` manual trigger; age-based pruning (>1h stale) | PLANNED |
+| COMP-AGT-1 | Agent interrupt & cancellation — two-path stop (spawned CLI via SIGTERM/SIGKILL, SDK via interrupt escalation); `POST /api/agent/:id/stop`; UI kill button | COMPLETE |
+| COMP-AGT-2 | Health monitoring — stdout+stderr liveness probes; 60s silence warning, 5min auto-kill; terminal reason tracking | COMPLETE |
+| COMP-AGT-3 | Resource limits — wall-clock timeout (10m default); memory RSS polling; disk quota per worktree (500MB) | COMPLETE |
+| COMP-AGT-4 | Worktree garbage collection — .owner file ownership; orphan scan on start + 15min interval; `POST /api/agent/gc` | COMPLETE |
 
 ### Feature 2: Agent Coordination & Communication
 

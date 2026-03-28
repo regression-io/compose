@@ -1,3 +1,11 @@
+metadata:
+  id: review-fix
+  label: "Review & Fix"
+  description: "Iterative review-fix loop — Codex reviews, Claude fixes until clean"
+  category: quality
+  steps: 2
+  estimated_minutes: 15
+
 version: "0.1"
 
 # review-fix pipeline

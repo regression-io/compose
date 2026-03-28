@@ -15,6 +15,8 @@ import { StratumSync, attachStratumRoutes } from './stratum-sync.js';
 import { createStratumRouter } from './stratum-api.js';
 import { attachAgentSpawnRoutes } from './agent-spawn.js';
 import { AgentRegistry } from './agent-registry.js';
+import { HealthMonitor } from './agent-health.js';
+import { WorktreeGC } from './worktree-gc.js';
 import { attachVisionRoutes } from './vision-routes.js';
 import { attachSessionRoutes } from './session-routes.js';
 import { attachActivityRoutes } from './activity-routes.js';
@@ -23,6 +25,7 @@ import { attachSettingsRoutes } from './settings-routes.js';
 import { attachDesignRoutes } from './design-routes.js';
 import { DesignSessionManager } from './design-session.js';
 import { ClaudeSDKConnector } from './connectors/claude-sdk-connector.js';
+import { attachPipelineRoutes } from './pipeline-routes.js';
 /** Settings defaults (previously derived from contracts/lifecycle.json). */
 const SETTINGS_DEFAULTS = {
   phases: [
@@ -94,6 +97,14 @@ export class VisionServer {
       spawnJournalAgent,
       projectRoot: getTargetRoot(),
       store: this.store,
+    });
+
+    // ── Pipeline authoring routes ──────────────────────────────────────────
+    attachPipelineRoutes(app, {
+      broadcastMessage: (msg) => this.broadcastMessage(msg),
+      scheduleBroadcast: () => this.scheduleBroadcast(),
+      getDataDir: () => getDataDir(),
+      getPipelinesDir: () => path.join(getTargetRoot(), 'pipelines'),
     });
 
     // ── Design conversation routes ──────────────────────────────────────────
@@ -168,14 +179,24 @@ export class VisionServer {
       }
     });
 
-    // ── Agent spawn routes ──────────────────────────────────────────────────
+    // ── Agent spawn routes + lifecycle services ────────────────────────────
     const agentRegistry = new AgentRegistry(getDataDir());
+    this._healthMonitor = new HealthMonitor({
+      broadcastMessage: (msg) => this.broadcastMessage(msg),
+    });
+    this._worktreeGC = new WorktreeGC({
+      projectRoot: getTargetRoot(),
+      parDir: path.join(getTargetRoot(), '.compose', 'par'),
+    });
+    this._worktreeGC.start();
     attachAgentSpawnRoutes(app, {
       projectRoot: getTargetRoot(),
       broadcastMessage: (msg) => this.broadcastMessage(msg),
       requireSensitiveToken,
       registry: agentRegistry,
       sessionManager: this.sessionManager,
+      healthMonitor: this._healthMonitor,
+      worktreeGC: this._worktreeGC,
     });
 
     // ── Feature scan routes ────────────────────────────────────────────────
@@ -286,6 +307,8 @@ export class VisionServer {
 
   close() {
     if (this._stratumSync) this._stratumSync.stop();
+    if (this._healthMonitor) this._healthMonitor.destroy();
+    if (this._worktreeGC) this._worktreeGC.stop();
     for (const client of this.clients) {
       client.close();
     }

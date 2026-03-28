@@ -138,6 +138,16 @@ app.post('/api/agent/interrupt', requireSensitiveToken, (req, res) => {
   }
   try {
     _session.queryIter.interrupt();
+
+    // COMP-AGT-1: Escalation — if not resolved within 5s, force-kill the session
+    const capturedIter = _session.queryIter;
+    setTimeout(() => {
+      if (_session.queryIter === capturedIter) {
+        console.log('[agent-server] Interrupt escalation: killing session after 5s timeout');
+        _killCurrentSession();
+      }
+    }, 5000);
+
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

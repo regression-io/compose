@@ -1,0 +1,88 @@
+metadata:
+  id: research
+  label: "Research"
+  description: "Explore a topic — gather sources, analyze findings, produce a summary report"
+  category: exploration
+  steps: 3
+  estimated_minutes: 15
+
+version: "0.1"
+
+# research pipeline
+#
+# Three-step flow for exploratory research:
+#   1. gather   — collect sources, read code, search docs
+#   2. analyze  — synthesize findings, identify patterns and gaps
+#   3. report   — produce a structured summary with recommendations
+#
+# Inputs:
+#   task — research question or topic to explore
+#
+# Usage:
+#   stratum_plan <this yaml> "research" {"task": "..."}
+
+contracts:
+  ResearchResult:
+    phase:    {type: string}
+    artifact: {type: string}
+    summary:  {type: string}
+    outcome:  {type: string, values: [complete, failed]}
+
+functions:
+  gather:
+    mode: compute
+    intent: >
+      Collect sources relevant to the research topic. Search the codebase,
+      read documentation, and gather external references. Return a summary
+      of sources found and key data points.
+    input:
+      task: {type: string}
+    output: ResearchResult
+    retries: 1
+
+  analyze:
+    mode: compute
+    intent: >
+      Synthesize the gathered information. Identify patterns, contradictions,
+      gaps, and insights. Organize findings into themes. Return a structured
+      analysis summary.
+    input:
+      task: {type: string}
+    output: ResearchResult
+    retries: 1
+
+  report:
+    mode: compute
+    intent: >
+      Produce a structured research report with findings, analysis, and
+      actionable recommendations. Write to an appropriate file path.
+      Return the artifact path and summary.
+    input:
+      task: {type: string}
+    output: ResearchResult
+    ensure:
+      - "result.outcome == 'complete'"
+    retries: 1
+
+flows:
+  research:
+    input:
+      task: {type: string}
+    output: ResearchResult
+    steps:
+      - id: gather
+        function: gather
+        inputs:
+          task: "$.input.task"
+
+      - id: analyze
+        function: analyze
+        inputs:
+          task: "$.input.task"
+        depends_on: [gather]
+
+      - id: report
+        function: report
+        inputs:
+          task: "$.input.task"
+        depends_on: [analyze]

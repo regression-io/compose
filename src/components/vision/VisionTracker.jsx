@@ -33,6 +33,7 @@ export default function VisionTracker({ onContextSelect, sidebarOpen = true, onT
     settings, updateSettings, resetSettings,
     activeBuild,
     setActiveBuild,
+    pipelineDraft,
     sessions,
     // Global phase filter (managed by the store — affects all views)
     selectedPhase, setSelectedPhase,
@@ -271,6 +272,7 @@ export default function VisionTracker({ onContextSelect, sidebarOpen = true, onT
         {activeView === 'pipeline' && (
           <PipelineView
             activeBuild={activeBuild}
+            pipelineDraft={pipelineDraft}
             onSelectStep={handleSelectStep}
             onRefresh={handleRefreshBuild}
           />
