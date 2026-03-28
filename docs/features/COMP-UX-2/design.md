@@ -180,7 +180,7 @@ Features that build on a fully functional base. Ordered by value.
 
 | Code | Feature | Effort |
 |------|---------|--------|
-| COMP-UX-10 | **Hypothesis-mode design cards** | Medium |
+| COMP-UX-10 | **Hypothesis-mode design cards** — Fork `superpowers:brainstorming` (MIT) into `compose:brainstorm` skill. Skill scans `docs/features/*/design.md` for prior decisions, emits `hypothesisCard` events via activity API. Design view renders interactive cards (reuse/different/dismiss). Bridges CLI brainstorming with Compose UI. | Medium |
 | COMP-UX-11 | **Feature event timeline** | Medium |
 | COMP-UX-12 | **Drag-reorder pipeline steps** | Large |
 | COMP-UX-13 | **Cross-feature dependency view** | Large |
