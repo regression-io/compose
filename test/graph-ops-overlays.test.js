@@ -10,10 +10,11 @@ import assert from 'node:assert/strict';
 
 import {
   BUILD_STATES,
-  BUILD_STATE_COLORS,
   computeBuildStateMap,
   getDownstreamBlockedIds,
 } from '../src/components/vision/graphOpsOverlays.js';
+
+import { BUILD_STATE_COLORS } from '../src/components/vision/constants.js';
 
 // ---------------------------------------------------------------------------
 // Constants

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TOOL_CATEGORY_COLORS } from '../vision/constants.js';
 
 /**
  * MessageCard — renders a single SDK message in the stream.
@@ -13,16 +14,6 @@ import React, { useState } from 'react';
  *   tool_progress     → live tool execution ticker (collapsed by default)
  *   stream_event      → skipped (partial streaming events, too noisy)
  */
-
-const TOOL_CATEGORY_COLORS = {
-  reading:   'hsl(210 70% 60%)',
-  writing:   'hsl(142 60% 50%)',
-  executing: 'hsl(38 90% 60%)',
-  searching: 'hsl(270 60% 65%)',
-  fetching:  'hsl(190 70% 55%)',
-  delegating:'hsl(330 60% 65%)',
-  thinking:  'hsl(240 30% 70%)',
-};
 
 const TOOL_CATEGORIES = {
   Read: 'reading', Glob: 'searching', Grep: 'searching',

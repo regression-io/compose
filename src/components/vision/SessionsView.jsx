@@ -1,27 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
-import { WORK_TYPE_COLORS, AGENTS } from './constants.js';
+import { WORK_TYPE_COLORS, AGENTS, SESSION_STATUS_COLORS, SESSION_AGENT_COLORS } from './constants.js';
 import { filterSessions, relativeTime } from './vision-logic.js';
 import StatusBadge from './shared/StatusBadge.jsx';
 import AgentAvatar from './shared/AgentAvatar.jsx';
 import RelativeTime from './shared/RelativeTime.jsx';
 import EmptyState from './shared/EmptyState.jsx';
 import FeatureFocusToggle from '../shared/FeatureFocusToggle.jsx';
-
-const STATUS_COLORS_SESSION = {
-  active:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  completed: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
-  failed:    'bg-red-500/10 text-red-400 border-red-500/20',
-  paused:    'bg-amber-500/10 text-amber-400 border-amber-500/20',
-};
-
-const AGENT_COLORS = {
-  claude:  'bg-orange-500/15 text-orange-400',
-  codex:   'bg-emerald-500/15 text-emerald-400',
-  gemini:  'bg-blue-500/15 text-blue-400',
-  human:   'bg-slate-500/15 text-slate-400',
-};
 
 /**
  * SessionsView — Browse and filter agent sessions.

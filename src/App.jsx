@@ -1162,13 +1162,18 @@ function AppInner() {
         {/* ================================================================ */}
         {/* NOTIFICATION BAR                                                   */}
         {/* ================================================================ */}
+        <PanelErrorBoundary zone="notifications">
         <NotificationBar />
+        </PanelErrorBoundary>
 
         {/* ================================================================ */}
         {/* GATE NOTIFICATION + MODALS                                         */}
         {/* ================================================================ */}
+        <PanelErrorBoundary zone="gate notifications">
         <GateNotificationBar onOpenGate={handleOpenGate} />
+        </PanelErrorBoundary>
 
+        <PanelErrorBoundary zone="challenge modal">
         {challengeItemId && (() => {
           const challengeItem = items.find(i => i.id === challengeItemId);
           if (!challengeItem) return null;
@@ -1182,6 +1187,7 @@ function AppInner() {
             />
           );
         })()}
+        </PanelErrorBoundary>
 
         <GateToast
           event={gateEvent}
@@ -1189,24 +1195,30 @@ function AppInner() {
           onNavigate={() => handleViewChange('gates')}
         />
 
+        <PanelErrorBoundary zone="command palette">
         <CommandPalette
           open={paletteOpen}
           onClose={() => setPaletteOpen(false)}
           onSelectItem={(id) => { handleSelect(id); setPaletteOpen(false); }}
           onSelectGate={(gateId) => { handleOpenGate(gateId); setPaletteOpen(false); }}
         />
+        </PanelErrorBoundary>
 
+        <PanelErrorBoundary zone="item form">
         <ItemFormDialog
           open={createOpen}
           onClose={() => setCreateOpen(false)}
         />
+        </PanelErrorBoundary>
 
+        <PanelErrorBoundary zone="settings">
         <SettingsModal
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
           settings={settings}
           onSettingsChange={updateSettings}
         />
+        </PanelErrorBoundary>
       </div>
     </VisionChangesContext.Provider>
   );

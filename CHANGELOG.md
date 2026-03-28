@@ -2,6 +2,18 @@
 
 ## 2026-03-28
 
+### COMP-UI-6: Polish and Teardown
+
+- Deleted dead components: `AppSidebar.jsx` (~120 lines), `ItemRow.jsx` (~960 lines)
+- Cleaned `VisionTracker.jsx`: removed @deprecated tag, scoped to PopoutView only
+- Consolidated 13 scattered JS color constants from 9 files into `constants.js`
+- Wrapped 6 remaining UI zones in `PanelErrorBoundary` (NotificationBar, GateNotificationBar, ChallengeModal, CommandPalette, ItemFormDialog, SettingsModal)
+- Removed 8 dead functions from `vision-logic.js` (kept `filterSessions`, `relativeTime`)
+- Deleted 17 dead `--row-*` CSS variables and `.row-chevron` class from `index.css`
+- Removed dead `expandAgentBar()` export from `agentBarState.js`
+- Updated tests: removed dead function tests, all 46 remaining tests pass
+- **COMP-UI feature complete** — all 6 items done
+
 ### COMP-AGT-1-4: Agent Lifecycle Control
 
 - `server/agent-health.js`: HealthMonitor class — stdout+stderr liveness probes, 60s silence warning, 5min auto-kill, wall-clock timeout, memory RSS polling, terminal reason tracking

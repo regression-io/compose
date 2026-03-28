@@ -47,10 +47,6 @@ export function collapseAgentBar(_current) {
   return AGENT_BAR_STATES.COLLAPSED;
 }
 
-export function expandAgentBar(_current) {
-  return AGENT_BAR_STATES.EXPANDED;
-}
-
 export function maximizeAgentBar(_current) {
   return AGENT_BAR_STATES.MAXIMIZED;
 }

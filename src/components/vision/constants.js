@@ -117,3 +117,110 @@ export const PIPELINE_PHASE_CONFIG = {
   implementation: { label: 'Phase 3: Implement',   color: 'border-amber-500/30 bg-amber-500/5'    },
   ship:           { label: 'Phase 4: Ship',        color: 'border-emerald-500/30 bg-emerald-500/5'},
 };
+
+// ── COMP-UI-6: Consolidated color tokens ─────────────────────────────────────
+
+/** Tool category colors — HSL strings for inline style (from MessageCard) */
+export const TOOL_CATEGORY_COLORS = {
+  reading:   'hsl(210 70% 60%)',
+  writing:   'hsl(142 60% 50%)',
+  executing: 'hsl(38 90% 60%)',
+  searching: 'hsl(270 60% 65%)',
+  fetching:  'hsl(190 70% 55%)',
+  delegating:'hsl(330 60% 65%)',
+  thinking:  'hsl(240 30% 70%)',
+};
+
+/** Pipeline dot status colors — CSS var refs (from ContextPipelineDots) */
+export const PIPELINE_STATUS_COLORS = {
+  complete: 'hsl(var(--success, 160 60% 45%))',
+  active: 'hsl(var(--accent))',
+  failed: 'hsl(var(--destructive))',
+  pending: 'hsl(var(--muted-foreground) / 0.3)',
+};
+
+/** Template category colors — Tailwind class strings (from TemplateSelector) */
+export const TEMPLATE_CATEGORY_COLORS = {
+  development:    'border-blue-500/30 bg-blue-500/5 text-blue-400',
+  quality:        'border-emerald-500/30 bg-emerald-500/5 text-emerald-400',
+  maintenance:    'border-amber-500/30 bg-amber-500/5 text-amber-400',
+  documentation:  'border-violet-500/30 bg-violet-500/5 text-violet-400',
+  exploration:    'border-cyan-500/30 bg-cyan-500/5 text-cyan-400',
+};
+
+/** Gate notification colors by fromPhase — Tailwind class objects (from GateNotificationBar) */
+export const GATE_COLORS = {
+  explore_design:  { bg: 'bg-blue-500/5',      border: 'border-blue-500/40',    text: 'text-blue-300'    },
+  prd:             { bg: 'bg-purple-500/5',    border: 'border-purple-500/40',  text: 'text-purple-300'  },
+  architecture:    { bg: 'bg-cyan-500/5',      border: 'border-cyan-500/40',    text: 'text-cyan-300'    },
+  blueprint:       { bg: 'bg-violet-500/5',    border: 'border-violet-500/40',  text: 'text-violet-300'  },
+  plan:            { bg: 'bg-amber-500/5',     border: 'border-amber-500/40',   text: 'text-amber-300'   },
+  report:          { bg: 'bg-emerald-500/5',   border: 'border-emerald-500/40', text: 'text-emerald-300' },
+  ship:            { bg: 'bg-green-500/5',     border: 'border-green-500/40',   text: 'text-green-300'   },
+};
+
+export const GATE_FALLBACK_COLOR = { bg: 'bg-muted/30', border: 'border-border', text: 'text-muted-foreground' };
+
+/** Confidence bar colors — Tailwind class strings, indexed 0–4 (from ConfidenceBar) */
+// colors[0] = bg-slate-600 (verification correction — NOT bg-slate-800 as in blueprint §2.4 typo)
+export const CONFIDENCE_COLORS = ['bg-slate-600', 'bg-rose-500', 'bg-amber-500', 'bg-emerald-500', 'bg-emerald-500'];
+
+/** Timeline event severity colors — Tailwind class strings (from TimelineEvent) */
+export const SEVERITY_COLORS = {
+  info: 'text-zinc-400',
+  success: 'text-emerald-400',
+  warning: 'text-amber-400',
+  error: 'text-red-400',
+};
+
+/** Timeline event category colors — Tailwind class strings (from TimelineEvent) */
+export const TIMELINE_CATEGORY_COLORS = {
+  phase: 'text-blue-400',
+  gate: 'text-purple-400',
+  session: 'text-zinc-400',
+  iteration: 'text-blue-300',
+  error: 'text-red-400',
+};
+
+/** Session status colors — Tailwind class strings (from SessionsView) */
+export const SESSION_STATUS_COLORS = {
+  active:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  completed: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  failed:    'bg-red-500/10 text-red-400 border-red-500/20',
+  paused:    'bg-amber-500/10 text-amber-400 border-amber-500/20',
+};
+
+/** Session agent colors — Tailwind class strings (from SessionsView) */
+export const SESSION_AGENT_COLORS = {
+  claude:  'bg-orange-500/15 text-orange-400',
+  codex:   'bg-emerald-500/15 text-emerald-400',
+  gemini:  'bg-blue-500/15 text-blue-400',
+  human:   'bg-slate-500/15 text-slate-400',
+};
+
+/** Build state colors — hex for Cytoscape (from graphOpsOverlays) */
+export const BUILD_STATE_COLORS = {
+  building: '#3b82f6',           // blue-500
+  gate_pending: '#f59e0b',       // amber-500
+  blocked_downstream: '#94a3b8', // slate-400
+  error: '#ef4444',              // red-500
+};
+
+/** Graph agent colors — hex for Cytoscape (from graphOpsOverlays) */
+export const GRAPH_AGENT_COLORS = {
+  'compose-explorer': '#06b6d4',
+  'compose-architect': '#a855f7',
+  codex: '#10b981',
+  claude: '#3b82f6',
+};
+
+/** Agent panel category colors — CSS var refs (from AgentPanel) */
+export const AGENT_CATEGORY_COLORS = {
+  reading: 'var(--color-category-reading)',
+  writing: 'var(--color-category-writing)',
+  executing: 'var(--color-category-executing)',
+  searching: 'var(--color-category-searching)',
+  fetching: 'var(--color-category-fetching)',
+  delegating: 'var(--color-category-delegating)',
+  thinking: 'hsl(var(--muted-foreground))',
+};

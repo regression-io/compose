@@ -17,19 +17,7 @@ import { ChevronLeft, ChevronRight, X, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { useVisionStore } from '../useVisionStore.js';
 import { useShallow } from 'zustand/react/shallow';
-import { LIFECYCLE_PHASE_LABELS } from '../constants.js';
-
-const GATE_COLORS = {
-  explore_design:  { bg: 'bg-blue-500/5',      border: 'border-blue-500/40',    text: 'text-blue-300'    },
-  prd:             { bg: 'bg-purple-500/5',    border: 'border-purple-500/40',  text: 'text-purple-300'  },
-  architecture:    { bg: 'bg-cyan-500/5',      border: 'border-cyan-500/40',    text: 'text-cyan-300'    },
-  blueprint:       { bg: 'bg-violet-500/5',    border: 'border-violet-500/40',  text: 'text-violet-300'  },
-  plan:            { bg: 'bg-amber-500/5',     border: 'border-amber-500/40',   text: 'text-amber-300'   },
-  report:          { bg: 'bg-emerald-500/5',   border: 'border-emerald-500/40', text: 'text-emerald-300' },
-  ship:            { bg: 'bg-green-500/5',     border: 'border-green-500/40',   text: 'text-green-300'   },
-};
-
-const FALLBACK_COLOR = { bg: 'bg-muted/30', border: 'border-border', text: 'text-muted-foreground' };
+import { LIFECYCLE_PHASE_LABELS, GATE_COLORS, GATE_GATE_FALLBACK_COLOR } from '../constants.js';
 
 export default function GateNotificationBar({ onOpenGate }) {
   const { gates, items } = useVisionStore(useShallow(s => ({ gates: s.gates, items: s.items })));
@@ -52,7 +40,7 @@ export default function GateNotificationBar({ onOpenGate }) {
   if (!itemTitle) itemTitle = gate.toPhase ? `${gate.toPhase} transition` : null;
   if (!itemTitle) itemTitle = 'Pending review';
   const phaseLabel = LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase ?? 'Gate';
-  const colors = GATE_COLORS[gate.fromPhase] ?? FALLBACK_COLOR;
+  const colors = GATE_COLORS[gate.fromPhase] ?? GATE_FALLBACK_COLOR;
 
   const handleDismiss = () => {
     setDismissed(prev => new Set([...prev, gate.id]));

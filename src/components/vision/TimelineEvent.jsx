@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { cn } from '@/lib/utils.js';
+import { SEVERITY_COLORS, TIMELINE_CATEGORY_COLORS } from './constants.js';
 
 const CATEGORY_ICONS = {
   phase: '\u2192',     // →
@@ -11,21 +12,6 @@ const CATEGORY_ICONS = {
   session: '\u25CF',   // ●
   iteration: '\u21BB', // ↻
   error: '\u26A0',     // ⚠
-};
-
-const SEVERITY_COLORS = {
-  info: 'text-zinc-400',
-  success: 'text-emerald-400',
-  warning: 'text-amber-400',
-  error: 'text-red-400',
-};
-
-const CATEGORY_COLORS = {
-  phase: 'text-blue-400',
-  gate: 'text-purple-400',
-  session: 'text-zinc-400',
-  iteration: 'text-blue-300',
-  error: 'text-red-400',
 };
 
 function relativeTime(isoString) {
@@ -42,7 +28,7 @@ function relativeTime(isoString) {
 
 export default function TimelineEvent({ event, onSelectItem, style }) {
   const icon = CATEGORY_ICONS[event.category] || '\u25CF';
-  const iconColor = CATEGORY_COLORS[event.category] || 'text-zinc-400';
+  const iconColor = TIMELINE_CATEGORY_COLORS[event.category] || 'text-zinc-400';
   const severityColor = SEVERITY_COLORS[event.severity] || 'text-zinc-400';
   return (
     <div

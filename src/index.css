@@ -114,25 +114,6 @@
 
   /* Legacy borders — used by .compose-btn-icon */
   --border-emphasis: rgba(0, 0, 0, 0.15);
-
-  /* ItemRow sizing scale */
-  --row-radius: 8px;
-  --row-gap: 8px;
-  --row-pad-v: 10px;
-  --row-pad-h: 14px;
-  --row-font: 13px;
-  --row-dot: 9px;
-  --row-label: 10px;
-  --row-badge-pad: 2px 8px;
-  --row-body-font: 12px;
-  --row-body-pad-v: 12px;
-  --row-body-pad-h: 14px;
-  --row-section-label: 10px;
-  --row-link-font: 12px;
-  --row-link-pad: 5px 10px;
-  --row-btn-font: 11px;
-  --row-btn-pad: 5px 14px;
-  --row-chevron: 16px;
 }
 
 /* Dark mode category color overrides */
@@ -149,9 +130,6 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: hsl(0 0% 25%); }
-
-/* ── ItemRow chevron sizing ── */
-.row-chevron { width: var(--row-chevron); height: var(--row-chevron); }
 
 /* ── Vision Tracker animations ── */
 @keyframes pulse {

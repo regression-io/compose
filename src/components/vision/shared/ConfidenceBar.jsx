@@ -15,15 +15,15 @@
  */
 import React from 'react';
 import { cn } from '@/lib/utils.js';
+import { CONFIDENCE_COLORS } from '../constants.js';
 
 const LABELS = ['Untested', 'Low', 'Moderate', 'High', 'Crystallized'];
-const COLORS  = ['bg-slate-600', 'bg-rose-500', 'bg-amber-500', 'bg-emerald-500', 'bg-emerald-500'];
 
 export default function ConfidenceBar({ level = 0, className }) {
   const safeLevel = Math.max(0, Math.min(4, level || 0));
   const label = LABELS[safeLevel] ?? 'Untested';
   // Use color of the highest filled bar
-  const barColor = safeLevel === 0 ? COLORS[0] : COLORS[safeLevel];
+  const barColor = safeLevel === 0 ? CONFIDENCE_COLORS[0] : CONFIDENCE_COLORS[safeLevel];
 
   return (
     <span className={cn('inline-flex items-center gap-1', className)}>

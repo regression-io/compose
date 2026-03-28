@@ -2,21 +2,12 @@ import React from 'react';
 import AgentLogViewer from './shared/AgentLogViewer.jsx';
 import AgentRelayFeed from './shared/AgentRelayFeed.jsx';
 import { cn } from '@/lib/utils.js';
+import { AGENT_CATEGORY_COLORS } from './constants.js';
 
 const CATEGORY_LABELS = {
   reading: 'Reading', writing: 'Writing', executing: 'Running',
   searching: 'Searching', fetching: 'Fetching', delegating: 'Delegating',
   thinking: 'Thinking',
-};
-
-const CATEGORY_COLORS = {
-  reading: 'var(--color-category-reading)',
-  writing: 'var(--color-category-writing)',
-  executing: 'var(--color-category-executing)',
-  searching: 'var(--color-category-searching)',
-  fetching: 'var(--color-category-fetching)',
-  delegating: 'var(--color-category-delegating)',
-  thinking: 'hsl(var(--muted-foreground))',
 };
 
 const ERROR_TYPE_LABELS = {
@@ -239,7 +230,7 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem, sp
                       title={`${entry.tool || 'thinking'} — ${formatElapsed(entry.duration)}`}
                       style={{
                         width: Math.max(4, Math.min(16, (entry.duration || 0) / 1000 * 2)),
-                        background: CATEGORY_COLORS[entry.category] || (agentState.status === 'working' ? 'var(--color-category-writing)' : 'hsl(var(--success))'),
+                        background: AGENT_CATEGORY_COLORS[entry.category] || (agentState.status === 'working' ? 'var(--color-category-writing)' : 'hsl(var(--success))'),
                         opacity: 0.2 + (i / arr.length) * 0.6,
                       }}
                     />
@@ -257,7 +248,7 @@ function AgentPanel({ agentActivity, agentErrors, sessionState, onSelectItem, sp
                       <span className="font-medium shrink-0">{entry.tool}</span>
                       {entry.category && !entry.error && (
                         <span className="shrink-0 opacity-50"
-                          style={{ color: CATEGORY_COLORS[entry.category] }}>
+                          style={{ color: AGENT_CATEGORY_COLORS[entry.category] }}>
                           {entry.category}
                         </span>
                       )}

@@ -17,7 +17,6 @@ import {
   AGENT_BAR_STATES,
   nextAgentBarState,
   collapseAgentBar,
-  expandAgentBar,
   maximizeAgentBar,
   isValidAgentBarState,
   agentBarHeightClass,
@@ -70,12 +69,6 @@ describe('agentBarState — direct transitions', () => {
     assert.equal(collapseAgentBar('expanded'), 'collapsed');
     assert.equal(collapseAgentBar('maximized'), 'collapsed');
     assert.equal(collapseAgentBar('collapsed'), 'collapsed');
-  });
-
-  it('expandAgentBar always returns expanded', () => {
-    assert.equal(expandAgentBar('collapsed'), 'expanded');
-    assert.equal(expandAgentBar('maximized'), 'expanded');
-    assert.equal(expandAgentBar('expanded'), 'expanded');
   });
 
   it('maximizeAgentBar always returns maximized', () => {

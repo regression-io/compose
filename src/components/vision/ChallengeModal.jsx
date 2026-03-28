@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils.js';
 import { withComposeToken } from '@/lib/compose-api.js';
 import { Button } from '@/components/ui/button.jsx';
 import { TYPE_COLORS } from './constants.js';
-import { VisionChangesContext } from './VisionTracker.jsx';
+import { VisionChangesContext } from './VisionChangesContext.js';
 
 function ChallengeRow({ item, onUpdate }) {
   const { newIds, changedIds } = useContext(VisionChangesContext);

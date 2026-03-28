@@ -1,12 +1,10 @@
 /**
- * @deprecated VisionTracker is deprecated. Its logic has been absorbed into App.jsx
- * (flat cockpit layout). This file is kept alive only for PopoutView compatibility.
- * Use VisionChangesContext from './VisionChangesContext.js' instead.
+ * VisionTracker — standalone vision surface used by PopoutView for `vision://` popout windows.
+ * Main app uses CockpitView in App.jsx instead. This file exists only for PopoutView compatibility.
  */
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
 import { VisionChangesContext } from './VisionChangesContext.js';
-export { VisionChangesContext };
 import { useVisionStore } from './useVisionStore.js';
 import AttentionQueueSidebar from './AttentionQueueSidebar.jsx';
 import TreeView from './TreeView.jsx';

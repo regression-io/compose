@@ -9,6 +9,7 @@
  *   activeBuild {object}  current build state (or null)
  */
 import React, { useState } from 'react';
+import { PIPELINE_STATUS_COLORS } from './constants.js';
 
 const LIFECYCLE_STEPS = [
   { id: 'design', label: 'Design' },
@@ -18,13 +19,6 @@ const LIFECYCLE_STEPS = [
   { id: 'coverage', label: 'Coverage' },
   { id: 'ship', label: 'Ship' },
 ];
-
-const STATUS_COLORS = {
-  complete: 'hsl(var(--success, 160 60% 45%))',
-  active: 'hsl(var(--accent))',
-  failed: 'hsl(var(--destructive))',
-  pending: 'hsl(var(--muted-foreground) / 0.3)',
-};
 
 function getStepStatus(stepId, phaseHistory, activeBuild, featureCode) {
   // Check if this step is the active build step
@@ -53,7 +47,7 @@ export default function ContextPipelineDots({ item, activeBuild }) {
       <div className="flex items-center gap-0 mb-3">
         {LIFECYCLE_STEPS.map((step, i) => {
           const status = getStepStatus(step.id, phaseHistory, activeBuild, featureCode);
-          const color = STATUS_COLORS[status];
+          const color = PIPELINE_STATUS_COLORS[status];
           const isSelected = selectedStep === step.id;
           return (
             <React.Fragment key={step.id}>
@@ -101,7 +95,7 @@ export default function ContextPipelineDots({ item, activeBuild }) {
             <span
               key={step.id}
               className="text-[8px] font-medium uppercase tracking-wider"
-              style={{ color: status === 'pending' ? 'hsl(var(--muted-foreground) / 0.4)' : STATUS_COLORS[status] }}
+              style={{ color: status === 'pending' ? 'hsl(var(--muted-foreground) / 0.4)' : PIPELINE_STATUS_COLORS[status] }}
             >
               {step.label}
             </span>

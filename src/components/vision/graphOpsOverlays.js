@@ -4,6 +4,8 @@
  * No React, no DOM — just data transforms for build-state visualization.
  */
 
+import { GRAPH_AGENT_COLORS } from './constants.js';
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 export const BUILD_STATES = {
@@ -11,13 +13,6 @@ export const BUILD_STATES = {
   gate_pending: 'gate_pending',
   blocked_downstream: 'blocked_downstream',
   error: 'error',
-};
-
-export const BUILD_STATE_COLORS = {
-  building: '#3b82f6',           // blue-500
-  gate_pending: '#f59e0b',       // amber-500
-  blocked_downstream: '#94a3b8', // slate-400
-  error: '#ef4444',              // red-500
 };
 
 // Edge types that propagate blocking downstream
@@ -149,13 +144,6 @@ export function getDownstreamBlockedIds(blockerIds, connections) {
 
 // ─── COMP-VIS-1: Agent communication overlay ─────────────────────────────────
 
-const AGENT_COLORS = {
-  'compose-explorer': '#06b6d4',
-  'compose-architect': '#a855f7',
-  codex: '#10b981',
-  claude: '#3b82f6',
-};
-
 /**
  * Derive Cytoscape elements for the agent communication overlay.
  * Pure function — no side effects.
@@ -196,7 +184,7 @@ export function computeAgentOverlay(spawnedAgents, agentRelays) {
   // Agent nodes
   for (const agent of spawnedAgents) {
     const type = agent.agentType || 'claude';
-    const color = AGENT_COLORS[type] || '#3b82f6';
+    const color = GRAPH_AGENT_COLORS[type] || '#3b82f6';
     nodes.push({
       data: {
         id: `agent-${agent.agentId}`,

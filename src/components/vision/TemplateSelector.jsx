@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Clock, Layers, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
+import { TEMPLATE_CATEGORY_COLORS } from './constants.js';
 
 /**
  * TemplateSelector — Grid of pipeline template cards.
@@ -10,14 +11,6 @@ import { cn } from '@/lib/utils.js';
  *
  * COMP-PIPE-1-3: Pipeline authoring loop — template selection entry point.
  */
-
-const CATEGORY_COLORS = {
-  development:    'border-blue-500/30 bg-blue-500/5 text-blue-400',
-  quality:        'border-emerald-500/30 bg-emerald-500/5 text-emerald-400',
-  maintenance:    'border-amber-500/30 bg-amber-500/5 text-amber-400',
-  documentation:  'border-violet-500/30 bg-violet-500/5 text-violet-400',
-  exploration:    'border-cyan-500/30 bg-cyan-500/5 text-cyan-400',
-};
 
 export default function TemplateSelector() {
   const [templates, setTemplates] = useState([]);
@@ -80,7 +73,7 @@ export default function TemplateSelector() {
               'flex flex-col gap-2 p-3 rounded-lg border text-left transition-all',
               'hover:ring-1 hover:ring-accent/50',
               creating === t.id && 'opacity-60',
-              CATEGORY_COLORS[t.category] || 'border-border bg-card',
+              TEMPLATE_CATEGORY_COLORS[t.category] || 'border-border bg-card',
             )}
           >
             <div className="flex items-center gap-2">
