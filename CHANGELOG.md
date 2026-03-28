@@ -2,6 +2,16 @@
 
 ## 2026-03-28
 
+### Phase 6.9: Agent Fleet Management — Roadmap
+
+Added 17 items (COMP-AGT-1 through COMP-AGT-17) across 5 feature groups:
+- Agent Lifecycle Control: interrupt, health monitoring, resource limits, worktree GC
+- Agent Coordination: parent-child RPC, inter-task coordination, message ordering
+- Merge & Recovery: conflict recovery strategies, graceful degradation with retry
+- Registry & Observability: rich queries, structured metrics, dependency validation
+- Agent Templates & Parent Skills: template library, capability registry, root parent
+  orchestration skill, parallel dispatch skill, persistent state machine
+
 ### COMP-UX-11: Feature Event Timeline
 
 - Collapsible right panel on Dashboard showing chronological feature lifecycle events

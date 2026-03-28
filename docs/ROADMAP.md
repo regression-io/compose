@@ -1,7 +1,7 @@
 # Compose Roadmap
 
 **Project:** Compose — structured implementation pipeline for AI-driven development
-**Last updated:** 2026-03-19
+**Last updated:** 2026-03-28
 
 ## Related Documents
 
@@ -182,6 +182,59 @@ wires it in at skill entry — item 32 is integration work only, not a build.
 | COMP-MEM-1 | Memory catalog integration — wire SmartMemory's native pull-first catalog tool into compose skill entry; SmartMemory owns the implementation, compose calls it *(blocked on SmartMemory pull-first landing)* | PLANNED |
 | COMP-MEM-2 | Feature-scoped memory ingestion — after each gate approval, ingest phase artifact (design.md, blueprint.md, decisions) into SmartMemory with `feature_id` tag; retrieval scoped to feature or cross-feature | PLANNED |
 | COMP-MEM-3 | Compose skill entry integration — `/compose` skill calls `get_memory_catalog` before Phase 1; surfaces relevant prior decisions and patterns from similar past features | PLANNED |
+
+---
+
+## Phase 6.9: Agent Fleet Management — PLANNED
+
+**Note on ordering:** Phase 6.9 is the operational robustness layer for multi-agent execution.
+Phase 4.5 delivered agent connectors and spawn infrastructure. Phase 6 added lifecycle binding
+and iteration orchestration. Phase 6.9 closes the gap between "agents can be spawned" and
+"agents can be managed at scale" — health, resources, recovery, coordination, and parent-level
+control skills. Prerequisite for Phase 7's trusted harness (harness needs interrupt, health,
+and resource limits to enforce its authority over workers).
+
+### Feature 1: Agent Lifecycle Control
+
+| Code | Item | Status |
+|------|------|--------|
+| COMP-AGT-1 | Agent interrupt & cancellation — store process handle on spawn; `POST /api/agent/:id/stop` sends SIGTERM then SIGKILL after grace period; UI kill button on AgentPanel tabs | PLANNED |
+| COMP-AGT-2 | Health monitoring — periodic liveness probe (stdout activity within N seconds); "agent went silent" detection; stale agent warning in AgentPanel; auto-kill after configurable silence threshold | PLANNED |
+| COMP-AGT-3 | Resource limits — per-task wall-clock timeout (configurable, default 10m); memory RSS check via `process.memoryUsage()`; disk quota per worktree; enforce in agent-spawn and parallel dispatch | PLANNED |
+| COMP-AGT-4 | Worktree garbage collection — periodic scan for orphan `.compose/par/*` directories; cleanup on server start; `POST /api/agent/gc` manual trigger; age-based pruning (>1h stale) | PLANNED |
+
+### Feature 2: Agent Coordination & Communication
+
+| Code | Item | Status |
+|------|------|--------|
+| COMP-AGT-5 | Parent-child RPC — structured message passing between parent and spawned agents; `sendMessage`/`receiveMessage` via agent-server; request-response pairing with correlation IDs | PLANNED |
+| COMP-AGT-6 | Inter-task coordination — shared blackboard for parallel tasks; task-to-task wait semantics (`depends_on` at runtime, not just merge order); event bus for task completion signals | PLANNED |
+| COMP-AGT-7 | Message ordering & delivery — WebSocket heartbeat (30s); message sequence numbers; buffered replay on reconnect; deduplication by message ID | PLANNED |
+
+### Feature 3: Merge & Recovery
+
+| Code | Item | Status |
+|------|------|--------|
+| COMP-AGT-8 | Merge conflict recovery — pluggable merge strategies (apply-patch, 3-way merge, auto-rebase); retry with conflict context injected into agent prompt; manual resolution gate when auto-merge fails | PLANNED |
+| COMP-AGT-9 | Graceful degradation & retry — transient failure retry (git timeouts, spawn failures) with exponential backoff; worktree fallback to shared-cwd with isolation warning; partial success reporting | PLANNED |
+
+### Feature 4: Registry & Observability
+
+| Code | Item | Status |
+|------|------|--------|
+| COMP-AGT-10 | Agent registry queries — filter by status, type, time range, parent ancestry; `GET /api/agents?status=running&type=codex&since=1h`; indexed agent history beyond 50-entry cap | PLANNED |
+| COMP-AGT-11 | Structured observability — correlation IDs across agent boundaries; per-agent duration/success/failure metrics; aggregate dashboard (spawn rate, merge conflict rate, avg task duration) | PLANNED |
+| COMP-AGT-12 | Dependency pre-flight validation — validate `depends_on` references exist and form a DAG before dispatch; check `files_owned` isolation; reject malformed specs with actionable errors | PLANNED |
+
+### Feature 5: Agent Templates & Parent Skills
+
+| Code | Item | Status |
+|------|------|--------|
+| COMP-AGT-13 | Agent template library — predefined agent patterns (code-reviewer, test-runner, docs-generator, security-auditor, refactorer) with tool restrictions, system prompts, and expected output schemas; selectable via `agent_run(type=...)` | PLANNED |
+| COMP-AGT-14 | Agent capability registry — each agent type declares capabilities (tools, file access, write permissions); parent validates capabilities match task requirements before dispatch | PLANNED |
+| COMP-AGT-15 | Root parent orchestration skill — `compose:manage-agents` skill for the root agent to spawn, monitor, coordinate, and collect results from subagents; integrates health, interrupt, RPC, and templates into a single control surface; replaces ad-hoc `Agent` tool calls with structured fleet management | PLANNED |
+| COMP-AGT-16 | Parallel dispatch skill — `compose:parallel-dispatch` skill wrapping `parallel_dispatch` build step; parent agent describes tasks declaratively, skill handles worktree setup, topo ordering, merge, and conflict recovery; surfaces per-task progress via EventTimeline (COMP-UX-11) | PLANNED |
+| COMP-AGT-17 | Agent state persistence — transactional state machine for agent lifecycle (spawn → running → result → stored); long-term agent history beyond 50 cap; session-indexed for correlation queries | PLANNED |
 
 ---
 
