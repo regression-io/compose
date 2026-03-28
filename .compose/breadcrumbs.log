@@ -116,3 +116,5 @@
 2026-03-28T20:40:33+08:00 | Fix 3 Codex findings: build.js hardcoded flow name, pipeline-routes.js approval skips validation, PipelineView mode priority
 2026-03-28T20:40:41+08:00 | Fix 4 Codex findings: SIGKILL escalation in HealthMonitor, auth header on stop proxy, onStopAgent wiring in sidebars, TODO for lifecycle config
 2026-03-28T20:51:39+08:00 | Fix SDK stop proxy missing r.ok check and wire stratumClient:null to pipeline-routes
+2026-03-28T22:38:55+08:00 | Design-only pass: Phase 6.9 AGT-5-17 + Phase 7 HARNESS-1-9
+2026-03-28T22:55:09+08:00 | Fixing 5 Codex findings in COMP-AGT-COORD design.md: AGT-5 RPC scope, AGT-6 blackboard API, AGT-8 merge spec, AGT-15/16 session controller, open questions
