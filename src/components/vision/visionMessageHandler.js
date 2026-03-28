@@ -5,6 +5,9 @@
  * callbacks. Testable without React or jsdom.
  */
 
+// COMP-UX-9: Per-loopId clear timers for iteration state cleanup
+const iterClearTimers = new Map();
+
 export function handleVisionMessage(msg, refs, setters) {
   const {
     prevItemMapRef, snapshotProviderRef, gatesRef, pendingResolveIdsRef,
@@ -14,7 +17,7 @@ export function handleVisionMessage(msg, refs, setters) {
   const {
     setItems, setConnections, setGates, setGateEvent,
     setRecentChanges, setUICommand, setAgentActivity,
-    setAgentErrors, setSessionState, setSpawnedAgents, setAgentRelays, setSettings, setActiveBuild, setSessions, EMPTY_CHANGES,
+    setAgentErrors, setSessionState, setSpawnedAgents, setAgentRelays, setSettings, setActiveBuild, setSessions, setIterationStates, EMPTY_CHANGES,
   } = setters;
 
   if (msg.type === 'visionState') {
@@ -182,6 +185,44 @@ export function handleVisionMessage(msg, refs, setters) {
       }];
       return next.length > 20 ? next.slice(-20) : next;
     });
+
+    // COMP-UX-9: Update iterationStates Map for progress strip
+    if (msg.type === 'iterationStarted') {
+      if (iterClearTimers.has(msg.loopId)) {
+        clearTimeout(iterClearTimers.get(msg.loopId));
+        iterClearTimers.delete(msg.loopId);
+      }
+      setIterationStates(prev => {
+        const next = new Map(prev);
+        next.set(msg.loopId, {
+          loopId: msg.loopId, itemId: msg.itemId, loopType: msg.loopType,
+          count: 0, maxIterations: msg.maxIterations,
+          status: 'running', outcome: null, startedAt: msg.timestamp,
+        });
+        return next;
+      });
+    } else if (msg.type === 'iterationUpdate') {
+      setIterationStates(prev => {
+        const entry = prev.get(msg.loopId);
+        if (!entry) return prev;
+        const next = new Map(prev);
+        next.set(msg.loopId, { ...entry, count: msg.count, maxIterations: msg.maxIterations });
+        return next;
+      });
+    } else if (msg.type === 'iterationComplete') {
+      setIterationStates(prev => {
+        const entry = prev.get(msg.loopId);
+        if (!entry) return prev;
+        const next = new Map(prev);
+        next.set(msg.loopId, { ...entry, status: 'complete', outcome: msg.outcome, count: msg.finalCount ?? entry.count });
+        return next;
+      });
+      const timer = setTimeout(() => {
+        setIterationStates(prev => { const next = new Map(prev); next.delete(msg.loopId); return next; });
+        iterClearTimers.delete(msg.loopId);
+      }, 5000);
+      iterClearTimers.set(msg.loopId, timer);
+    }
 
     if (msg.type === 'iterationComplete' && msg.outcome === 'max_reached') {
       setAgentErrors(prev => {

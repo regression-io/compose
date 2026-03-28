@@ -264,6 +264,7 @@ export default function DashboardView({
   featureCode,
   sessionState,
   agentActivity,
+  iterationStates,
   onSelect,
   onResolveGate,
   onOpenGate,
@@ -388,6 +389,43 @@ export default function DashboardView({
           </CardContent>
         </Card>
       </div>
+
+      {/* B2. Iteration Progress (COMP-UX-9) */}
+      {iterationStates && iterationStates.size > 0 && (
+        <div className="space-y-2">
+          {[...iterationStates.values()].map(iter => (
+            <div key={iter.loopId} className="px-3 py-2.5 rounded border border-blue-500/30 bg-blue-500/10">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] text-blue-400 font-medium">
+                  {iter.status === 'running' ? '\u21BB' : iter.outcome === 'clean' ? '\u2713' : '\u2717'}
+                  {' '}{iter.loopType === 'review' ? 'Review Loop' : 'Coverage Sweep'}
+                </span>
+                <span className="text-[11px] text-blue-300 font-mono">
+                  {iter.count} of {iter.maxIterations}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-blue-500/20 overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.round((iter.count / iter.maxIterations) * 100)}%`,
+                    transition: 'width 600ms cubic-bezier(0.4, 0, 0.2, 1)',
+                    backgroundColor: iter.outcome === 'clean' ? '#22c55e' :
+                      iter.outcome === 'max_reached' ? '#ef4444' : '#3b82f6',
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {iter.status === 'running'
+                  ? (iter.loopType === 'review' ? 'Waiting for clean review...' : 'Waiting for tests passing...')
+                  : iter.outcome === 'clean' ? 'Clean!'
+                  : iter.outcome === 'max_reached' ? 'Max iterations reached'
+                  : 'Aborted'}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* C. Pending Gates */}
       <div>

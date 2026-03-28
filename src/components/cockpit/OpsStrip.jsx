@@ -12,8 +12,8 @@ import { deriveEntries } from './opsStripLogic.js';
  */
 
 export default function OpsStrip({ activeView, onSelectFeature }) {
-  const { activeBuild, gates, recentErrors, resolveGate } = useVisionStore(
-    useShallow(s => ({ activeBuild: s.activeBuild, gates: s.gates, recentErrors: s.recentErrors, resolveGate: s.resolveGate }))
+  const { activeBuild, gates, recentErrors, resolveGate, iterationStates } = useVisionStore(
+    useShallow(s => ({ activeBuild: s.activeBuild, gates: s.gates, recentErrors: s.recentErrors, resolveGate: s.resolveGate, iterationStates: s.iterationStates }))
   );
 
   // Animation state per entry key
@@ -42,8 +42,8 @@ export default function OpsStrip({ activeView, onSelectFeature }) {
   const effectiveBuild = activeBuild || completedBuild;
 
   const entries = useMemo(
-    () => deriveEntries({ activeBuild: effectiveBuild, gates, recentErrors }),
-    [effectiveBuild, gates, recentErrors],
+    () => deriveEntries({ activeBuild: effectiveBuild, gates, recentErrors, iterationStates }),
+    [effectiveBuild, gates, recentErrors, iterationStates],
   );
 
   // Filter out dismissed entries

@@ -87,3 +87,6 @@
 2026-03-27T23:18:53+08:00 | COMP-UX-4: Artifact revision diff — snapshot on gate create, ArtifactDiff component, wire into GateView + DashboardView
 2026-03-28T00:32:20+08:00 | COMP-UX-7: Live metrics on agent cards — AgentCard component, Dashboard wiring
 2026-03-28T00:33:40+08:00 | COMP-UX-7: Replace minimal agent rows with rich AgentCard metrics (elapsed time, tool count, errors, current tool)
+2026-03-28T08:42:09+08:00 | COMP-UX-9: Iteration progress strip — store field, OpsStrip entry, Dashboard card
+2026-03-28T09:24:41+08:00 | COMP-UX-9: Iteration progress strip — Map-based store, OpsStrip entry, Dashboard card, per-loopId timers
+2026-03-28T12:09:54+08:00 | COMP-UX-9: Adding iteration progress strip — iterationStates Map in store, WS handler, OpsStrip entry, Dashboard card

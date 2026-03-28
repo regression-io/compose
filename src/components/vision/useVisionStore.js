@@ -167,6 +167,7 @@ export const useVisionStore = create((set, get) => {
           setSettings: (v) => set({ settings: v }),
           setActiveBuild: (updater) => set(s => ({ activeBuild: typeof updater === 'function' ? updater(s.activeBuild) : updater })),
           setSessions: (updater) => set(s => ({ sessions: typeof updater === 'function' ? updater(s.sessions) : updater })),
+          setIterationStates: (updater) => set(s => ({ iterationStates: typeof updater === 'function' ? updater(s.iterationStates) : updater })),
           EMPTY_CHANGES,
         });
       } catch {
@@ -244,6 +245,7 @@ export const useVisionStore = create((set, get) => {
     gateEvent: null,
     settings: null,
     activeBuild: null,
+    iterationStates: new Map(),
     sessions: [],
     selectedPhase: (() => {
       try { return localStorage.getItem('compose:selectedPhase') || null; } catch { return null; }

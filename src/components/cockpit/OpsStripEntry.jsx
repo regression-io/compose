@@ -28,6 +28,11 @@ const TOKENS = {
     borderColor: 'hsl(160 60% 45% / 0.3)',
     color: 'hsl(160 60% 45%)',
   },
+  iteration: {
+    background: 'hsl(217 91% 60% / 0.12)',
+    borderColor: 'hsl(217 91% 60% / 0.3)',
+    color: 'hsl(210 100% 66%)',
+  },
 };
 
 const ANIMATION_STYLES = {
@@ -84,6 +89,7 @@ export default function OpsStripEntry({
         {type === 'gate' && '\u26A0'}
         {type === 'error' && '\u2715'}
         {type === 'done' && '\u2713'}
+        {type === 'iteration' && '\u21BB'}
       </span>
 
       {/* Label */}

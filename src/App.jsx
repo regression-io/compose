@@ -224,6 +224,8 @@ function CockpitView({
   featureCode, focusActive, onToggleFocus,
   // COMP-UX-7: Live metrics
   sessionState, agentActivity,
+  // COMP-UX-9: Iteration progress
+  iterationStates,
 }) {
   switch (activeView) {
     case 'dashboard':
@@ -237,6 +239,7 @@ function CockpitView({
           featureCode={featureCode}
           sessionState={sessionState}
           agentActivity={agentActivity}
+          iterationStates={iterationStates}
           onSelect={onSelect}
           onResolveGate={onResolveGate}
           onOpenGate={onOpenGate}
@@ -383,7 +386,7 @@ function AppInner() {
     gates, gateEvent, resolveGate,
     settings, updateSettings, resetSettings,
     activeBuild, setActiveBuild,
-    sessions,
+    sessions, iterationStates,
     selectedPhase, setSelectedPhase,
   } = useVisionStore(useShallow(s => ({
     items: s.items, connections: s.connections, connected: s.connected,
@@ -395,7 +398,7 @@ function AppInner() {
     gates: s.gates, gateEvent: s.gateEvent, resolveGate: s.resolveGate,
     settings: s.settings, updateSettings: s.updateSettings, resetSettings: s.resetSettings,
     activeBuild: s.activeBuild, setActiveBuild: s.setActiveBuild,
-    sessions: s.sessions,
+    sessions: s.sessions, iterationStates: s.iterationStates,
     selectedPhase: s.selectedPhase, setSelectedPhase: s.setSelectedPhase,
   })));
 
@@ -1077,6 +1080,7 @@ function AppInner() {
                       onToggleFocus={() => setFocusFeature(f => !f)}
                       sessionState={sessionState}
                       agentActivity={agentActivity}
+                      iterationStates={iterationStates}
                     />
                   </PanelErrorBoundary>
                 </div>

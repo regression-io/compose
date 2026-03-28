@@ -5,7 +5,7 @@
 /**
  * Derive ops entries from vision store state.
  */
-export function deriveEntries({ activeBuild, gates, recentErrors }) {
+export function deriveEntries({ activeBuild, gates, recentErrors, iterationStates }) {
   const entries = [];
 
   // Active build entry
@@ -45,6 +45,20 @@ export function deriveEntries({ activeBuild, gates, recentErrors }) {
           label: featureCode ? `${featureCode} ${label}` : label,
           featureCode,
           gateId: gate.id,
+        });
+      }
+    }
+  }
+
+  // Iteration loop entries (COMP-UX-9)
+  if (iterationStates) {
+    for (const [loopId, iter] of iterationStates) {
+      if (iter.status === 'running') {
+        const typeLabel = iter.loopType === 'review' ? 'review' : 'coverage';
+        entries.push({
+          key: `iter-${loopId}`,
+          type: 'iteration',
+          label: `${typeLabel} ${iter.count}/${iter.maxIterations}`,
         });
       }
     }

@@ -174,7 +174,7 @@ Features that build on a fully functional base. Ordered by value.
 |------|---------|-------------|--------|
 | COMP-UX-6 | **Per-agent terminal tabs** | Kangentic | Medium-Large |
 | COMP-UX-7 | **Live metrics on agent cards** | Kangentic | **COMPLETE** |
-| COMP-UX-9 | **Iteration progress strip** | idea_tiered_evaluation | Medium |
+| COMP-UX-9 | **Iteration progress strip** | idea_tiered_evaluation | **COMPLETE** |
 
 ### Tier 3: Lifecycle intelligence (post-V1)
 
