@@ -131,3 +131,5 @@
 2026-03-29T01:20:45+08:00 | STRAT-REV Task 3: Adding parallel_review sub-flow to build.stratum.yaml
 2026-03-29T01:21:08+08:00 | STRAT-REV Task 4: Updating build.js timeouts and ensure_failed handoff for parallel_review
 2026-03-29T01:35:42+08:00 | STRAT-REV Phase 9: Updating CHANGELOG, ROADMAP, design/blueprint docs to match final implementation
+2026-03-29T13:33:24+08:00 | Adding elapsed-time heartbeat to cli-progress.js so long agent runs don't look hung
+2026-03-29T13:35:07+08:00 | Adding skip (s) and retry (r) key commands to CLI progress for mid-step control
