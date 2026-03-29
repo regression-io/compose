@@ -415,8 +415,19 @@ flows:
       - id: docs
         agent: claude
         intent: >
-          Update CHANGELOG.md, README.md, ROADMAP.md, and CLAUDE.md as needed.
-          Only update files affected by this feature.
+          Update project documentation for this feature. You MUST:
+
+          1. CHANGELOG.md — Add an entry under today's date with the feature code
+             and a bullet list of what was built. Read the existing format first.
+          2. ROADMAP.md — Find this feature's row and change its status to COMPLETE.
+             If this completes a parent feature, update the parent header too.
+          3. README.md — Update ONLY if the feature changes user-facing setup,
+             commands, or capabilities. Skip if purely internal.
+          4. CLAUDE.md — Update ONLY if new conventions, commands, or architecture
+             patterns were introduced. Skip if no changes.
+
+          Read each file before editing. Do not skip CHANGELOG and ROADMAP —
+          they are always required. Commit nothing — the ship step handles commits.
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
@@ -428,8 +439,19 @@ flows:
       - id: ship
         agent: claude
         intent: >
-          Final verification: run all tests, check for uncommitted changes,
-          verify all artifacts are in place. Then commit and report.
+          Final verification and commit. You MUST:
+
+          1. Run the test suite (npm test or node --test test/*.test.js).
+             If tests fail, fix them before proceeding.
+          2. Run the build (npx vite build). Must pass.
+          3. Check git status — verify CHANGELOG.md and ROADMAP.md were updated
+             by the docs step. If they weren't, update them now.
+          4. Stage all changed files for this feature (git add — be explicit,
+             never stage worktrees, pycache, or node_modules).
+          5. Commit with message: "feat(<featureCode>): <one-line summary>"
+          6. Push to remote.
+
+          Report the commit hash and files changed.
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
