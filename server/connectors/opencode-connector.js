@@ -77,11 +77,39 @@ export class OpencodeConnector extends AgentConnector {
 
     const textParts = [];
     let stderrChunks = [];
-    proc.stderr.on('data', chunk => stderrChunks.push(chunk));
+
+    // Stream stderr live — detect rate-limit, auth, and quota errors immediately
+    proc.stderr.on('data', chunk => {
+      stderrChunks.push(chunk);
+      const text = chunk.toString();
+      const lower = text.toLowerCase();
+      // Check for actionable errors that should surface immediately
+      if (lower.includes('rate limit') || lower.includes('rate_limit') ||
+          lower.includes('quota') || lower.includes('insufficient_quota') ||
+          lower.includes('unauthorized') || lower.includes('401') ||
+          lower.includes('403') || lower.includes('authentication') ||
+          lower.includes('auth') || lower.includes('billing') ||
+          lower.includes('exceeded') || lower.includes('capacity')) {
+        process.stderr.write(`\n⚠ ${this._agentName}: ${text.trim()}\n`);
+        process.stderr.write(`  → Check account: opencode auth status\n`);
+        process.stderr.write(`  → Switch account: opencode auth login\n\n`);
+      }
+    });
+
+    // Stall detection — warn if no stdout events for 120s
+    let lastEventAt = Date.now();
+    const stallTimer = setInterval(() => {
+      const silent = Math.round((Date.now() - lastEventAt) / 1000);
+      if (silent >= 120) {
+        process.stderr.write(`\n⚠ ${this._agentName}: no response for ${silent}s — may be stalled or rate-limited\n`);
+        process.stderr.write(`  → Press s to skip, or Ctrl+C to abort\n\n`);
+      }
+    }, 30_000);
 
     try {
       for await (const line of rl) {
         if (!line.trim()) continue;
+        lastEventAt = Date.now();
 
         let event;
         try {
@@ -137,6 +165,7 @@ export class OpencodeConnector extends AgentConnector {
         yield { type: 'error', message: err.message || String(err) };
       }
     } finally {
+      clearInterval(stallTimer);
       this.#proc = null;
     }
   }
