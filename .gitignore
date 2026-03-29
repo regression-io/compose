@@ -4,6 +4,7 @@ data/
 package-lock.json
 .forge/
 *.png
+!Screenshot.png
 *.jpg
 .playwright-mcp/
 .compose-supervisor.pid
