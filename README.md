@@ -72,6 +72,14 @@ compose build FEAT-1
 - `stratum-mcp` on PATH (`pip install stratum`)
 - For Codex steps: `opencode` CLI (`brew install opencode`) with OpenAI credentials configured (`opencode auth login` or set `OPENAI_API_KEY`)
 
+### Install Compose
+
+```bash
+git clone https://github.com/regression-io/compose.git
+cd compose
+npm install
+```
+
 ### Project-local setup (`compose init`)
 
 Run from inside your project directory:
