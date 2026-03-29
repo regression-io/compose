@@ -69,7 +69,7 @@ compose build FEAT-1
 ### Prerequisites
 
 - Node.js 18+
-- `stratum-mcp` on PATH (`pip install stratum-mcp`)
+- `stratum-mcp` on PATH (`pip install stratum`)
 - For Codex steps: `opencode` CLI (`brew install opencode`) with OpenAI credentials configured (`opencode auth login` or set `OPENAI_API_KEY`)
 
 ### Project-local setup (`compose init`)
