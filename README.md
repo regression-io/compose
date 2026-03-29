@@ -34,6 +34,34 @@ Compose is a CLI that orchestrates AI agents through multi-step workflows define
 
 ![Compose Cockpit Shell](Screenshot.png)
 
+```
+compose new "REST API for todo lists"
+  -> questionnaire (interactive)
+  -> research (claude)
+  -> brainstorm (claude)
+  -> [human gate] approve/revise/kill
+  -> roadmap (claude)
+  -> [human gate]
+  -> scaffold (claude)
+  -> done: feature folders + ROADMAP.md ready
+
+compose build FEAT-1
+  -> explore & design (claude)
+  -> [human gate]
+  -> blueprint (claude)
+  -> verification (claude)
+  -> plan (claude)
+  -> [human gate]
+  -> decompose + parallel execute (claude, worktree isolation)
+  -> parallel review (claude lenses: diff-quality, contract, security, framework)
+  -> codex review (codex) + fix loop
+  -> coverage sweep (claude) + fix loop
+  -> docs update (claude)
+  -> ship (claude)
+  -> [human gate]
+  -> done: feature implemented, reviewed, tested, documented
+```
+
 ---
 
 ## Installation and Setup
