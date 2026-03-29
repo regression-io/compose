@@ -381,6 +381,17 @@ flows:
         retries: 5
         depends_on: [execute]
 
+      # Sub-flow: Codex review (independent cross-model pass after Claude lenses + fixes)
+      - id: codex_review
+        flow: review_check
+        inputs:
+          task: "$.steps.execute.output.outcome"
+          blueprint: "$.steps.blueprint.output.artifact"
+        ensure:
+          - "result.clean == True"
+        retries: 3
+        depends_on: [review]
+
       # Sub-flow: Coverage (claude runs tests; build.js dispatches fix on ensure_failed)
       - id: coverage
         flow: coverage_check
@@ -389,7 +400,7 @@ flows:
           plan: "$.input.description"
         ensure:
           - "result.passing == True"
-        depends_on: [review]
+        depends_on: [codex_review]
 
       # Phase: Report (skippable)
       - id: report
