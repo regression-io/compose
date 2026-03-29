@@ -425,6 +425,14 @@ flows:
              commands, or capabilities. Skip if purely internal.
           4. CLAUDE.md — Update ONLY if new conventions, commands, or architecture
              patterns were introduced. Skip if no changes.
+          5. Public docs — If the feature introduces or changes any of these, update
+             the relevant file in docs/:
+               - New CLI commands or flags → docs/compose-one-pager.md
+               - New connector or agent type → docs/connectors.md
+               - New workflow or lifecycle change → docs/use-cases.md
+               - API or config changes → docs/PRODUCT-SPEC.md
+             Read each file before editing. Skip if the feature is purely internal
+             with no user-facing changes.
 
           Read each file before editing. Do not skip CHANGELOG and ROADMAP —
           they are always required. Commit nothing — the ship step handles commits.
