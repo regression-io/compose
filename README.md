@@ -2,7 +2,7 @@
 
 AI-powered product lifecycle orchestrator. Compose takes a product idea from intent to shipped code through structured, agent-driven pipelines with human gates at every critical decision point.
 
-Compose coordinates multiple AI agents (Claude, Codex) through YAML-defined workflows powered by [Stratum](https://github.com/your-org/stratum), enforcing postconditions, retrying on failure, and producing auditable execution traces.
+Compose coordinates multiple AI agents (Claude, Codex) through YAML-defined workflows powered by [Stratum](https://github.com/regression-io/stratum), enforcing postconditions, retrying on failure, and producing auditable execution traces.
 
 ## Table of Contents
 
@@ -50,13 +50,14 @@ compose build FEAT-1
   -> verification (claude)
   -> plan (claude)
   -> [human gate]
-  -> execute / TDD (claude)
-  -> review (codex) + fix loop
+  -> decompose + parallel execute (claude, worktree isolation)
+  -> parallel review (claude lenses: diff-quality, contract, security, framework)
+  -> codex review (codex) + fix loop
   -> coverage sweep (claude) + fix loop
   -> docs update (claude)
   -> ship (claude)
   -> [human gate]
-  -> done: feature implemented, tested, documented
+  -> done: feature implemented, reviewed, tested, documented
 ```
 
 ---
@@ -348,24 +349,31 @@ Defined in `pipelines/build.stratum.yaml`. Executes a feature through the full d
 | # | Step | Agent | What It Does |
 |---|------|-------|-------------|
 | 1 | `explore_design` | claude | Explores codebase, writes design doc to `docs/features/{code}/design.md` |
-| 2 | `design_gate` | human | Approve design, revise (loop to explore_design), or kill. Timeout: 1h |
-| 3 | `prd` | claude | Write PRD. **Skipped by default** -- enable via `compose pipeline enable prd` |
-| 4 | `architecture` | claude | Architecture doc with competing proposals. **Skipped by default** |
-| 5 | `blueprint` | claude | Implementation blueprint with file:line references. Retries: 3 |
-| 6 | `verification` | claude | Verify all blueprint references against actual code. `on_fail: blueprint` loops back if stale |
-| 7 | `plan` | claude | Ordered implementation plan with tasks, deps, file paths, acceptance criteria |
-| 8 | `plan_gate` | human | Approve plan, revise (loop to plan), or kill. Timeout: 1h |
-| 9 | `execute` | claude | TDD implementation: write test, watch fail, implement, watch pass |
-| 10 | `review` | codex (sub-flow) | Codex reviews implementation against blueprint. Retries: 10. Cross-agent fix: claude fixes, codex re-reviews |
-| 11 | `coverage` | claude (sub-flow) | Run tests, fix failures, re-run. Retries: 15 |
-| 12 | `report` | claude | Post-implementation report. **Skipped by default** |
-| 13 | `docs` | claude | Update CHANGELOG, README, ROADMAP, CLAUDE.md |
-| 14 | `ship` | claude | Final verification, run tests, commit |
-| 15 | `ship_gate` | human | Final approval. Timeout: 30min |
+| 2 | `scope` | claude | Scope the feature, identify boundaries |
+| 3 | `design_gate` | human | Approve design, revise (loop to explore_design), or kill |
+| 4 | `prd` | claude | Write PRD. **Skipped by default** -- enable via `compose pipeline enable prd` |
+| 5 | `architecture` | claude | Architecture doc with competing proposals. **Skipped by default** |
+| 6 | `blueprint` | claude | Implementation blueprint with file:line references. Retries: 3 |
+| 7 | `verification` | claude | Verify all blueprint references against actual code. `on_fail: blueprint` loops back if stale |
+| 8 | `plan_gate` | human | Approve plan, revise (loop to plan), or kill |
+| 9 | `decompose` | claude | Decompose plan into independent subtasks with `files_owned`/`files_read` |
+| 10 | `execute` | claude | Parallel dispatch: TDD implementation in isolated git worktrees per subtask |
+| 11 | `review` | claude (sub-flow) | Parallel multi-lens review: triage → 2-4 specialized lenses → merge/dedup. Retries: 5 |
+| 12 | `codex_review` | codex (sub-flow) | Independent cross-model review after Claude lenses + fixes. Retries: 3 |
+| 13 | `coverage` | claude (sub-flow) | Run tests, fix failures, re-run. Retries: 15 |
+| 14 | `report` | claude | Post-implementation report. **Skipped by default** |
+| 15 | `docs` | claude | Update CHANGELOG, ROADMAP, README, CLAUDE.md, and public docs |
+| 16 | `ship` | claude | Run tests, run build, verify docs, stage, commit, push |
+| 17 | `ship_gate` | human | Final approval |
 
 ### Sub-flows
 
-**`review_check`**: Single-step codex review. Returns `{ clean, summary, findings }`. Retries until `clean == true` (max 10). When postconditions fail, the build runner dispatches a claude fix pass before the next codex review iteration.
+**`parallel_review`** (STRAT-REV): Multi-lens review with three steps:
+1. **triage** (claude) — reads file list, activates relevant lenses (always: diff-quality + contract-compliance; conditional: security, framework). On retry, reads `.compose/prior_dirty_lenses.json` for selective re-review.
+2. **review_lenses** (parallel_dispatch, isolation: none) — fans out 2-4 lens agents concurrently. Each lens returns `LensFinding[]` with severity, file, line, confidence. Confidence gates and false-positive exclusion lists reduce noise.
+3. **merge** (claude) — deduplicates findings by file+issue, assigns severity (must-fix/should-fix/nit), classifies as auto-fix vs ask.
+
+**`review_check`** (fallback): Single-step codex review. Returns `{ clean, summary, findings }`. Retries until `clean == true` (max 5). Cross-agent fix: claude fixes, codex re-reviews. Used by `codex_review` step.
 
 **`coverage_check`**: Single-step test runner. Returns `{ passing, summary, failures }`. Retries until `passing == true` (max 15). Fix pass dispatched on failure.
 
@@ -374,6 +382,12 @@ Defined in `pipelines/build.stratum.yaml`. Executes a feature through the full d
 - `PhaseResult`: `{ phase, artifact, outcome, summary }` -- `outcome` is one of `complete`, `skipped`, `failed`
 - `ReviewResult`: `{ clean, summary, findings }`
 - `TestResult`: `{ passing, summary, failures }`
+- `LensFinding`: `{ lens, file, line, severity, finding, confidence }` -- per-finding from a review lens
+- `LensTask`: `{ id, lens_name, lens_focus, confidence_gate, exclusions }` -- triage output for lens dispatch
+- `LensResult`: `{ clean, findings[] }` -- single lens output
+- `TriageResult`: `{ tasks[] }` -- triage step output
+- `MergedReviewResult`: `{ clean, summary, findings[], lenses_run[], auto_fixes[], asks[] }` -- merged review output
+- `TaskGraph`: `{ tasks[] }` -- decompose output for parallel dispatch
 
 ### on_fail Routing
 
@@ -659,20 +673,49 @@ Steps can specify `on_fail: <step-id>` to route to a different step when retries
 
 ## Progress Logging
 
-During agent execution, Compose streams tool_use events to stderr so the user sees activity:
+During agent execution, Compose renders a live progress display to stderr with two modes:
+
+**Collapsed (default):** Shows the last 5 tool events, a status line with elapsed time and tool count, and a key hints bar. Redraws in-place every 5 seconds (heartbeat).
 
 ```
-[1/6] research...
-    -> Bash: rg "todo" --type js
-    -> Read: /path/to/file.js
-    -> Write: docs/discovery/research.md
-  [checkmark] Wrote docs/discovery/research.md (45 lines) -- Prior Art Research
+  ● explore ─ ● scope ─ ◉ blueprint ─ ○ plan ─ ○ execute ─ ○ review ─ ○ codex
+[3/17] blueprint...
+    ↳ Read: lib/build.js
+    ↳ Grep: pattern match in server/
+    ↳ Read: docs/features/FEAT-1/design.md
+    ↳ Edit: src/App.jsx
+    ↳ Bash: npm test
+  blueprint · 45s · 5 calls
+  keys: t=toggle  s=skip  r=retry  Ctrl+C=abort
 ```
 
-Event types logged:
-- `tool_use`: Shows tool name and a shortened detail (command, pattern, query, or file_path -- max 60 chars)
-- `tool_use_summary`: Shows summary text (max 80 chars)
-- `tool_progress`: Shows tool name and elapsed time in seconds
+**Expanded:** Shows all tool events as they arrive, plus elapsed time heartbeat every 5 seconds.
+
+### Key commands during build
+
+| Key | Action |
+|-----|--------|
+| `t` | Toggle between collapsed and expanded view |
+| `s` | Skip the current step (interrupts agent, moves to next) |
+| `r` | Retry the current step (interrupts agent, re-runs same step) |
+| `Ctrl+C` | Abort the build |
+
+### Pipeline bar
+
+The pipeline bar shows all build steps with status indicators:
+- `●` (green) — completed steps
+- `◉` (cyan, bold) — current active step
+- `○` (dim) — pending steps
+
+Adapts to terminal width with a sliding window for narrow terminals.
+
+### Findings table
+
+When the review step returns violations, they're rendered as a formatted table with severity coloring (must-fix=red, should-fix=yellow, nit=gray).
+
+### Gate panel
+
+Gate prompts render as a boxed panel showing the artifact path, phase transition, and color-coded action options instead of raw readline text.
 
 Enable verbose event logging with `COMPOSE_DEBUG=1`.
 
@@ -826,6 +869,10 @@ Compose exposes project state as MCP tools via `server/compose-mcp.js` (stdio tr
 | `scaffold_feature` | Create feature folder with template stubs |
 | `approve_gate` | Resolve a pending gate (approved/revised/killed) |
 | `get_pending_gates` | List pending gates |
+| `agent_run` | Run a prompt against an AI agent (claude or codex) with optional JSON schema |
+| `start_iteration_loop` | Start an iteration loop on a feature |
+| `report_iteration_result` | Report iteration outcome (clean/dirty/max_reached) |
+| `abort_iteration_loop` | Abort an active iteration loop |
 
 ---
 
@@ -853,9 +900,11 @@ Specs use Stratum IR v0.3 format (backward-compatible superset of v0.2). All exi
 - **input expressions**: Data flow between steps (`$.input.x`, `$.steps.prev.output.y`)
 - **skip_if / skip_reason**: Conditional step skipping
 
-**v0.3 additions (STRAT-PAR-1):**
+**v0.3 additions (STRAT-PAR, STRAT-REV):**
 - **`decompose` step type**: the agent emits a **TaskGraph** — an array of tasks, each with `files_owned` (write set), `files_read` (read set), and `depends_on` (dependency list). Used to break a sequential step into independent subtasks before parallel execution.
-- **`parallel_dispatch` step type**: consumes a TaskGraph and coordinates concurrent agent runs. Fields: `require` (upstream TaskGraph reference), `max_concurrent` (concurrency cap), `isolation` (`worktree` | `none`), `merge` (`squash` | `rebase` | `none`), and `intent_template` (per-task prompt template).
+- **`parallel_dispatch` step type**: consumes a TaskGraph and coordinates concurrent agent runs. Fields: `source` (JSON pointer to task array, e.g. `$.steps.decompose.output.tasks`), `max_concurrent` (concurrency cap, default 3), `isolation` (`worktree` for write isolation, `branch`, or `none` for read-only tasks), `merge` (`sequential_apply` | `manual`), `require` (`all` | `any` | integer N), and `intent_template` (per-task prompt template with `{field}` interpolation).
+- **`no_file_conflicts` ensure**: validates that no two independent tasks share `files_owned` entries.
+- **`isolation: none`**: allows read-only parallel tasks (e.g. review lenses) to run without git worktree overhead.
 
 ---
 
@@ -922,23 +971,25 @@ compose pipeline show
 
 Output:
 ```
-  Pipeline: build (15 steps)
+  Pipeline: build (17 steps)
 
    1. explore_design  agent  agent: claude [2 ensures] (retries: 2)
-   2. design_gate     gate   human gate (timeout: 3600s)
-   3. prd             skip   PRD skipped by default
-   4. architecture    skip   Architecture skipped by default
-   5. blueprint       agent  agent: claude [2 ensures] (retries: 3)
-   6. verification    agent  agent: claude [1 ensures] (retries: 2) -> on_fail: blueprint
-   7. plan            agent  agent: claude [2 ensures] (retries: 2)
+   2. scope           agent  agent: claude (retries: 2)
+   3. design_gate     gate   human gate (timeout: 3600s)
+   4. prd             skip   PRD skipped by default
+   5. architecture    skip   Architecture skipped by default
+   6. blueprint       agent  agent: claude [2 ensures] (retries: 3)
+   7. verification    agent  agent: claude [1 ensures] (retries: 2) -> on_fail: blueprint
    8. plan_gate       gate   human gate (timeout: 3600s)
-   9. execute         agent  agent: claude (retries: 2)
-  10. review          flow   review_check: review (agent: codex)
-  11. coverage        flow   coverage_check: run_tests (agent: claude)
-  12. report          skip   Report skipped by default
-  13. docs            agent  agent: claude (retries: 2)
-  14. ship            agent  agent: claude (retries: 2)
-  15. ship_gate       gate   human gate (timeout: 1800s)
+   9. decompose       agent  agent: claude [2 ensures] (retries: 2)
+  10. execute         par    parallel_dispatch (worktree isolation)
+  11. review          flow   parallel_review: triage → lenses → merge (retries: 5)
+  12. codex_review    flow   review_check: review (agent: codex, retries: 3)
+  13. coverage        flow   coverage_check: run_tests (agent: claude, retries: 15)
+  14. report          skip   Report skipped by default
+  15. docs            agent  agent: claude (retries: 2)
+  16. ship            agent  agent: claude (retries: 2)
+  17. ship_gate       gate   human gate (timeout: 1800s)
 ```
 
 ### Environment Variables
