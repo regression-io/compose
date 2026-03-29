@@ -113,18 +113,31 @@ flows:
   # if parallel dispatch is unavailable.
   parallel_review:
     input:
-      task:      {type: string}
-      blueprint: {type: string}
-      diff:      {type: string}
+      task:               {type: string}
+      blueprint:          {type: string}
+      diff:               {type: string}
+      prior_dirty_lenses: {type: array, optional: true}
     output: MergedReviewResult
     steps:
       - id: triage
         agent: claude
         intent: >
-          Read the file list from the diff input. Decide which review lenses to activate.
-          Always include diff-quality and contract-compliance.
-          Add security if files touch auth, crypto, SQL, HTTP handlers.
-          Add framework if detected framework files (React, Express, Next.js, etc).
+          Decide which review lenses to activate.
+
+          RETRY PATH — If the file .compose/prior_dirty_lenses.json exists, read it.
+          It contains a JSON array of lens IDs that had actionable findings in the prior
+          review run. In this case:
+            - Activate all lenses listed in that array.
+            - Always also include diff-quality and contract-compliance (baseline lenses —
+              they re-run on every retry to catch regressions introduced by the fix, even
+              if they passed clean last time).
+            - Skip all other lenses — they already passed clean.
+
+          FIRST RUN PATH — If .compose/prior_dirty_lenses.json does not exist:
+            - Always include diff-quality and contract-compliance.
+            - Add security if files touch auth, crypto, SQL, HTTP handlers.
+            - Add framework if detected framework files (React, Express, Next.js, etc).
+
           Return JSON: { "tasks": LensTask[] } where each task has id, lens_name,
           lens_focus, confidence_gate, exclusions.
         inputs:

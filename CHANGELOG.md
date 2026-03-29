@@ -9,7 +9,7 @@
 - **Pipeline:** `pipelines/build.stratum.yaml` — new contracts (LensFinding, LensTask, LensResult, TriageResult, MergedReviewResult), `parallel_review` sub-flow (triage → parallel lens dispatch → merge), main flow review step wired to `parallel_review`.
 - **Build.js:** Review timeout bumped to 15min, added triage (2min) and merge (3min) timeouts. `isolation: "none"` path verified for read-only tasks.
 - **Fix loop:** Parent-level ensure/retry drives the fix loop — ensure fails → build.js claude fix → whole sub-flow re-invoked with fresh triage/lenses/merge.
-- STRAT-REV-5 (selective re-review) deferred as optimization. STRAT-REV-7 (cross-model synthesis) deferred.
+- STRAT-REV-5 (selective re-review) complete: sidecar `.compose/prior_dirty_lenses.json` written on review ensure_failed, triage reads it on retry. STRAT-REV-7 (cross-model synthesis) deferred.
 
 ### COMP-UI-6: Polish and Teardown
 
