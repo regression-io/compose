@@ -152,6 +152,7 @@ _V03_SCHEMA: dict = {
             "require",
             "merge",
             "intent_template",
+            "reasoning_template",
         ],
     },
 }
@@ -310,6 +311,16 @@ def _validate_v03_flow_steps(steps: list, flow_name: str, spec: dict) -> None:
             case _:
                 # v0.2 step types: check for v0.3-exclusive fields on non-v0.3 steps
                 _check_no_exclusive_fields(step, flow_name)
+
+        # CERT-1: reasoning_template only valid on intent-bearing steps
+        if "reasoning_template" in step:
+            if step_type in ("parallel_dispatch", "function"):
+                raise IRSemanticError(
+                    "IR_V03_CERT_ON_WRONG_TYPE",
+                    f"Step '{sid}' in flow '{flow_name}' has 'reasoning_template' "
+                    f"which is not valid on {step_type} steps. "
+                    f"Use it on execute_step or decompose steps only."
+                )
 
         step_map[sid] = step
         step_order.append(sid)
