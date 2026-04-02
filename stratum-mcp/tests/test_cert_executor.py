@@ -163,3 +163,11 @@ class TestValidateCertificate:
         response = _make_ensure_failed_response(flow, step, violations)
         assert response["status"] == "ensure_failed"
         assert any("certificate" in v for v in response["violations"])
+
+    def test_empty_sections_no_crash(self):
+        """validate_certificate with empty sections and require_citations should not crash."""
+        template = {"require_citations": True, "sections": []}
+        result = {"artifact": "some text"}
+        violations = validate_certificate(template, result)
+        # No IndexError — should return empty violations (no sections to check)
+        assert violations == []

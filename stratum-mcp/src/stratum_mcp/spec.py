@@ -143,6 +143,12 @@ def _apply_cert_defaults(step: dict) -> None:
         template["sections"] = copy.deepcopy(CERT_DEFAULT_SECTIONS)
     if "require_citations" not in template:
         template["require_citations"] = False
+    # Reject empty sections
+    if not template.get("sections"):
+        raise IRSemanticError(
+            "IR_V03_CERT_EMPTY_SECTIONS",
+            "reasoning_template must have at least one section"
+        )
     # Validate section structure
     for i, section in enumerate(template.get("sections", [])):
         for field in ("id", "label", "description"):
@@ -352,7 +358,7 @@ def _validate_v03_flow_steps(steps: list, flow_name: str, spec: dict) -> None:
 
         # CERT-1: reasoning_template only valid on intent-bearing steps
         if "reasoning_template" in step:
-            if step_type in ("parallel_dispatch", "function"):
+            if step_type in ("parallel_dispatch", "function", "flow"):
                 raise IRSemanticError(
                     "IR_V03_CERT_ON_WRONG_TYPE",
                     f"Step '{sid}' in flow '{flow_name}' has 'reasoning_template' "

@@ -175,3 +175,44 @@ flows:
 """
         with pytest.raises(IRSemanticError, match="missing required field"):
             parse_and_validate(spec)
+
+    def test_empty_sections_list_rejected(self):
+        """Explicitly passing sections: [] should be rejected."""
+        spec = """
+version: "0.3"
+contracts:
+  Result:
+    summary: {type: string}
+flows:
+  main:
+    steps:
+      - id: review
+        intent: "Review"
+        output_contract: Result
+        reasoning_template:
+          require_citations: false
+          sections: []
+"""
+        with pytest.raises(IRSemanticError, match="at least one section"):
+            parse_and_validate(spec)
+
+    def test_reasoning_template_on_flow_step_rejected(self):
+        """reasoning_template is not valid on flow steps."""
+        spec = """
+version: "0.3"
+contracts: {}
+flows:
+  sub:
+    steps:
+      - id: work
+        intent: "Do work"
+  main:
+    steps:
+      - id: delegate
+        type: flow
+        flow: sub
+        reasoning_template:
+          require_citations: false
+"""
+        with pytest.raises(IRSemanticError, match="reasoning_template"):
+            parse_and_validate(spec)

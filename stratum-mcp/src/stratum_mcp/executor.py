@@ -541,7 +541,10 @@ def validate_certificate(template: dict, result: dict) -> list[str]:
 
     if template.get("require_citations", False) and not violations:
         # Only check citations if all sections are present
-        conclusion_label = template["sections"][-1]["label"]
+        sections = template.get("sections", [])
+        if not sections:
+            return violations
+        conclusion_label = sections[-1]["label"]
         conclusion_idx = artifact.find(f"## {conclusion_label}")
         if conclusion_idx >= 0:
             conclusion_text = artifact[conclusion_idx:]
