@@ -115,6 +115,36 @@ V03_ADDITIONS: dict = {
     },
 }
 
+CERT_DEFAULT_SECTIONS: list[dict] = [
+    {
+        "id": "premises",
+        "label": "Premises",
+        "description": "State every verifiable fact you are using. Each premise must cite a file:line.",
+    },
+    {
+        "id": "trace",
+        "label": "Trace",
+        "description": "Walk through the logic step by step. Reference premises by [P<n>] ID.",
+    },
+    {
+        "id": "conclusion",
+        "label": "Conclusion",
+        "description": "State your finding. Every claim must reference at least one premise.",
+    },
+]
+
+
+def _apply_cert_defaults(step: dict) -> None:
+    """Apply default sections to reasoning_template if sections not specified."""
+    template = step.get("reasoning_template")
+    if template is None:
+        return
+    if "sections" not in template:
+        template["sections"] = copy.deepcopy(CERT_DEFAULT_SECTIONS)
+    if "require_citations" not in template:
+        template["require_citations"] = False
+
+
 # Built-in v0.3 contracts — user specs cannot redefine these names
 V03_BUILTIN_CONTRACTS: dict = {
     "TaskGraph": {
@@ -321,6 +351,8 @@ def _validate_v03_flow_steps(steps: list, flow_name: str, spec: dict) -> None:
                     f"which is not valid on {step_type} steps. "
                     f"Use it on execute_step or decompose steps only."
                 )
+
+        _apply_cert_defaults(step)
 
         step_map[sid] = step
         step_order.append(sid)

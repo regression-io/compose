@@ -97,3 +97,60 @@ flows:
 """
         with pytest.raises(IRSemanticError, match="reasoning_template"):
             parse_and_validate(spec)
+
+    def test_minimal_template_gets_default_sections(self):
+        """reasoning_template with no sections should get 3 defaults."""
+        spec = """
+version: "0.3"
+contracts:
+  Result:
+    summary: {type: string}
+flows:
+  main:
+    steps:
+      - id: review
+        intent: "Review the diff"
+        output_contract: Result
+        reasoning_template:
+          require_citations: true
+"""
+        result = parse_and_validate(spec)
+        step = result["flows"]["main"]["steps"][0]
+        sections = step["reasoning_template"]["sections"]
+        assert len(sections) == 3
+        assert sections[0]["id"] == "premises"
+        assert sections[1]["id"] == "trace"
+        assert sections[2]["id"] == "conclusion"
+        for s in sections:
+            assert "label" in s
+            assert "description" in s
+
+    def test_custom_sections_preserved(self):
+        """Custom sections should not be overwritten by defaults."""
+        spec = """
+version: "0.3"
+contracts:
+  Result:
+    summary: {type: string}
+flows:
+  main:
+    steps:
+      - id: review
+        intent: "Review"
+        output_contract: Result
+        reasoning_template:
+          require_citations: false
+          sections:
+            - id: evidence
+              label: "Evidence"
+              description: "Gather evidence."
+            - id: verdict
+              label: "Verdict"
+              description: "State verdict."
+"""
+        result = parse_and_validate(spec)
+        step = result["flows"]["main"]["steps"][0]
+        sections = step["reasoning_template"]["sections"]
+        assert len(sections) == 2
+        assert sections[0]["id"] == "evidence"
+        assert sections[1]["id"] == "verdict"
