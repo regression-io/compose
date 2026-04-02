@@ -151,6 +151,11 @@ def _apply_cert_defaults(step: dict) -> None:
         )
     # Validate section structure
     for i, section in enumerate(template.get("sections", [])):
+        if not isinstance(section, dict):
+            raise IRSemanticError(
+                "IR_V03_CERT_INVALID_SECTION",
+                f"reasoning_template section {i} must be a mapping, got {type(section).__name__}"
+            )
         for field in ("id", "label", "description"):
             if field not in section:
                 raise IRSemanticError(
