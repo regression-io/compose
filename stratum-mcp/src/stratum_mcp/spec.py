@@ -143,6 +143,14 @@ def _apply_cert_defaults(step: dict) -> None:
         template["sections"] = copy.deepcopy(CERT_DEFAULT_SECTIONS)
     if "require_citations" not in template:
         template["require_citations"] = False
+    # Validate section structure
+    for i, section in enumerate(template.get("sections", [])):
+        for field in ("id", "label", "description"):
+            if field not in section:
+                raise IRSemanticError(
+                    "IR_V03_CERT_INVALID_SECTION",
+                    f"reasoning_template section {i} is missing required field '{field}'"
+                )
 
 
 # Built-in v0.3 contracts — user specs cannot redefine these names

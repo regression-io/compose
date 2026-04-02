@@ -154,3 +154,24 @@ flows:
         assert len(sections) == 2
         assert sections[0]["id"] == "evidence"
         assert sections[1]["id"] == "verdict"
+
+    def test_malformed_section_missing_label_rejected(self):
+        """Section missing label/description should fail validation."""
+        spec = """
+version: "0.3"
+contracts:
+  Result:
+    summary: {type: string}
+flows:
+  main:
+    steps:
+      - id: review
+        intent: "Review"
+        output_contract: Result
+        reasoning_template:
+          require_citations: true
+          sections:
+            - id: premises
+"""
+        with pytest.raises(IRSemanticError, match="missing required field"):
+            parse_and_validate(spec)
