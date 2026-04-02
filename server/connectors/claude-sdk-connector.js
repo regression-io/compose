@@ -119,7 +119,8 @@ function _normalizeAll(msg) {
     return [{ type: 'tool_use', tool: msg.name ?? msg.tool, input: msg.input ?? {} }];
   }
   if (msg.type === 'tool_use_summary') {
-    return [{ type: 'tool_use_summary', summary: msg.summary }];
+    const output = (msg.result ?? msg.output ?? '');
+    return [{ type: 'tool_use_summary', summary: msg.summary, output: output ? output.slice(0, 2048) : undefined }];
   }
   if (msg.type === 'tool_progress') {
     return [{ type: 'tool_progress', tool: msg.tool_name, elapsed: msg.elapsed_time_seconds }];

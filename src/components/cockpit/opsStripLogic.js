@@ -1,11 +1,12 @@
 /**
  * opsStripLogic.js — Pure logic for OpsStrip, testable without React/JSX.
  */
+import { GATE_STEP_LABELS } from '../vision/constants.js';
 
 /**
  * Derive ops entries from vision store state.
  */
-export function deriveEntries({ activeBuild, gates, recentErrors, iterationStates }) {
+export function deriveEntries({ activeBuild, gates, items, recentErrors, iterationStates }) {
   const entries = [];
 
   // Active build entry
@@ -23,6 +24,7 @@ export function deriveEntries({ activeBuild, gates, recentErrors, iterationState
       type: activeBuild.status === 'complete' ? 'done' : 'build',
       label: `${activeBuild.featureCode} \u00B7 ${stepLabel}${progress}`,
       featureCode: activeBuild.featureCode,
+      retries: activeBuild.retries ?? 0,
     });
   }
 
@@ -30,20 +32,15 @@ export function deriveEntries({ activeBuild, gates, recentErrors, iterationState
   if (Array.isArray(gates)) {
     for (const gate of gates) {
       if (gate.status === 'pending') {
-        // Build a readable label — stepId like "design_gate" already contains "gate"
-        const stepLabel = gate.stepId
-          ? gate.stepId.replace(/_/g, ' ')
-          : gate.fromPhase || gate.toPhase || 'review';
-        // Don't append "gate" if stepLabel already ends with it
-        const label = stepLabel.toLowerCase().endsWith('gate')
-          ? stepLabel
-          : `${stepLabel} gate`;
-        const featureCode = gate.featureCode || '';
+        const stepLabel = GATE_STEP_LABELS[gate.stepId]
+          ?? (gate.fromPhase || gate.toPhase || 'Gate');
+        const item = Array.isArray(items) ? items.find(i => i.id === gate.itemId) : null;
+        const name = item?.title || gate.featureCode || '';
         entries.push({
           key: `gate-${gate.id}`,
           type: 'gate',
-          label: featureCode ? `${featureCode} ${label}` : label,
-          featureCode,
+          label: name ? `${stepLabel} — ${name}` : stepLabel,
+          featureCode: gate.featureCode || '',
           gateId: gate.id,
         });
       }

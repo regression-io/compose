@@ -1,6 +1,10 @@
 /**
  * agent-stream-helpers.js — pure JS helpers extracted from AgentStream.jsx
  * for testability with node --test (no JSX/jsdom required).
+ *
+ * Also exports verbose stream state management (getVerboseStream,
+ * setVerboseStream, hydrateVerboseStream, shouldIncludeMessage) so those
+ * behaviors can be tested without importing the JSX component.
  */
 
 // Tool category mapping — matches agent-hooks.js
@@ -17,6 +21,125 @@ export const CATEGORY_LABELS = {
   searching: 'Searching', fetching: 'Fetching', delegating: 'Delegating',
   thinking: 'Thinking', waiting: 'Waiting for gate approval',
 };
+
+// ---------------------------------------------------------------------------
+// Verbose stream toggle state
+// ---------------------------------------------------------------------------
+
+const VERBOSE_STREAM_KEY = 'compose:verboseStream';
+
+// Module-level state — shared with AgentStream.jsx via these exports
+const _verboseState = { verboseStream: false };
+
+/** Return the current verbose stream setting. */
+export function getVerboseStream() {
+  return _verboseState.verboseStream;
+}
+
+/**
+ * Set the verbose stream toggle.
+ * @param {*} val        Truthy/falsy — coerced to boolean.
+ * @param {Storage} [storage]  Injectable storage (defaults to globalThis.localStorage).
+ */
+export function setVerboseStream(val, storage) {
+  _verboseState.verboseStream = !!val;
+  const store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (store) {
+    try { store.setItem(VERBOSE_STREAM_KEY, String(_verboseState.verboseStream)); } catch {}
+  }
+}
+
+/**
+ * Hydrate verbose stream state from localStorage (or injected storage).
+ * Call once at app init. Safe to call when storage is unavailable.
+ * @param {Storage} [storage]  Injectable storage (defaults to globalThis.localStorage).
+ */
+export function hydrateVerboseStream(storage) {
+  const store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store) return;
+  try {
+    const raw = store.getItem(VERBOSE_STREAM_KEY);
+    if (raw !== null) _verboseState.verboseStream = raw === 'true';
+  } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// Message filter — verbose stream conditional
+// ---------------------------------------------------------------------------
+
+/**
+ * Determine whether a message should be included in the render list.
+ *
+ * Returns `{ include: boolean, msg: object }` where `msg` may be a new
+ * object with `verbose: true` tagged on (tool_progress / tool_use_summary
+ * when verboseStream is enabled). The original message is never mutated.
+ *
+ * @param {object} msg           SSE message object
+ * @param {boolean} verboseStream  Current verbose stream setting
+ * @returns {{ include: boolean, msg: object }}
+ */
+export function shouldIncludeMessage(msg, verboseStream) {
+  // stream_event is always filtered — unused by the UI
+  if (msg.type === 'stream_event') {
+    return { include: false, msg };
+  }
+
+  if (msg.type === 'tool_progress' || msg.type === 'tool_use_summary') {
+    if (!verboseStream) {
+      return { include: false, msg };
+    }
+    // Verbose mode: include with tag (new object, no mutation)
+    return { include: true, msg: { ...msg, verbose: true } };
+  }
+
+  return { include: true, msg };
+}
+
+// ---------------------------------------------------------------------------
+// Pre-grouping: pair tool_use → tool_use_summary (COMP-OBS-STREAM)
+// ---------------------------------------------------------------------------
+
+/**
+ * Group consecutive tool_use → tool_use_summary pairs so that results render
+ * attached below their tool call. The summary is consumed and attached as
+ * `_toolResult` on the preceding tool_use message (shallow copy).
+ *
+ * Only pairs when:
+ * - Current message is an assistant message with tool_use content blocks
+ * - Next message is a tool_use_summary (subtype or type)
+ *
+ * @param {object[]} messages
+ * @returns {object[]}
+ */
+export function groupToolResults(messages) {
+  const grouped = [];
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    const next = messages[i + 1];
+
+    // Check if current is a tool_use assistant message
+    const hasToolUse = msg.type === 'assistant' &&
+      msg.message?.content?.some(b => b.type === 'tool_use');
+
+    // Check if next is a tool_use_summary
+    const nextIsSummary = next && (
+      next.type === 'tool_use_summary' ||
+      (next.type === 'assistant' && next.subtype === 'tool_use_summary')
+    );
+
+    if (hasToolUse && nextIsSummary) {
+      grouped.push({ ...msg, _toolResult: next });
+      i++; // skip the consumed summary
+    } else {
+      grouped.push(msg);
+    }
+  }
+  return grouped;
+}
+
+// ---------------------------------------------------------------------------
+// Status derivation — replaces OSC title parsing
+// ---------------------------------------------------------------------------
 
 /**
  * Derive agent status from a message.

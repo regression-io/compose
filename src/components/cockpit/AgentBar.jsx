@@ -19,6 +19,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import AgentStream from '../AgentStream.jsx';
+import VerboseToggle from '../agent/VerboseToggle.jsx';
 import {
   nextAgentBarState,
   collapseAgentBar,
@@ -122,6 +123,9 @@ export default function AgentBar({ barState = 'collapsed', onStateChange }) {
         >
           {statusText}
         </span>
+
+        {/* Verbose stream toggle */}
+        <VerboseToggle />
 
         {/* Parallel progress bar — shown when parallel tasks are active */}
         {parallelProgress && parallelProgress.total > 0 && (

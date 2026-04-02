@@ -133,7 +133,7 @@ export class OpencodeConnector extends AgentConnector {
           const output = event.part?.state?.output;
           if (output && typeof output === 'string') {
             const short = output.length > 80 ? output.slice(0, 77) + '...' : output;
-            yield { type: 'tool_use_summary', summary: short };
+            yield { type: 'tool_use_summary', summary: short, output: output.slice(0, 2048) };
           }
         } else if (event.type === 'step_finish') {
           // step_finish includes cost and token info

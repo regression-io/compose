@@ -314,6 +314,20 @@ export class BuildStreamBridge {
           _source: 'build',
         };
 
+      case 'tool_use_summary':
+        return {
+          type: 'assistant', subtype: 'tool_use_summary',
+          summary: event.summary, output: event.output,
+          _source: 'build',
+        };
+
+      case 'tool_progress':
+        return {
+          type: 'tool_progress',
+          tool: event.tool, elapsed: event.elapsed,
+          _source: 'build',
+        };
+
       case 'assistant':
         return {
           type: 'assistant',

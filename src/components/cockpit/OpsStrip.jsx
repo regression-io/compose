@@ -12,8 +12,8 @@ import { deriveEntries } from './opsStripLogic.js';
  */
 
 export default function OpsStrip({ activeView, onSelectFeature }) {
-  const { activeBuild, gates, recentErrors, resolveGate, iterationStates } = useVisionStore(
-    useShallow(s => ({ activeBuild: s.activeBuild, gates: s.gates, recentErrors: s.recentErrors, resolveGate: s.resolveGate, iterationStates: s.iterationStates }))
+  const { activeBuild, gates, items, recentErrors, resolveGate, iterationStates } = useVisionStore(
+    useShallow(s => ({ activeBuild: s.activeBuild, gates: s.gates, items: s.items, recentErrors: s.recentErrors, resolveGate: s.resolveGate, iterationStates: s.iterationStates }))
   );
 
   // Animation state per entry key
@@ -42,8 +42,8 @@ export default function OpsStrip({ activeView, onSelectFeature }) {
   const effectiveBuild = activeBuild || completedBuild;
 
   const entries = useMemo(
-    () => deriveEntries({ activeBuild: effectiveBuild, gates, recentErrors, iterationStates }),
-    [effectiveBuild, gates, recentErrors, iterationStates],
+    () => deriveEntries({ activeBuild: effectiveBuild, gates, items, recentErrors, iterationStates }),
+    [effectiveBuild, gates, items, recentErrors, iterationStates],
   );
 
   // Filter out dismissed entries
@@ -160,6 +160,7 @@ export default function OpsStrip({ activeView, onSelectFeature }) {
           key={entry.key}
           type={entry.type}
           label={entry.label}
+          retries={entry.retries}
           animationState={animStates.get(entry.key) || 'steady'}
           onClick={onSelectFeature ? () => onSelectFeature(entry.featureCode) : undefined}
           onApprove={entry.type === 'gate' && entry.gateId ? () => handleApprove(entry.gateId) : undefined}

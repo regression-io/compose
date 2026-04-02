@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import MessageCard from './agent/MessageCard.jsx';
 import ChatInput from './agent/ChatInput.jsx';
+import {
+  shouldIncludeMessage,
+  getVerboseStream,
+  setVerboseStream,
+  hydrateVerboseStream,
+  groupToolResults,
+} from './agent-stream-helpers.js';
 
 /**
  * AgentStream — structured SDK message stream + chat input.
@@ -34,6 +41,12 @@ const CATEGORY_LABELS = {
   searching: 'Searching', fetching: 'Fetching', delegating: 'Delegating',
   thinking: 'Thinking', waiting: 'Waiting for gate approval',
 };
+
+// Hydrate verboseStream from localStorage once at module load
+hydrateVerboseStream();
+
+// Re-export for consumers that want to toggle verbose mode
+export { getVerboseStream, setVerboseStream };
 
 // ---------------------------------------------------------------------------
 // Module-level singleton — survives Vite HMR remounts
@@ -223,12 +236,12 @@ function processMessage(msg) {
     sessionStorage.setItem(SESSION_STORAGE_KEY, msg.session_id);
   }
 
-  // Append message (skip stream_event noise)
-  if (msg.type === 'stream_event' || msg.type === 'tool_progress' || msg.type === 'tool_use_summary') {
-    return; // don't render these
-  }
+  // Apply verbose stream filter — stream_event always filtered; tool_progress /
+  // tool_use_summary filtered unless verboseStream is enabled (tagged verbose: true)
+  const { include, msg: filteredMsg } = shouldIncludeMessage(msg, getVerboseStream());
+  if (!include) return;
 
-  _state.messages = [..._state.messages, msg];
+  _state.messages = [..._state.messages, filteredMsg];
   if (_state.messages.length > MAX_MESSAGES) {
     _state.messages = _state.messages.slice(-MAX_MESSAGES);
   }
@@ -493,7 +506,7 @@ export default function AgentStream() {
             </span>
           </div>
         )}
-        {messages.map((msg, i) => (
+        {groupToolResults(messages).map((msg, i) => (
           <MessageCard key={msg.uuid || i} msg={msg} />
         ))}
         <div ref={bottomRef} />

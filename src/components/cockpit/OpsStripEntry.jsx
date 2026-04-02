@@ -45,6 +45,7 @@ const ANIMATION_STYLES = {
 export default function OpsStripEntry({
   type = 'build',
   label,
+  retries = 0,
   onClick,
   onApprove,
   onDismiss,
@@ -94,6 +95,19 @@ export default function OpsStripEntry({
 
       {/* Label */}
       <span>{label}</span>
+
+      {/* Retry badge (COMP-OBS-SURFACE) */}
+      {retries > 0 && (
+        <span style={{
+          background: 'hsl(38 90% 50% / 0.2)',
+          color: 'hsl(38 90% 60%)',
+          padding: '0 5px',
+          borderRadius: '9999px',
+          fontSize: '9px',
+        }}>
+          {retries}
+        </span>
+      )}
 
       {/* Inline approve button for gates */}
       {type === 'gate' && onApprove && (

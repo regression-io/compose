@@ -7,8 +7,9 @@
  * Message envelope (yielded by run()):
  *   { type: 'system',    subtype: 'init' | 'complete', agent: string, model?: string }
  *   { type: 'assistant', content: string }
- *   { type: 'tool_use',  tool: string, input: object }
- *   { type: 'error',     message: string }
+ *   { type: 'tool_use',          tool: string, input: object }
+ *   { type: 'tool_use_summary',  summary: string, output?: string }
+ *   { type: 'error',             message: string }
  *
  * Schema mode: if opts.schema is provided, the connector injects it into the
  * prompt as instructions and yields text output. JSON.parse() happens at the

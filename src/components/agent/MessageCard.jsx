@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { TOOL_CATEGORY_COLORS } from '../vision/constants.js';
+import StepOutcome from './StepOutcome.jsx';
+import ToolResultBlock from './ToolResultBlock.jsx';
 
 /**
  * MessageCard — renders a single SDK message in the stream.
@@ -111,7 +113,19 @@ function AssistantCard({ msg }) {
           );
         }
         if (block.type === 'tool_use') {
-          return <ToolUseBlock key={i} block={block} />;
+          // Attach tool result only to the last tool_use block to avoid duplication
+          const isLastToolUse = !content.slice(i + 1).some(b => b.type === 'tool_use');
+          return (
+            <React.Fragment key={i}>
+              <ToolUseBlock block={block} />
+              {isLastToolUse && msg._toolResult && (
+                <ToolResultBlock
+                  summary={msg._toolResult.summary}
+                  output={msg._toolResult.output}
+                />
+              )}
+            </React.Fragment>
+          );
         }
         return null;
       })}
@@ -172,10 +186,33 @@ function UserCard({ msg }) {
 
 /** Main message card dispatcher */
 export default function MessageCard({ msg }) {
-  // Skip noisy partial/streaming events
+  // Skip noisy partial/streaming events (unless tagged verbose by COMP-OBS-SURFACE toggle)
   if (msg.type === 'stream_event') return null;
-  if (msg.type === 'tool_progress') return null;
-  if (msg.type === 'tool_use_summary') return null;
+  if (!msg.verbose && msg.type === 'tool_progress') return null;
+  if (!msg.verbose && msg.type === 'tool_use_summary') return null;
+
+  // Verbose events — dimmed one-liner rendering
+  if (msg.verbose) {
+    const label = msg.type === 'tool_progress'
+      ? `${msg.tool || 'tool'} · ${msg.elapsed != null ? msg.elapsed + 's' : ''}`
+      : msg.summary || 'summary';
+    const pill = msg.type === 'tool_progress' ? 'progress' : 'summary';
+    return (
+      <div style={{
+        opacity: 0.6, fontSize: '10px', padding: '2px 0', paddingLeft: 4,
+        borderLeft: '1px solid hsl(215 20% 20%)',
+        color: 'hsl(var(--muted-foreground))',
+        fontFamily: 'ui-monospace, monospace',
+      }}>
+        <span style={{
+          color: 'hsl(210 40% 45%)',
+          background: 'hsl(210 40% 45% / 0.1)',
+          padding: '0 4px', borderRadius: 2, fontSize: '10px',
+        }}>{pill}</span>{' '}
+        {label}
+      </div>
+    );
+  }
 
   if (msg.type === 'system' && msg.subtype === 'init') {
     return (
@@ -219,12 +256,7 @@ export default function MessageCard({ msg }) {
   }
 
   if (msg.type === 'system' && msg.subtype === 'build_step_done') {
-    return (
-      <div className="text-[10px] py-0.5"
-        style={{ color: 'hsl(var(--success, 142 60% 50%))', opacity: 0.7 }}>
-        step complete -- {msg.stepId}
-      </div>
-    );
+    return <StepOutcome msg={msg} mode="stream" />;
   }
 
   if (msg.type === 'system' && msg.subtype === 'build_gate') {
@@ -237,7 +269,7 @@ export default function MessageCard({ msg }) {
   }
 
   if (msg.type === 'system' && msg.subtype === 'build_gate_resolved') {
-    const color = msg.outcome === 'approved'
+    const color = (msg.outcome === 'approved' || msg.outcome === 'approve')
       ? 'hsl(var(--success, 142 60% 50%))'
       : msg.outcome === 'revise'
         ? 'hsl(38 90% 60%)'
