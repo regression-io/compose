@@ -526,6 +526,33 @@ def inject_cert_instructions(intent: str, template: dict) -> str:
     return "\n".join(lines)
 
 
+def validate_certificate(template: dict, result: dict) -> list[str]:
+    """Validate agent output contains required reasoning sections.
+
+    Returns list of violations (empty = pass).
+    """
+    artifact = result.get("artifact", "")
+    violations = []
+
+    for section in template.get("sections", []):
+        heading = f"## {section['label']}"
+        if heading not in artifact:
+            violations.append(f"certificate missing section: {section['label']}")
+
+    if template.get("require_citations", False) and not violations:
+        # Only check citations if all sections are present
+        conclusion_label = template["sections"][-1]["label"]
+        conclusion_idx = artifact.find(f"## {conclusion_label}")
+        if conclusion_idx >= 0:
+            conclusion_text = artifact[conclusion_idx:]
+            if not re.search(r'\[P\d+\]', conclusion_text):
+                violations.append(
+                    "certificate violation: conclusion contains no premise citations [P<n>]"
+                )
+
+    return violations
+
+
 # ---------------------------------------------------------------------------
 # State migration (v0.2 → v0.3)
 # ---------------------------------------------------------------------------

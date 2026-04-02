@@ -3,6 +3,8 @@ from stratum_mcp.executor import (
     compute_next_dispatch,
     FlowDefinition, FlowState, StepDefinition,
     inject_cert_instructions,
+    validate_certificate,
+    _make_ensure_failed_response,
 )
 
 
@@ -82,3 +84,82 @@ class TestDispatchWithCert:
         state = make_state()
         resp = compute_next_dispatch(flow, state)
         assert resp["intent"] == "Review code"
+
+
+GOOD_ARTIFACT = """## Premises
+[P1] The function `parse()` at `src/parser.py:42` returns a dict.
+[P2] The caller at `src/main.py:10` expects a list.
+
+## Trace
+Starting from [P1], the return type is dict. At [P2], the caller
+iterates over the result, which fails because dict iteration yields keys.
+
+## Conclusion
+[P1] and [P2] show a type mismatch. The function returns dict but the
+caller expects list. This will produce incorrect output, not a crash.
+"""
+
+BAD_MISSING_TRACE = """## Premises
+[P1] Something exists.
+
+## Conclusion
+It's fine. [P1]
+"""
+
+BAD_NO_CITATIONS = """## Premises
+[P1] The function exists.
+
+## Trace
+The function does stuff.
+
+## Conclusion
+Everything looks good.
+"""
+
+
+class TestValidateCertificate:
+    def test_valid_certificate_passes(self):
+        violations = validate_certificate(SAMPLE_TEMPLATE, {"artifact": GOOD_ARTIFACT})
+        assert violations == []
+
+    def test_missing_section_detected(self):
+        violations = validate_certificate(SAMPLE_TEMPLATE, {"artifact": BAD_MISSING_TRACE})
+        assert len(violations) == 1
+        assert "Trace" in violations[0]
+
+    def test_missing_citations_detected(self):
+        violations = validate_certificate(SAMPLE_TEMPLATE, {"artifact": BAD_NO_CITATIONS})
+        assert len(violations) == 1
+        assert "citation" in violations[0].lower()
+
+    def test_citations_not_required_when_disabled(self):
+        template = {
+            "require_citations": False,
+            "sections": [
+                {"id": "premises", "label": "Premises", "description": "Facts."},
+                {"id": "conclusion", "label": "Conclusion", "description": "Done."},
+            ],
+        }
+        artifact = "## Premises\nSome facts.\n\n## Conclusion\nAll good."
+        violations = validate_certificate(template, {"artifact": artifact})
+        assert violations == []
+
+    def test_empty_artifact_fails_all_sections(self):
+        violations = validate_certificate(SAMPLE_TEMPLATE, {"artifact": ""})
+        assert len(violations) == 3
+
+    def test_no_artifact_key_fails(self):
+        violations = validate_certificate(SAMPLE_TEMPLATE, {})
+        assert len(violations) == 3
+
+    def test_cert_failure_returns_ensure_failed(self):
+        """Cert violations should be usable by _make_ensure_failed_response."""
+        template = SAMPLE_TEMPLATE
+        result = {"artifact": "No structure here, just prose."}
+        violations = validate_certificate(template, result)
+        assert len(violations) > 0
+        step = make_step("s1", reasoning_template=template)
+        flow = make_flow([step])
+        response = _make_ensure_failed_response(flow, step, violations)
+        assert response["status"] == "ensure_failed"
+        assert any("certificate" in v for v in response["violations"])
