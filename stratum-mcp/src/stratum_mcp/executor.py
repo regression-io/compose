@@ -13,6 +13,7 @@ Registers `stratum_parallel_done` logic for batch result reporting.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -73,6 +74,7 @@ class StepDefinition:
     merge: str = 'sequential_apply'
     output_fields: dict = field(default_factory=dict)
     ensure: list[str] = field(default_factory=list)
+    reasoning_template: dict | None = None
 
 
 @dataclass
@@ -230,6 +232,12 @@ def compute_next_dispatch(flow: FlowDefinition, state: FlowState) -> dict:
 
 def _make_execute_step_response(flow: FlowDefinition, step: StepDefinition,
                                  step_number: int, total_steps: int) -> dict:
+    intent = step.intent
+
+    # STRAT-CERT: inject structured reasoning format for claude-agent steps
+    if step.reasoning_template and step.agent in ('claude', ''):
+        intent = inject_cert_instructions(intent, step.reasoning_template)
+
     return {
         'status':       'execute_step',
         'flow_id':      flow.flow_id,
@@ -237,7 +245,7 @@ def _make_execute_step_response(flow: FlowDefinition, step: StepDefinition,
         'step_number':  step_number,
         'total_steps':  total_steps,
         'agent':        step.agent,
-        'intent':       step.intent,
+        'intent':       intent,
         'output_fields': [
             {'name': k, 'type': v} for k, v in (step.output_fields or {}).items()
         ],
@@ -486,6 +494,36 @@ class _DictObj:
 
     def __eq__(self, other):
         return self.__dict__ == other
+
+
+# ---------------------------------------------------------------------------
+# STRAT-CERT: Reasoning template injection & validation
+# ---------------------------------------------------------------------------
+
+def inject_cert_instructions(intent: str, template: dict) -> str:
+    """Build a structured output format block from reasoning_template and append to intent."""
+    sections = template.get("sections", [])
+    require_citations = template.get("require_citations", False)
+
+    lines = [
+        intent,
+        "",
+        "---",
+        "",
+        "You MUST structure your response with these sections:",
+        "",
+    ]
+
+    for i, section in enumerate(sections):
+        lines.append(f"## {section['label']}")
+        lines.append(section["description"])
+        if i == 0 and require_citations:
+            lines.append("Format each fact as: [P1] <fact, citing file:line>, [P2] ..., etc.")
+        if i > 0 and require_citations:
+            lines.append("Reference premises by their [P<n>] ID.")
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
