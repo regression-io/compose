@@ -217,7 +217,7 @@ function buildStylesheet() {
     { selector: 'edge[edgeStyle="dashed"]', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 3], 'target-arrow-shape': 'diamond' } },
     { selector: 'edge[edgeType="blocks"]', style: { 'target-arrow-shape': 'tee' } },
     { selector: '.dimmed', style: { opacity: 0.35 } },
-    { selector: '.focus-dimmed', style: { opacity: 0.15 } },
+    { selector: '.focus-dimmed', style: { opacity: 0.15, 'events': 'no' } },
     { selector: '.highlighted', style: { 'border-width': 3, 'border-color': '#60a5fa' } },
     // COMP-UX-1c: Build state overlay styles
     { selector: '.build-building', style: { 'border-color': '#3b82f6', 'border-width': 3, 'shadow-color': '#3b82f6', 'shadow-opacity': 0.6, 'shadow-blur': 12 } },

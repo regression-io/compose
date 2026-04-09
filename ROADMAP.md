@@ -822,9 +822,9 @@ Proposed wave order for all PLANNED and PARTIAL features. Dependencies flow forw
 unblocks the next. COMP-UX-2 (2d → 2a → 2c) runs as a **parallel track** throughout, not gated by
 these waves.
 
-### Parallel Track: COMP-UX-2 (IN_PROGRESS)
+### Parallel Track: COMP-UX-2 (COMPLETE)
 
-Cockpit refocus — make existing views functional. 2b COMPLETE, remaining chain: 2d (group field) → 2a (feature-aware filtering) → 2c (dashboard landing). Runs independently, no cross-dependencies with waves below.
+Cockpit refocus — make existing views functional. All sub-features implemented: 2b (fix broken views), 2d (group field), 2a (feature-aware filtering), 2c (dashboard landing).
 
 ### Wave 0: Close Partials
 
