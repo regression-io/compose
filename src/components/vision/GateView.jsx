@@ -54,11 +54,16 @@ function deriveRecommendation(gate) {
   const summary = gate.summary;
 
   if (summary) {
-    const isRevise = /critical|error|fail|missing/i.test(summary);
+    const isRevise = /(?<!\bno\s)(?<!\b0\s)\b(critical|error|fail|missing)\b/i.test(summary);
     return { sentence: summary, outcome: isRevise ? 'revise' : 'approve' };
   }
 
-  if (!assessment || !assessment.exists) return null;
+  if (!assessment) return null;
+
+  // Missing artifact — recommend revise (matches CLI behavior)
+  if (assessment.exists === false) {
+    return { sentence: 'Required artifact is missing', outcome: 'revise' };
+  }
 
   const { completeness, wordCount, sections, meetsMinWordCount, findings } = assessment;
   const criticalCount = (findings ?? []).filter(
