@@ -41,9 +41,18 @@ export default function OpsStrip({ activeView, onSelectFeature }) {
 
   const effectiveBuild = activeBuild || completedBuild;
 
+  // COMP-OBS-SURFACE-4: tick `now` every second when iterations are running so elapsed counters update live.
+  const [now, setNow] = useState(() => Date.now());
+  const hasRunningIter = iterationStates && [...iterationStates.values()].some(i => i.status === 'running');
+  useEffect(() => {
+    if (!hasRunningIter) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [hasRunningIter]);
+
   const entries = useMemo(
-    () => deriveEntries({ activeBuild: effectiveBuild, gates, items, recentErrors, iterationStates }),
-    [effectiveBuild, gates, items, recentErrors, iterationStates],
+    () => deriveEntries({ activeBuild: effectiveBuild, gates, items, recentErrors, iterationStates, now }),
+    [effectiveBuild, gates, items, recentErrors, iterationStates, now],
   );
 
   // Filter out dismissed entries

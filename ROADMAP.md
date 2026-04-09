@@ -694,7 +694,7 @@ Runtime detection of agent tool calls that violate their capability profile. Cur
 
 ---
 
-## COMP-UX-3: Workflow Approachability — PLANNED
+## COMP-UX-3: Workflow Approachability — COMPLETE
 
 Reduce friction in the Compose workflow so first-time users can be productive without reading docs. Smarter defaults, conversational prompts at decision points, and concise status narration. The goal is not a simpler product — it's a less intimidating one.
 
@@ -731,7 +731,7 @@ Inspired by [LaneKeep](https://github.com/algorismo-au/lanekeep)'s budget-as-enf
 
 ---
 
-## COMP-OBS-SURFACE: Step Detail Surface — PLANNED
+## COMP-OBS-SURFACE: Step Detail Surface — COMPLETE
 
 Render existing but invisible data in the UI. Retry counts, postcondition results, and filtered SDK events already flow through build-stream events or audit traces — they just aren't displayed. Pure frontend work, no backend changes.
 
@@ -742,7 +742,7 @@ Inspired by [LaneKeep](https://github.com/algorismo-au/lanekeep)'s append-only a
 | 146 | COMP-OBS-SURFACE-1 | **Retry surface:** when a Stratum step fails postconditions and retries, show the failure reason and retry count in the message stream. Data already exists: `build.js` tracks `retries` per step, `ItemDetailPanel` shows `step.attempts` in audit trace. Add: retry badge on ops strip entry ("retry 2/3"), failure reason inline in build step message. Currently silent retries look like the agent is stuck. | PLANNED |
 | 148 | COMP-OBS-SURFACE-2 | **Postcondition visibility:** `build_step_done` events already carry `violations` array from `response.violations` in `build.js`. Render in MessageCard: check name, pass/fail icon, violation detail (expandable). Currently opaque — user sees "step done" but not what was verified. | PLANNED |
 | 150 | COMP-OBS-SURFACE-3 | **Filtered event toggle:** AgentStream.jsx suppresses `tool_progress`, `tool_use_summary`, `stream_event` (lines 226-228). Add a "verbose" toggle in agent bar settings. When on, these events render as dimmed, smaller-font entries. Off by default. Persisted in localStorage with other cockpit state. | PLANNED |
-| 192 | COMP-OBS-SURFACE-4 | **Live iteration budget counters:** Ops strip shows live budget state during active iteration loops: "iteration 3/5, 12:34 / 15:00 timeout, 47 actions". Data already flows through `iterationUpdate` WS events and iterationState has `count`, `maxIterations`, `startedAt`, `wallClockTimeout`, `totalActions`, `maxActions`. Pure frontend — read from visionMessageHandler's `iterationStates` map, render in ops strip entry for the active build. | PLANNED |
+| 192 | COMP-OBS-SURFACE-4 | **Live iteration budget counters:** OpsStrip shows "review 3/5, 2:34/15:00" during active iterations. Live elapsed timer via 1s setInterval. Reads wallClockTimeout/startedAt from iterationState. | COMPLETE |
 
 **Dependencies:** None — all data already available in the event stream. Item 192 depends on COMP-BUDGET (COMPLETE).
 
@@ -750,7 +750,7 @@ Inspired by [LaneKeep](https://github.com/algorismo-au/lanekeep)'s append-only a
 
 ---
 
-## COMP-OBS-STREAM: Tool Result Streaming — PLANNED
+## COMP-OBS-STREAM: Tool Result Streaming — COMPLETE
 
 Enrich the existing `tool_use_summary` event with full output content and render results attached to their `tool_use` blocks. Connectors truncate at 2KB. AgentStream pre-groups pairs by position. Visibility gated by COMP-OBS-SURFACE's verbose toggle.
 

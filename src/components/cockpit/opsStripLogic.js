@@ -4,9 +4,33 @@
 import { GATE_STEP_LABELS } from '../vision/constants.js';
 
 /**
+ * Format elapsed ms as mm:ss.
+ * @param {number} ms
+ * @returns {string}
+ */
+function formatElapsed(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/**
+ * Format a timeout in minutes as mm:ss.
+ * @param {number} minutes
+ * @returns {string}
+ */
+function formatTimeout(minutes) {
+  const totalSec = Math.round(minutes * 60);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/**
  * Derive ops entries from vision store state.
  */
-export function deriveEntries({ activeBuild, gates, items, recentErrors, iterationStates }) {
+export function deriveEntries({ activeBuild, gates, items, recentErrors, iterationStates, now = Date.now() }) {
   const entries = [];
 
   // Active build entry
@@ -47,15 +71,24 @@ export function deriveEntries({ activeBuild, gates, items, recentErrors, iterati
     }
   }
 
-  // Iteration loop entries (COMP-UX-9)
+  // Iteration loop entries (COMP-UX-9, COMP-OBS-SURFACE-4)
   if (iterationStates) {
     for (const [loopId, iter] of iterationStates) {
       if (iter.status === 'running') {
         const typeLabel = iter.loopType === 'review' ? 'review' : 'coverage';
+        const countPart = `${iter.count}/${iter.maxIterations}`;
+
+        // Budget counters: elapsed/timeout when wallClockTimeout is set
+        let budgetPart = '';
+        if (iter.wallClockTimeout != null && iter.startedAt) {
+          const elapsedMs = now - new Date(iter.startedAt).getTime();
+          budgetPart = `, ${formatElapsed(elapsedMs)}/${formatTimeout(iter.wallClockTimeout)}`;
+        }
+
         entries.push({
           key: `iter-${loopId}`,
           type: 'iteration',
-          label: `${typeLabel} ${iter.count}/${iter.maxIterations}`,
+          label: `${typeLabel} ${countPart}${budgetPart}`,
         });
       }
     }

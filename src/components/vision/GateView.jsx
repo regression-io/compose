@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils.js';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
-import { LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS } from './constants.js';
+import { LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS, GATE_STEP_LABELS } from './constants.js';
 import FeatureFocusToggle from '../shared/FeatureFocusToggle.jsx';
 import ArtifactDiff from '../shared/ArtifactDiff.jsx';
 
@@ -48,6 +48,54 @@ function ArtifactAssessment({ gate }) {
   );
 }
 
+// COMP-UX-3b: Derive a recommendation from the artifact assessment
+function deriveRecommendation(gate) {
+  const assessment = gate.artifactAssessment;
+  const summary = gate.summary;
+
+  if (summary) {
+    const isRevise = /critical|error|fail|missing/i.test(summary);
+    return { sentence: summary, outcome: isRevise ? 'revise' : 'approve' };
+  }
+
+  if (!assessment || !assessment.exists) return null;
+
+  const { completeness, wordCount, sections, meetsMinWordCount, findings } = assessment;
+  const criticalCount = (findings ?? []).filter(
+    f => /critical|error|fatal/i.test(f.severity ?? f.level ?? '')
+  ).length;
+  const missingCount = sections?.missing?.length ?? 0;
+
+  if (criticalCount > 0) {
+    return { sentence: `${criticalCount} critical finding${criticalCount > 1 ? 's' : ''}`, outcome: 'revise' };
+  }
+  if (!meetsMinWordCount && wordCount !== undefined) {
+    return { sentence: `Thin artifact (${wordCount} words)`, outcome: 'revise' };
+  }
+  if (missingCount > 0) {
+    return { sentence: `Missing ${missingCount} section${missingCount > 1 ? 's' : ''}`, outcome: 'revise' };
+  }
+  const pct = completeness !== undefined ? `${Math.round(completeness * 100)}% complete` : null;
+  const wc = wordCount !== undefined ? `${wordCount}w` : null;
+  const detail = [pct, wc].filter(Boolean).join(', ');
+  return { sentence: detail || 'Ready', outcome: 'approve' };
+}
+
+function RecommendationBadge({ gate }) {
+  const rec = deriveRecommendation(gate);
+  if (!rec) return null;
+  const isApprove = rec.outcome === 'approve';
+  return (
+    <div className={`text-[10px] px-2 py-0.5 rounded font-medium ${
+      isApprove
+        ? 'bg-success/10 text-success border border-success/20'
+        : 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
+    }`}>
+      {isApprove ? 'Recommended: approve' : 'Recommended: revise'} — {rec.sentence}
+    </div>
+  );
+}
+
 function Section({ title, count, color, children }) {
   return (
     <div>
@@ -88,9 +136,7 @@ function PendingGateRow({ gate, item, priorRevision, isExpanded, expandedAction,
             {item?.title ?? 'Unknown'}
           </button>
           <p className="text-[10px] text-muted-foreground">
-            {LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase}
-            {' → '}
-            {LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}
+            {GATE_STEP_LABELS[gate.stepId] ?? `${LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → ${LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}`}
           </p>
           <ArtifactAssessment gate={gate} />
           {priorRevision ? (
@@ -109,6 +155,11 @@ function PendingGateRow({ gate, item, priorRevision, isExpanded, expandedAction,
         <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
           {relativeTime(gate.createdAt)}
         </span>
+      </div>
+
+      {/* COMP-UX-3b: Recommendation badge */}
+      <div className="mt-1.5">
+        <RecommendationBadge gate={gate} />
       </div>
 
       {/* Action buttons */}
@@ -228,9 +279,7 @@ function ResolvedGateRow({ gate, item }) {
         </span>
       </div>
       <p className="text-[10px] text-muted-foreground mt-0.5">
-        {LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase}
-        {' → '}
-        {LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}
+        {GATE_STEP_LABELS[gate.stepId] ?? `${LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → ${LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}`}
       </p>
       {gate.comment && (
         <p className="text-[10px] text-muted-foreground mt-0.5 truncate italic">

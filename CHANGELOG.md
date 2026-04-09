@@ -2,6 +2,17 @@
 
 ## 2026-04-09
 
+### COMP-OBS-SURFACE + COMP-OBS-STREAM (Wave 3)
+
+- **OBS-SURFACE:** Items 146, 148, 150 already implemented. Item 192 (live budget counters): OpsStrip shows "review 3/5, 2:34/15:00" during active iterations with live elapsed timer.
+- **OBS-STREAM:** Items 145, 151-152 already implemented. Bridge mapping, ToolResultBlock, verbose gating all in place.
+
+### COMP-UX-3: Workflow Approachability (Wave 3)
+
+- **Scaffold defaults (137):** `compose feature` detects language, test framework, counts existing features. Pre-populates profile in feature.json (needs_prd, needs_architecture, etc.).
+- **Conversational gates (138):** `buildRecommendation()` derives 1-sentence summary + recommended action from artifact assessment. Enter key defaults to recommendation. "d" shows full details. Web UI RecommendationBadge above gate actions.
+- **Status narration (139):** 1-line console summaries after each step, gate resolution, and iteration. Full detail still in stream events.
+
 ### STRAT-REV-7: Cross-Model Adversarial Synthesis (Wave 2)
 
 - **review-lenses.js:** `classifyDiffSize()` (small/medium/large by file count) and `shouldRunCrossModel()` gate.

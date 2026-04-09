@@ -315,7 +315,7 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
       };
       store.updateLifecycle(req.params.id, item.lifecycle);
       scheduleBroadcast();
-      broadcastMessage({ type: 'iterationStarted', itemId: req.params.id, loopId: item.lifecycle.iterationState.loopId, loopType, maxIterations: max, timestamp: now });
+      broadcastMessage({ type: 'iterationStarted', itemId: req.params.id, loopId: item.lifecycle.iterationState.loopId, loopType, maxIterations: max, timestamp: now, startedAt: now, wallClockTimeout: timeoutMinutes, maxActions: maxActions ?? null });
       res.json(item.lifecycle.iterationState);
     } catch (err) {
       res.status(400).json({ error: err.message });

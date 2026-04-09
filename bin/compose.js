@@ -539,6 +539,59 @@ if (cmd === 'feature') {
 
   mkdirSync(featureDir, { recursive: true })
 
+  // ── COMP-UX-3a: Infer project defaults ────────────────────────────────────
+  // Detect language from lock files / manifests
+  let detectedLang = null
+  if (existsSync(join(cwd, 'package.json'))) detectedLang = 'node'
+  else if (existsSync(join(cwd, 'pyproject.toml')) || existsSync(join(cwd, 'setup.py'))) detectedLang = 'python'
+  else if (existsSync(join(cwd, 'Cargo.toml'))) detectedLang = 'rust'
+  else if (existsSync(join(cwd, 'go.mod'))) detectedLang = 'go'
+
+  // Detect test framework
+  let detectedTestFramework = null
+  if (detectedLang === 'node') {
+    if (existsSync(join(cwd, 'jest.config.js')) || existsSync(join(cwd, 'jest.config.ts')) || existsSync(join(cwd, 'jest.config.mjs'))) detectedTestFramework = 'jest'
+    else if (existsSync(join(cwd, 'vitest.config.js')) || existsSync(join(cwd, 'vitest.config.ts')) || existsSync(join(cwd, 'vitest.config.mjs'))) detectedTestFramework = 'vitest'
+    else {
+      // Check package.json devDependencies
+      try {
+        const pkg = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf-8'))
+        const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) }
+        if (deps.jest) detectedTestFramework = 'jest'
+        else if (deps.vitest) detectedTestFramework = 'vitest'
+        else if (deps.mocha) detectedTestFramework = 'mocha'
+      } catch { /* ignore */ }
+    }
+  } else if (detectedLang === 'python') {
+    if (existsSync(join(cwd, 'pytest.ini')) || existsSync(join(cwd, 'conftest.py'))) detectedTestFramework = 'pytest'
+  }
+
+  // Count existing features for complexity estimate
+  const existingFeatureCount = (() => {
+    try {
+      const fdir = join(cwd, featuresDir)
+      if (!existsSync(fdir)) return 0
+      return readdirSync(fdir, { withFileTypes: true })
+        .filter(e => e.isDirectory() && existsSync(join(fdir, e.name, 'feature.json')))
+        .length
+    } catch { return 0 }
+  })()
+
+  // Infer smart defaults for feature.json profile
+  const isSmallProject = existingFeatureCount < 3
+  const profile = {
+    needs_prd: !isSmallProject,
+    needs_architecture: existingFeatureCount >= 3,
+    needs_verification: true,
+    needs_report: !isSmallProject,
+    ...(detectedLang ? { language: detectedLang } : {}),
+    ...(detectedTestFramework ? { test_framework: detectedTestFramework } : {}),
+  }
+
+  if (detectedLang) console.log(`Detected language: ${detectedLang}${detectedTestFramework ? ` (${detectedTestFramework})` : ''}`)
+  if (existingFeatureCount > 0) console.log(`Existing features: ${existingFeatureCount} — profile: ${JSON.stringify({ needs_prd: profile.needs_prd, needs_architecture: profile.needs_architecture })}`)
+  // ── end COMP-UX-3a ─────────────────────────────────────────────────────────
+
   // Write feature.json (source of truth)
   const { writeFeature } = await import('../lib/feature-json.js')
   const today = new Date().toISOString().slice(0, 10)
@@ -547,6 +600,7 @@ if (cmd === 'feature') {
     description,
     status: 'PLANNED',
     created: today,
+    profile,
   }, featuresDir)
   console.log(`Created ${join(featureDir, 'feature.json')}`)
 

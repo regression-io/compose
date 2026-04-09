@@ -277,7 +277,9 @@ export function handleVisionMessage(msg, refs, setters) {
         next.set(msg.loopId, {
           loopId: msg.loopId, itemId: msg.itemId, loopType: msg.loopType,
           count: 0, maxIterations: msg.maxIterations,
-          status: 'running', outcome: null, startedAt: msg.timestamp,
+          status: 'running', outcome: null, startedAt: msg.startedAt ?? msg.timestamp,
+          wallClockTimeout: msg.wallClockTimeout ?? null,
+          maxActions: msg.maxActions ?? null,
         });
         return next;
       });

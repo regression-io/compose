@@ -184,3 +184,9 @@
 2026-04-09T23:00:58+08:00 | STRAT-REV-7: Add classifyDiffSize and shouldRunCrossModel to review-lenses.js (Task 1)
 2026-04-09T23:01:52+08:00 | STRAT-REV-7: Add cross-model dispatch, synthesis, and opt-out to build.js (Tasks 2-4)
 2026-04-09T23:03:06+08:00 | STRAT-REV-7: Add cross-model-review.test.js (Task 5)
+2026-04-09T23:33:10+08:00 | Wave 3: exploring OBS-SURFACE, OBS-STREAM, UX-3
+2026-04-09T23:37:31+08:00 | COMP-OBS-SURFACE-4: broadcast budget fields in iterationStarted, store in visionMessageHandler, format elapsed/timeout in opsStripLogic
+2026-04-09T23:37:41+08:00 | COMP-UX-3a: Enhance compose feature command with language/framework/complexity detection and smart defaults
+2026-04-09T23:38:09+08:00 | COMP-UX-3b: Add conversational gate prompts with recommendation and default Enter action, plus GateView summary badge
+2026-04-09T23:39:10+08:00 | COMP-UX-3b GateView: Add recommendation summary badge above approve/revise/kill buttons
+2026-04-09T23:39:38+08:00 | COMP-UX-3c: Add concise console narration to build.js for step completion, gate resolution, and iteration summaries
