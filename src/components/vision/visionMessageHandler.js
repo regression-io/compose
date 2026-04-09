@@ -304,12 +304,17 @@ export function handleVisionMessage(msg, refs, setters) {
       iterClearTimers.set(msg.loopId, timer);
     }
 
-    if (msg.type === 'iterationComplete' && msg.outcome === 'max_reached') {
+    if (msg.type === 'iterationComplete' && (msg.outcome === 'max_reached' || msg.outcome === 'timeout' || msg.outcome === 'action_limit')) {
+      const budgetMessages = {
+        max_reached: `${msg.loopType ?? 'Loop'} hit max iterations (${msg.finalCount}) — problem may be in the spec`,
+        timeout: `${msg.loopType ?? 'Loop'} timed out after ${msg.elapsedMinutes ?? '?'} minutes (${msg.finalCount} iterations)`,
+        action_limit: `${msg.loopType ?? 'Loop'} hit action count ceiling (${msg.finalCount} iterations)`,
+      };
       setAgentErrors(prev => {
         const next = [...prev, {
           errorType: 'iteration_limit',
           severity: 'warning',
-          message: `${msg.loopType ?? 'Loop'} hit max iterations (${msg.finalCount}) — problem may be in the spec`,
+          message: budgetMessages[msg.outcome] ?? `${msg.loopType ?? 'Loop'} stopped: ${msg.outcome}`,
           timestamp: msg.timestamp,
         }];
         return next.length > 10 ? next.slice(-10) : next;
@@ -324,7 +329,7 @@ export function handleVisionMessage(msg, refs, setters) {
       pushTimeline({
         id: `iteration-${msg.loopId}-${msg.type}`, timestamp: msg.timestamp,
         category: 'iteration', title: detail, detail: null,
-        severity: msg.outcome === 'max_reached' ? 'warning' : msg.type === 'iterationComplete' ? 'success' : 'info',
+        severity: (msg.outcome === 'max_reached' || msg.outcome === 'timeout' || msg.outcome === 'action_limit') ? 'warning' : msg.type === 'iterationComplete' ? 'success' : 'info',
         sessionId: null, meta: { loopId: msg.loopId, loopType: msg.loopType },
       });
     }

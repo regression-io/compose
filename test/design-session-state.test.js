@@ -15,6 +15,8 @@ const {
   reviseDecision,
   parseDecisionBlocks,
   isSessionComplete,
+  buildDraftDoc,
+  buildTopicOutline,
 } = await import(`${ROOT}/src/components/vision/designSessionState.js`);
 
 // ---------------------------------------------------------------------------
@@ -161,6 +163,135 @@ describe('parseDecisionBlocks', () => {
     assert.equal(result.parts[1].type, 'text');
     assert.equal(result.parts[1].content, '{not valid json}');
     assert.equal(result.parts[2].type, 'text');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildDraftDoc
+// ---------------------------------------------------------------------------
+
+describe('buildDraftDoc', () => {
+  test('returns empty string when no decisions', () => {
+    const result = buildDraftDoc([], []);
+    assert.equal(result, '');
+  });
+
+  test('returns empty string when all decisions are superseded', () => {
+    const decisions = [
+      { question: 'Q1?', selectedOption: { title: 'A' }, comment: null, superseded: true, timestamp: new Date().toISOString() },
+    ];
+    const result = buildDraftDoc([], decisions);
+    assert.equal(result, '');
+  });
+
+  test('produces markdown with two active decisions', () => {
+    const messages = [
+      { role: 'human', type: 'text', content: 'Build a task manager', timestamp: '2024-01-01T00:00:00.000Z' },
+    ];
+    const decisions = [
+      {
+        question: 'Which database?',
+        selectedOption: { title: 'PostgreSQL', bullets: ['Fast', 'Reliable'] },
+        comment: null,
+        superseded: false,
+        timestamp: '2024-01-01T00:01:00.000Z',
+      },
+      {
+        question: 'Which frontend?',
+        selectedOption: { title: 'React', bullets: ['Wide ecosystem'] },
+        comment: 'Team knows it',
+        superseded: false,
+        timestamp: '2024-01-01T00:02:00.000Z',
+      },
+    ];
+    const doc = buildDraftDoc(messages, decisions);
+
+    assert.ok(doc.includes('# Design Document'));
+    assert.ok(doc.includes('## Problem'));
+    assert.ok(doc.includes('Build a task manager'));
+    assert.ok(doc.includes('## Which database?'));
+    assert.ok(doc.includes('PostgreSQL'));
+    assert.ok(doc.includes('Fast'));
+    assert.ok(doc.includes('## Which frontend?'));
+    assert.ok(doc.includes('React'));
+    assert.ok(doc.includes('Team knows it'));
+    assert.ok(doc.includes('## Open Threads'));
+  });
+
+  test('skips superseded decisions in output', () => {
+    const decisions = [
+      {
+        question: 'Old question?',
+        selectedOption: { title: 'Old choice' },
+        comment: null,
+        superseded: true,
+        timestamp: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        question: 'New question?',
+        selectedOption: { title: 'New choice' },
+        comment: null,
+        superseded: false,
+        timestamp: '2024-01-01T00:01:00.000Z',
+      },
+    ];
+    const doc = buildDraftDoc([], decisions);
+
+    assert.ok(!doc.includes('Old question?'));
+    assert.ok(!doc.includes('Old choice'));
+    assert.ok(doc.includes('New question?'));
+    assert.ok(doc.includes('New choice'));
+  });
+
+  test('includes decision comment as note when present', () => {
+    const decisions = [
+      {
+        question: 'Auth method?',
+        selectedOption: { title: 'JWT', bullets: [] },
+        comment: 'Stateless is better for our use case',
+        superseded: false,
+        timestamp: '2024-01-01T00:00:00.000Z',
+      },
+    ];
+    const doc = buildDraftDoc([], decisions);
+    assert.ok(doc.includes('Stateless is better for our use case'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildTopicOutline
+// ---------------------------------------------------------------------------
+
+describe('buildTopicOutline', () => {
+  test('returns empty array when no decisions', () => {
+    const result = buildTopicOutline([], []);
+    assert.deepEqual(result, []);
+  });
+
+  test('returns array of decided topics from active decisions', () => {
+    const decisions = [
+      { question: 'DB choice?', selectedOption: { title: 'Postgres' }, superseded: false },
+      { question: 'Frontend?', selectedOption: { title: 'React' }, superseded: false },
+    ];
+    const outline = buildTopicOutline([], decisions);
+
+    assert.equal(outline.length, 2);
+    assert.equal(outline[0].title, 'DB choice?');
+    assert.equal(outline[0].type, 'decision');
+    assert.equal(outline[0].decided, true);
+    assert.equal(outline[1].title, 'Frontend?');
+    assert.equal(outline[1].decided, true);
+  });
+
+  test('excludes superseded decisions from outline', () => {
+    const decisions = [
+      { question: 'Superseded Q?', selectedOption: { title: 'X' }, superseded: true },
+      { question: 'Active Q?', selectedOption: { title: 'Y' }, superseded: false },
+    ];
+    const outline = buildTopicOutline([], decisions);
+
+    assert.equal(outline.length, 1);
+    assert.equal(outline[0].title, 'Active Q?');
   });
 });
 

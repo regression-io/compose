@@ -120,7 +120,7 @@ flows:
     output: MergedReviewResult
     steps:
       - id: triage
-        agent: claude
+        agent: "claude:orchestrator"
         intent: >
           Decide which review lenses to activate.
 
@@ -146,6 +146,7 @@ flows:
 
       - id: review_lenses
         type: parallel_dispatch
+        agent: "claude:read-only-reviewer"
         source: "$.steps.triage.output.tasks"
         max_concurrent: 4
         isolation: none
@@ -160,7 +161,7 @@ flows:
         require: all
 
       - id: merge
-        agent: claude
+        agent: "claude:orchestrator"
         intent: >
           Merge findings from all review lenses. The input contains the parallel
           dispatch aggregate with tasks[].result for each lens.
@@ -469,12 +470,22 @@ flows:
              never stage worktrees, pycache, or node_modules).
           5. Commit with message: "feat(<featureCode>): <one-line summary>"
           6. Push to remote.
+          7. Read docs/features/{featureCode}/plan.md and extract acceptance criteria
+             as plan_items: an array of objects { text, file, critical } where:
+             - text is the checkbox item text
+             - file is the backtick-quoted file path in the item (null if none)
+             - critical is true if the item mentions MUST, required, security, or tests
+             Use lib/plan-parser.js (parsePlanItems) to do this extraction.
+          8. Collect the list of files you staged as files_changed.
 
+          Include plan_items and files_changed in your result JSON.
           Report the commit hash and files changed.
         inputs:
           featureCode: "$.input.featureCode"
           description: "$.input.description"
         output_contract: PhaseResult
+        ensure:
+          - "plan_completion(result.plan_items, result.files_changed)"
         retries: 2
         depends_on: [docs]
 

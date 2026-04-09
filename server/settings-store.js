@@ -128,6 +128,18 @@ export class SettingsStore {
             throw new Error(`Invalid maxIterations for ${type}: must be integer 1-100`);
           }
         }
+        if (config.timeout !== undefined) {
+          const t = config.timeout;
+          if (!Number.isInteger(t) || t < 1 || t > 120) {
+            throw new Error(`Invalid timeout for ${type}: must be integer 1-120 (minutes)`);
+          }
+        }
+        if (config.maxTotal !== undefined) {
+          const m = config.maxTotal;
+          if (!Number.isInteger(m) || m < 1 || m > 200) {
+            throw new Error(`Invalid maxTotal for ${type}: must be integer 1-200`);
+          }
+        }
       }
     }
 

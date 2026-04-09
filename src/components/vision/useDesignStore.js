@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { buildDraftDoc, buildTopicOutline } from './designSessionState.js';
 
 /**
  * useDesignStore — Zustand singleton store for design sessions.
@@ -25,6 +26,10 @@ const useDesignStore = create((set, get) => ({
   scope: null,
   featureCode: null,
   designDocPath: null,
+  draftDoc: '',
+  docManuallyEdited: false,
+  researchItems: [],
+  topicOutline: [],
 
   // Actions
   hydrate: async (scope, featureCode) => {
@@ -42,8 +47,12 @@ const useDesignStore = create((set, get) => ({
         } catch { scope = 'product'; }
       }
     }
+    // Capture manual edit state before resetting — we need it after the async fetch
+    const prevDocManuallyEdited = get().docManuallyEdited;
+    const prevDraftDoc = get().draftDoc;
+    const prevResearchItems = get().researchItems || [];
     // Reset immediately to prevent stale data during async hydration (preserve scope)
-    set({ session: null, messages: [], decisions: [], status: 'idle', error: null, streamingMessage: null, designDocPath: null, scope, featureCode });
+    set({ session: null, messages: [], decisions: [], status: 'idle', error: null, streamingMessage: null, designDocPath: null, scope, featureCode, draftDoc: '', docManuallyEdited: false, researchItems: [], topicOutline: [] });
 
     const query = scope === 'feature' && featureCode
       ? `?scope=feature&featureCode=${featureCode}`
@@ -53,20 +62,28 @@ const useDesignStore = create((set, get) => ({
       const res = await fetch(`/api/design/session${query}`);
       const { session } = await res.json();
       if (session) {
+        const msgs = session.messages || [];
+        const decs = session.decisions || [];
+        const draftDoc = buildDraftDoc(msgs, decs);
+        const topicOutline = buildTopicOutline(msgs, decs);
         set({
           session,
-          messages: session.messages || [],
-          decisions: session.decisions || [],
+          messages: msgs,
+          decisions: decs,
           status: session.status === 'complete' ? 'complete' : 'active',
           scope,
           featureCode,
+          draftDoc: prevDocManuallyEdited ? prevDraftDoc : draftDoc,
+          docManuallyEdited: prevDocManuallyEdited,
+          topicOutline,
+          researchItems: prevResearchItems,
         });
         // Connect SSE after state is set so scope/featureCode are correct
         get().disconnectSSE();
         get().connectSSE();
       } else {
         // No session — reset everything so stale state doesn't linger
-        set({ session: null, messages: [], decisions: [], status: 'idle', error: null, streamingMessage: null, scope, featureCode });
+        set({ session: null, messages: [], decisions: [], status: 'idle', error: null, streamingMessage: null, scope, featureCode, draftDoc: '', docManuallyEdited: false, researchItems: [], topicOutline: [] });
         get().disconnectSSE();
       }
     } catch (err) {
@@ -185,15 +202,17 @@ const useDesignStore = create((set, get) => ({
   },
 
   completeDesign: async () => {
-    const { session } = get();
+    const { session, draftDoc } = get();
     if (!session) return;
 
     set({ status: 'summarizing' });
     try {
+      const body = { scope: session.scope, featureCode: session.featureCode };
+      if (draftDoc) body.draftDoc = draftDoc;
       const res = await fetch(`/api/design/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: session.scope, featureCode: session.featureCode }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: 'Unknown error' }));
@@ -264,7 +283,31 @@ const useDesignStore = create((set, get) => ({
         };
       });
       // Re-hydrate to get server-side state (decisions recorded by server)
+      // hydrate() will rebuild draftDoc and topicOutline respecting docManuallyEdited
       get().hydrate();
+    });
+
+    es.addEventListener('research', (e) => {
+      const data = JSON.parse(e.data);
+      set(s => ({
+        researchItems: [
+          ...s.researchItems,
+          { id: data.id, tool: data.tool, input: data.input, timestamp: data.timestamp, summary: null },
+        ],
+      }));
+    });
+
+    es.addEventListener('research_result', (e) => {
+      const data = JSON.parse(e.data);
+      set(s => {
+        // Match by unique tool-use ID for reliable correlation
+        const items = [...s.researchItems];
+        const idx = data.id ? items.findIndex(i => i.id === data.id) : -1;
+        if (idx !== -1) {
+          items[idx] = { ...items[idx], summary: data.summary };
+        }
+        return { researchItems: items };
+      });
     });
 
     // Server-sent error event (agent failure) — clear streaming state and surface error
@@ -302,7 +345,17 @@ const useDesignStore = create((set, get) => ({
 
   reset: () => {
     try { localStorage.removeItem('compose:designSession'); } catch {}
-    set({ session: null, messages: [], decisions: [], status: 'idle', error: null, streamingMessage: null, scope: null, featureCode: null, designDocPath: null });
+    set({ session: null, messages: [], decisions: [], status: 'idle', error: null, streamingMessage: null, scope: null, featureCode: null, designDocPath: null, draftDoc: '', docManuallyEdited: false, researchItems: [], topicOutline: [] });
+  },
+
+  updateDraftDoc: (text) => {
+    set({ draftDoc: text, docManuallyEdited: true });
+  },
+
+  resetDocEdited: () => {
+    const { messages, decisions } = get();
+    const draftDoc = buildDraftDoc(messages, decisions);
+    set({ draftDoc, docManuallyEdited: false });
   },
 }));
 

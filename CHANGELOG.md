@@ -1,5 +1,70 @@
 # Changelog
 
+## 2026-04-09
+
+### COMP-BUDGET: Iteration Budget Enforcement (Wave 1)
+
+- **vision-routes.js:** Wall-clock timeout enforcement (checked at each report, configurable per loop type), action count ceiling (accumulated from agent reports), auto-abort with structured outcomes (`timeout`, `action_limit`).
+- **budget-ledger.js:** Cumulative cross-session budget tracking in `.compose/data/budget-ledger.json`. `recordIteration()` called from both report and abort routes. `checkCumulativeBudget()` blocks iteration start when cumulative limits exceeded (429).
+- **settings-store.js:** Per-loop-type settings: `iterations.review.timeout` (15min default), `iterations.coverage.timeout` (30min), `iterations.review.maxTotal` (20), `iterations.coverage.maxTotal` (50).
+- **visionMessageHandler.js:** Client handles `timeout` and `action_limit` outcomes with distinct messages.
+- 15 tests, all passing.
+
+### HOOK-CACHE: Read Cache Hook (Wave 1)
+
+- **read-cache.py:** PreToolUse hook on Read. Per-agent mtime + line-range tracking. Blocks redundant reads of unchanged files with covered ranges. Merges overlapping intervals. Metrics to `stats.json`.
+- **read-cache-invalidate.py:** PostToolUse hook on Edit/Write/MultiEdit. Invalidates cache entry for modified file.
+- **read-cache-compact.py:** PreCompact hook. Clears entire session cache (context no longer has the content).
+- **hooks.json:** Registered all three hooks, replacing old `read-cache.sh`.
+- 15 tests, all passing.
+
+### COMP-PLAN-VERIFY: Plan-Diff Verification (Wave 1)
+
+- **plan-parser.js:** Agent-side helper — `parsePlanItems()` extracts checkbox items with file paths and critical flags, `matchItemsToDiff()` classifies done/missing/extra.
+- **spec.py:** `plan_completion(plan_items, files_changed, threshold=90)` ensure builtin. Division-by-zero guard. Critical missing items → plain string violations. Below threshold → violation with percentage.
+- **executor.py:** Registered `plan_completion` in ensure sandbox.
+- **build.stratum.yaml:** Ship step ensure clause: `plan_completion(result.plan_items, result.files_changed)`. Ship step intent updated to instruct agent to extract plan items.
+- 12 Python + 16 JS tests, all passing.
+
+### STRAT-IMMUTABLE: Spec Immutability During Execution (Wave 1)
+
+- **Stratum executor:** `spec_checksum` on FlowState — SHA-256 of parsed FlowDefinition computed at flow start, verified at every `stratum_step_done` and `stratum_parallel_done`. Detects in-memory spec mutation. Checksum persisted/restored across MCP restarts.
+- **build.js Layer 2:** Pipeline file hash and policy hash captured at build start. `verifyPipelineIntegrity()` re-reads YAML from disk before each step transition — detects on-disk tampering. `verifyPolicyIntegrity()` hashes settings.json policies before gate resolution — detects gate criteria weakening.
+- 9 Python tests + 7 JS tests, all passing.
+
+### COMP-AGENT-CAPS: Agent Capability Profiles (Wave 1)
+
+- **agent-templates.js:** 4 built-in profiles — `read-only-reviewer` (Read/Grep/Glob only), `implementer` (full access), `orchestrator` (no Edit/Write), `security-auditor` (Read/Grep/Glob/Bash).
+- **agent-string.js:** Centralized `parseAgentString("claude:read-only-reviewer")` → `{ provider, template }` + `resolveAgentConfig()` for full resolution with tool restrictions.
+- **claude-sdk-connector.js:** Accepts `allowedTools`/`disallowedTools`, passes to SDK. Falls back to `preset: claude_code` when no restrictions (backward compat).
+- **build.js:** `defaultConnectorFactory` resolves agent string through template registry. Emits `capability_profile` stream events.
+- **build.stratum.yaml:** Review sub-flow steps use `claude:orchestrator` (triage, merge) and `claude:read-only-reviewer` (lens dispatch).
+- 28 tests, all passing.
+
+### COMP-TRIAGE: Task Tier Classification (Wave 1)
+
+- **triage.js:** Pure file analysis — counts paths in plan/blueprint, detects security/core paths, assigns tier 0-4 and build profile (`needs_prd`, `needs_architecture`, `needs_verification`, `needs_report`).
+- **build.js integration:** Triage runs before `stratum_plan()`, mutates `skip_if` on skippable steps based on profile. Cached in feature.json with mtime-based invalidation.
+- **CLI:** `compose triage <feature>` standalone command. `compose build --template <name>` and `--skip-triage` flags.
+- No new pipeline templates — reuses existing `build.stratum.yaml` with `skip_if` toggling.
+- 13 tests, all passing.
+
+### COMP-DESIGN-1c: Live Design Doc (Wave 0)
+
+- **DesignDocPanel.jsx** (new): Context panel component showing a live markdown preview of the design document as it builds from decisions. Preview mode (react-markdown + remark-gfm) and edit mode (monospace textarea). Manual edits survive across assistant turns. "Reset to auto-generated" rebuilds from current decisions.
+- **designSessionState.js**: Added `buildDraftDoc(messages, decisions)` — constructs markdown draft from problem statement + active decisions + open threads. Added `buildTopicOutline(messages, decisions)` — extracts decided topics for the research sidebar.
+- **useDesignStore.js**: New state fields (`draftDoc`, `docManuallyEdited`, `researchItems`, `topicOutline`). Draft rebuilds on each assistant turn unless manually edited. Manual edit state preserved across rehydration.
+- **design-routes.js**: `POST /api/design/complete` accepts optional `draftDoc` body field — uses human-edited draft as seed for final LLM polish pass instead of generating from scratch.
+- **App.jsx**: Context panel auto-shows DesignDocPanel when design view is active.
+
+### COMP-DESIGN-1d: Research Sidebar (Wave 0)
+
+- **DesignSidebar.jsx**: Added tab bar (Decisions / Research) with count badges. Existing decision log under Decisions tab. Research tab shows live research activity.
+- **ResearchTab.jsx** (new): Three collapsible sections — Topic Outline (decided/open topics), Codebase References (Read/Grep/Glob tool uses with file paths), Web Searches (queries + summaries). Live updates as research events stream in.
+- **design-routes.js**: Broadcasts `research` and `research_result` SSE events from `tool_use` and `tool_use_summary` events during design conversations. Unique `tu-N` IDs for reliable event correlation.
+- **useDesignStore.js**: SSE handlers for research events with ID-based correlation. Research items accumulate across the full session.
+- 38 design tests, all pass. 8 new test cases for `buildDraftDoc` and `buildTopicOutline`.
+
 ## 2026-03-28
 
 ### STRAT-REV: Parallel Multi-Lens Review (1-4, 6)

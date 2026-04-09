@@ -15,15 +15,22 @@ export class ClaudeSDKConnector extends AgentConnector {
   #cwd;
   #query = null;
 
+  #allowedTools;
+  #disallowedTools;
+
   /**
    * @param {object} [opts]
-   * @param {string} [opts.model]  — default model (env CLAUDE_MODEL or claude-sonnet-4-6)
-   * @param {string} [opts.cwd]   — default working directory
+   * @param {string}   [opts.model]            — default model (env CLAUDE_MODEL or claude-sonnet-4-6)
+   * @param {string}   [opts.cwd]              — default working directory
+   * @param {string[]} [opts.allowedTools]     — restrict to these tools (overrides preset)
+   * @param {string[]} [opts.disallowedTools]  — deny these tools (used alongside allowedTools or preset)
    */
-  constructor({ model = DEFAULT_MODEL, cwd = process.cwd() } = {}) {
+  constructor({ model = DEFAULT_MODEL, cwd = process.cwd(), allowedTools, disallowedTools } = {}) {
     super();
     this.#model = model;
     this.#cwd = cwd;
+    this.#allowedTools = allowedTools ?? null;
+    this.#disallowedTools = disallowedTools ?? null;
   }
 
   async *run(prompt, { schema, modelID, cwd } = {}) {
@@ -37,13 +44,27 @@ export class ClaudeSDKConnector extends AgentConnector {
     const cleanEnv = { ...process.env };
     delete cleanEnv.CLAUDECODE;
 
+    // Build tools config: prefer explicit allow/deny lists if provided,
+    // otherwise fall back to the default claude_code preset (backward compat).
+    let toolsConfig;
+    if (this.#allowedTools !== null) {
+      toolsConfig = { type: 'allowed', allowedTools: this.#allowedTools };
+      if (this.#disallowedTools !== null) {
+        toolsConfig.disallowedTools = this.#disallowedTools;
+      }
+    } else if (this.#disallowedTools !== null) {
+      toolsConfig = { type: 'preset', preset: 'claude_code', disallowedTools: this.#disallowedTools };
+    } else {
+      toolsConfig = { type: 'preset', preset: 'claude_code' };
+    }
+
     const q = query({
       prompt: actualPrompt,
       options: {
         cwd: cwd ?? this.#cwd,
         model: modelID ?? this.#model,
         permissionMode: 'acceptEdits',
-        tools: { type: 'preset', preset: 'claude_code' },
+        tools: toolsConfig,
         env: cleanEnv,
       },
     });

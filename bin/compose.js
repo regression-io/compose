@@ -37,6 +37,7 @@ if (!cmd || cmd === '--help' || cmd === '-h') {
   console.log('  roadmap generate   Regenerate ROADMAP.md from feature.json files')
   console.log('  roadmap migrate    Extract ROADMAP.md entries into feature.json files')
   console.log('  roadmap check      Verify feature.json and ROADMAP.md are in sync')
+  console.log('  triage    Analyze a feature and recommend build profile')
   console.log('  init      Initialize Compose in the current project')
   console.log('  setup     Install global skill + register stratum-mcp')
   process.exit(0)
@@ -851,11 +852,25 @@ if (cmd === 'build') {
   }
   const filteredArgs = args.filter((a, i) => i !== cwdIdx && (cwdIdx === -1 || i !== cwdIdx + 1))
 
-  const featureCodes = filteredArgs.filter(a => !a.startsWith('-'))
+  // --template <name>
+  let templateName = null
+  const templateIdx = filteredArgs.indexOf('--template')
+  if (templateIdx !== -1) {
+    const templateValue = filteredArgs[templateIdx + 1]
+    if (!templateValue || templateValue.startsWith('-')) {
+      console.error('Error: --template requires a name argument')
+      process.exit(1)
+    }
+    templateName = templateValue
+  }
+  const filteredArgs2 = filteredArgs.filter((a, i) => i !== templateIdx && (templateIdx === -1 || i !== templateIdx + 1))
+
+  const featureCodes = filteredArgs2.filter(a => !a.startsWith('-'))
   const featureCode = featureCodes[0]
-  const abort = filteredArgs.includes('--abort')
-  const all = filteredArgs.includes('--all')
-  const dryRun = filteredArgs.includes('--dry-run')
+  const abort = filteredArgs2.includes('--abort')
+  const all = filteredArgs2.includes('--all')
+  const dryRun = filteredArgs2.includes('--dry-run')
+  const skipTriage = filteredArgs2.includes('--skip-triage')
 
   // Multiple codes: compose build FEAT-1 FEAT-2 FEAT-3
   const isMulti = featureCodes.length > 1
@@ -909,6 +924,8 @@ if (cmd === 'build') {
     import('../lib/build.js').then(({ runBuild }) => {
       const singleOpts = { abort }
       if (agentWorkDir) singleOpts.workingDirectory = agentWorkDir
+      if (skipTriage) singleOpts.skipTriage = true
+      if (templateName) singleOpts.template = templateName
       runBuild(featureCode, singleOpts).then(() => {
         process.exit(0)
       }).catch((err) => {
@@ -917,6 +934,57 @@ if (cmd === 'build') {
       })
     })
   }
+} else if (cmd === 'triage') {
+  const triageCode = args.find(a => !a.startsWith('-'))
+  if (!triageCode) {
+    console.error('Usage: compose triage <feature-code>')
+    process.exit(1)
+  }
+  import('../lib/triage.js').then(({ runTriage }) => {
+    import('../lib/feature-json.js').then(({ readFeature, writeFeature, updateFeature }) => {
+      const trCwd = process.cwd()
+      runTriage(triageCode, { cwd: trCwd }).then((result) => {
+        console.log(`\nFeature: ${triageCode}`)
+        console.log(`Tier:     ${result.tier}`)
+        console.log(`Rationale: ${result.rationale}`)
+        console.log(`\nProfile:`)
+        for (const [k, v] of Object.entries(result.profile)) {
+          console.log(`  ${k}: ${v}`)
+        }
+        console.log(`\nSignals:`)
+        console.log(`  file paths found:  ${result.signals.fileCount}`)
+        console.log(`  task count:        ${result.signals.taskCount}`)
+        console.log(`  security paths:    ${result.signals.securityPaths}`)
+        console.log(`  core paths:        ${result.signals.corePaths}`)
+
+        // Persist to feature.json
+        const triageTimestamp = new Date().toISOString()
+        const existing = readFeature(trCwd, triageCode)
+        if (!existing) {
+          writeFeature(trCwd, {
+            code: triageCode,
+            description: triageCode,
+            status: 'PLANNED',
+            complexity: String(result.tier),
+            profile: result.profile,
+            triageTimestamp,
+          })
+          console.log(`\nCreated feature.json for ${triageCode}`)
+        } else {
+          updateFeature(trCwd, triageCode, {
+            complexity: String(result.tier),
+            profile: result.profile,
+            triageTimestamp,
+          })
+          console.log(`\nUpdated feature.json for ${triageCode}`)
+        }
+        process.exit(0)
+      }).catch((err) => {
+        console.error(`Triage failed: ${err.message}`)
+        process.exit(1)
+      })
+    })
+  })
 } else if (cmd === 'start') {
   // Resolve target root BEFORE spawning supervisor
   const explicitTarget = process.env.COMPOSE_TARGET

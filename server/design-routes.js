@@ -107,6 +107,9 @@ Conversation history:
 ${formattedMessages}`;
 
     let fullContent = '';
+    let lastToolName = null;
+    let toolUseCounter = 0;
+    let lastToolUseId = null;
 
     const { ClaudeSDKConnector } = await import('./connectors/claude-sdk-connector.js');
     const connector = new ClaudeSDKConnector({ cwd: projectRoot });
@@ -124,8 +127,24 @@ ${formattedMessages}`;
       } else if (event.type === 'error') {
         broadcastDesignEvent(key, 'error', { message: event.message });
         return;
+      } else if (event.type === 'tool_use') {
+        lastToolName = event.tool;
+        lastToolUseId = `tu-${++toolUseCounter}`;
+        broadcastDesignEvent(key, 'research', {
+          id: lastToolUseId,
+          tool: event.tool,
+          input: event.input,
+          timestamp: new Date().toISOString(),
+        });
+      } else if (event.type === 'tool_use_summary') {
+        broadcastDesignEvent(key, 'research_result', {
+          id: lastToolUseId,
+          tool: lastToolName,
+          summary: (event.summary || '').slice(0, 200),
+          timestamp: new Date().toISOString(),
+        });
       }
-      // Ignore system init/complete and tool_use events
+      // Ignore other system init/complete events
     }
 
     // Parse for decision blocks and broadcast them
@@ -299,7 +318,7 @@ export function attachDesignRoutes(app, { getSessionManager, getConnector, getPr
 
   // POST /api/design/complete — generate design doc and mark session complete
   app.post('/api/design/complete', async (req, res) => {
-    const { scope, featureCode } = req.body || {};
+    const { scope, featureCode, draftDoc } = req.body || {};
     try {
       const sessionManager = getSessionManager();
       const projectRoot = getProjectRoot();
@@ -329,10 +348,24 @@ export function attachDesignRoutes(app, { getSessionManager, getConnector, getPr
         })
         .join('\n\n');
 
-      const docPrompt = `Based on the following design conversation, write a comprehensive design document.
+      const decisionsJson = JSON.stringify(activeDecisions, null, 2);
+      const docPrompt = draftDoc
+        ? `Polish and finalize this draft design document. Improve structure, add transitions, ensure completeness.
+
+Draft:
+${draftDoc}
+
+Decisions:
+${decisionsJson}
+
+Conversation:
+${formattedMessages}
+
+Output ONLY the Markdown content, no code fences.`
+        : `Based on the following design conversation, write a comprehensive design document.
 
 Decisions made:
-${JSON.stringify(activeDecisions, null, 2)}
+${decisionsJson}
 
 Conversation history:
 ${formattedMessages}

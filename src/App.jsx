@@ -9,6 +9,7 @@ import AgentBar from './components/cockpit/AgentBar.jsx';
 import ContextPanel from './components/cockpit/ContextPanel.jsx';
 import ContextItemDetail from './components/cockpit/ContextItemDetail.jsx';
 import ContextStepDetail from './components/cockpit/ContextStepDetail.jsx';
+import DesignDocPanel from './components/cockpit/DesignDocPanel.jsx';
 import NotificationBar from './components/cockpit/NotificationBar.jsx';
 import OpsStrip from './components/cockpit/OpsStrip.jsx';
 
@@ -209,7 +210,7 @@ function CockpitView({
   activeView,
   // data
   items, filteredItems, phaseFilteredItems, phaseFilteredGates,
-  connections, filteredConnections, sessions, activeBuild,
+  connections, filteredConnections, sessions, activeBuild, pipelineDraft,
   gates, settings, selectedPhase, selectedItemId,
   buildStateMap, agentOverlay, spawnedAgents, agentRelays,
   // docs navigation
@@ -380,6 +381,12 @@ function AppInner() {
     catch { return 420; }
   });
 
+  // Sidebar width in pixels (resizable)
+  const [sidebarWidthPx, setSidebarWidthPx] = useState(() => {
+    try { return parseInt(localStorage.getItem('compose:sidebarWidthPx'), 10) || 220; }
+    catch { return 220; }
+  });
+
   // ── Vision store (absorbed from VisionTracker) ──────────────────────────
   const {
     items, connections, connected, uiCommand, clearUICommand, recentChanges,
@@ -418,6 +425,27 @@ function AppInner() {
   const handleContextResizePx = useCallback((px) => {
     setContextWidthPx(px);
     localStorage.setItem('compose:contextWidthPx', String(Math.round(px)));
+  }, []);
+
+  const sidebarDragging = useRef(false);
+  const handleSidebarDragStart = useCallback((e) => {
+    e.preventDefault();
+    sidebarDragging.current = true;
+    const onMove = (ev) => {
+      if (!sidebarDragging.current) return;
+      // Sidebar is on the left; subtract the 16px toggle button width
+      const newWidth = ev.clientX - 16;
+      const clamped = Math.max(160, Math.min(window.innerWidth * 0.4, newWidth));
+      setSidebarWidthPx(clamped);
+      localStorage.setItem('compose:sidebarWidthPx', String(Math.round(clamped)));
+    };
+    const onUp = () => {
+      sidebarDragging.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   }, []);
 
   const [docsSelectedFile, setDocsSelectedFile] = useState(null);
@@ -715,6 +743,15 @@ function AppInner() {
     }
   }, [contextSelection]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── COMP-DESIGN-1c: Auto-show DesignDocPanel when entering design view ──
+  useEffect(() => {
+    if (activeView === 'design') {
+      setContextSelection({ type: 'design-doc' });
+    } else if (contextSelection?.type === 'design-doc') {
+      setContextSelection(null);
+    }
+  }, [activeView]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Callbacks ───────────────────────────────────────────────────────────
   const toggleTheme = useCallback(() => {
     const next = isDark ? 'light' : 'dark';
@@ -1000,11 +1037,18 @@ function AppInner() {
                   {sidebarOpen ? '\u2039' : '\u203A'}
                 </button>
                 {sidebarOpen && (
+                  <div
+                    className="w-1 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 transition-colors flex-shrink-0 order-last"
+                    onMouseDown={handleSidebarDragStart}
+                  />
+                )}
+                {sidebarOpen && (
                   activeView === 'design'
                     ? <DesignSidebar
                         decisions={designDecisions}
                         sessionComplete={designStatus === 'complete'}
                         onReviseDecision={(i) => useDesignStore.getState().reviseDecision(i)}
+                        widthPx={sidebarWidthPx}
                       />
                     : <AttentionQueueSidebar
                         items={items}
@@ -1045,6 +1089,7 @@ function AppInner() {
                         onStopAgent={handleStopAgent}
                         onThemeChange={updateSettings}
                         onNewItem={() => setCreateOpen(true)}
+                        widthPx={sidebarWidthPx}
                       />
                 )}
               </div>
@@ -1064,6 +1109,7 @@ function AppInner() {
                       filteredConnections={filteredConnections}
                       sessions={sessions}
                       activeBuild={activeBuild}
+                      pipelineDraft={pipelineDraft}
                       gates={gates}
                       settings={settings}
                       selectedPhase={selectedPhase}
@@ -1127,6 +1173,9 @@ function AppInner() {
                     )}
                     {contextSelection?.type === 'step' && (
                       <ContextStepDetail stepId={contextSelection.id} />
+                    )}
+                    {contextSelection?.type === 'design-doc' && (
+                      <DesignDocPanel />
                     )}
                   </ContextPanel>
                 </PanelErrorBoundary>

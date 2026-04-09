@@ -31,6 +31,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractFilePaths } from './vision-utils.js';
 import { ArtifactManager } from './artifact-manager.js';
+import { recordIteration, checkCumulativeBudget } from '../lib/budget-ledger.js';
 
 import { getTargetRoot, resolveProjectPath, loadProjectConfig } from './project-root.js';
 
@@ -276,20 +277,41 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
     try {
       const item = store.items.get(req.params.id);
       if (!item?.lifecycle) return res.status(404).json({ error: 'No lifecycle on this item' });
-      const { loopType, maxIterations } = req.body;
+      const { loopType, maxIterations, wallClockTimeout, maxActions } = req.body;
       if (!ITERATION_TYPES.has(loopType)) {
         return res.status(400).json({ error: `Invalid loopType: ${loopType}. Must be one of: ${[...ITERATION_TYPES].join(', ')}` });
       }
       if (item.lifecycle.iterationState?.status === 'running') {
         return res.status(409).json({ error: 'An iteration loop is already running' });
       }
+
+      // COMP-BUDGET: check cumulative budget before starting a new loop
+      const composeDir = path.join(projectRoot, '.compose');
+      const featureCode = item.lifecycle.featureCode;
+      if (featureCode) {
+        const settings = settingsStore?.get();
+        const maxTotal = settings?.iterations?.[loopType]?.maxTotal;
+        if (maxTotal != null) {
+          const check = checkCumulativeBudget(composeDir, featureCode, { maxTotalIterations: maxTotal });
+          if (check.exceeded) {
+            return res.status(429).json({ error: `Cumulative iteration budget exceeded for ${featureCode}: ${check.reason}`, usage: check.usage });
+          }
+        }
+      }
+
       const settingsMax = settingsStore?.get()?.iterations?.[loopType]?.maxIterations;
+      const settingsTimeout = settingsStore?.get()?.iterations?.[loopType]?.timeout;
       const max = maxIterations ?? settingsMax ?? 10;
+      // wallClockTimeout from body takes precedence; fall back to settings timeout (minutes), then no timeout
+      const timeoutMinutes = wallClockTimeout !== undefined ? wallClockTimeout : (settingsTimeout ?? null);
       const now = new Date().toISOString();
       item.lifecycle.iterationState = {
         loopType, loopId: `iter-${Date.now()}`, status: 'running',
         count: 0, maxIterations: max, startedAt: now,
         completedAt: null, outcome: null, iterations: [],
+        wallClockTimeout: timeoutMinutes,
+        maxActions: maxActions ?? null,
+        totalActions: 0,
       };
       store.updateLifecycle(req.params.id, item.lifecycle);
       scheduleBroadcast();
@@ -311,6 +333,10 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
       const now = new Date().toISOString();
       iter.count++;
       iter.iterations.push({ n: iter.count, startedAt: now, result });
+
+      // COMP-BUDGET: accumulate action count
+      iter.totalActions = (iter.totalActions ?? 0) + (result.actionCount ?? 0);
+
       const exitMet = iter.loopType === 'review' ? result.clean === true
                     : iter.loopType === 'coverage' ? result.passing === true
                     : false;
@@ -319,11 +345,36 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
         iter.status = 'complete'; iter.outcome = 'clean'; iter.completedAt = now; shouldContinue = false;
       } else if (iter.count >= iter.maxIterations) {
         iter.status = 'complete'; iter.outcome = 'max_reached'; iter.completedAt = now; shouldContinue = false;
+      } else if (iter.maxActions != null && iter.totalActions >= iter.maxActions) {
+        // COMP-BUDGET: action count ceiling
+        iter.status = 'complete'; iter.outcome = 'action_limit'; iter.completedAt = now; shouldContinue = false;
+      } else if (iter.wallClockTimeout != null) {
+        // COMP-BUDGET: wall-clock timeout
+        const elapsed = Date.now() - new Date(iter.startedAt).getTime();
+        const timeoutMs = iter.wallClockTimeout * 60 * 1000;
+        if (elapsed > timeoutMs) {
+          const elapsedMinutes = Math.round(elapsed / 60000 * 10) / 10;
+          iter.status = 'complete'; iter.outcome = 'timeout'; iter.completedAt = now; iter.elapsedMinutes = elapsedMinutes; shouldContinue = false;
+        }
       }
+
+      // COMP-BUDGET: record iteration in ledger when loop completes
+      if (iter.status === 'complete') {
+        const composeDir = path.join(projectRoot, '.compose');
+        const featureCode = item.lifecycle.featureCode;
+        if (featureCode) {
+          const startMs = new Date(iter.startedAt).getTime();
+          const timeMs = Date.now() - startMs;
+          recordIteration(composeDir, featureCode, { iterations: iter.count, actions: iter.totalActions ?? 0, timeMs });
+        }
+      }
+
       store.updateLifecycle(req.params.id, item.lifecycle);
       scheduleBroadcast();
       if (iter.status === 'complete') {
-        broadcastMessage({ type: 'iterationComplete', itemId: req.params.id, loopId: iter.loopId, loopType: iter.loopType, outcome: iter.outcome, finalCount: iter.count, timestamp: now });
+        const completeMsg = { type: 'iterationComplete', itemId: req.params.id, loopId: iter.loopId, loopType: iter.loopType, outcome: iter.outcome, finalCount: iter.count, timestamp: now };
+        if (iter.elapsedMinutes != null) completeMsg.elapsedMinutes = iter.elapsedMinutes;
+        broadcastMessage(completeMsg);
       } else {
         broadcastMessage({ type: 'iterationUpdate', itemId: req.params.id, loopId: iter.loopId, loopType: iter.loopType, count: iter.count, maxIterations: iter.maxIterations, exitCriteriaMet: false, findingsCount: result.findings?.length ?? 0, timestamp: now });
       }
@@ -341,6 +392,16 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
       if (iter.status !== 'running') return res.status(409).json({ error: `Loop already ${iter.status}` });
       const now = new Date().toISOString();
       iter.status = 'complete'; iter.outcome = 'aborted'; iter.completedAt = now;
+
+      // COMP-BUDGET: record iteration in ledger on abort
+      const composeDir = path.join(projectRoot, '.compose');
+      const featureCode = item.lifecycle.featureCode;
+      if (featureCode) {
+        const startMs = new Date(iter.startedAt).getTime();
+        const timeMs = Date.now() - startMs;
+        recordIteration(composeDir, featureCode, { iterations: iter.count, actions: iter.totalActions ?? 0, timeMs });
+      }
+
       store.updateLifecycle(req.params.id, item.lifecycle);
       scheduleBroadcast();
       broadcastMessage({ type: 'iterationComplete', itemId: req.params.id, loopId: iter.loopId, loopType: iter.loopType, outcome: 'aborted', finalCount: iter.count, timestamp: now });
@@ -422,6 +483,13 @@ export function attachVisionRoutes(app, { store, scheduleBroadcast, broadcastMes
       const existing = store.getGateById(id);
       if (existing) {
         return res.status(200).json(existing); // idempotent
+      }
+      // Dedup: if a pending gate already exists for the same item+step, reuse it
+      if (itemId) {
+        const dupGate = store.findPendingGate(itemId, stepId);
+        if (dupGate) {
+          return res.status(200).json(dupGate);
+        }
       }
       const gate = {
         id,
