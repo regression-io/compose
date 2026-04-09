@@ -2,6 +2,18 @@
 
 ## 2026-04-09
 
+### STRAT-REV-7: Cross-Model Adversarial Synthesis (Wave 2)
+
+- **review-lenses.js:** `classifyDiffSize()` (small/medium/large by file count) and `shouldRunCrossModel()` gate.
+- **build.js:** `runCrossModelReview()` — after Claude lenses complete on large diffs (≥9 files), dispatches Codex review, parses string findings, runs Claude synthesis agent to classify CONSENSUS/CLAUDE_ONLY/CODEX_ONLY. Fail-open: Codex errors return original result.
+- **Opt-out:** `opts.skipCrossModel`, `COMPOSE_CROSS_MODEL=0` env var, graceful skip when Codex unavailable.
+- No pipeline YAML changes — all orchestration in build.js.
+- 29 tests (13 diff-size + 16 cross-model), all passing.
+
+### COMP-DESIGN-2: Compose New Integration (Wave 2)
+
+- Already implemented in prior session. `compose new` detects `docs/design.md`, appends to intent, skips questionnaire. Each pipeline step receives design doc via `$.input.intent`.
+
 ### COMP-BUDGET: Iteration Budget Enforcement (Wave 1)
 
 - **vision-routes.js:** Wall-clock timeout enforcement (checked at each report, configurable per loop type), action count ceiling (accumulated from agent reports), auto-abort with structured outcomes (`timeout`, `action_limit`).

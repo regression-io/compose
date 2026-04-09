@@ -2,9 +2,67 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   triageLenses,
+  classifyDiffSize,
+  shouldRunCrossModel,
 } from '../lib/review-lenses.js';
 
 const REQUIRED_FIELDS = ['id', 'lens_name', 'lens_focus', 'confidence_gate', 'exclusions'];
+
+describe('classifyDiffSize', () => {
+  it('returns small for 0 files', () => {
+    assert.equal(classifyDiffSize([]), 'small');
+  });
+
+  it('returns small for 1 file', () => {
+    assert.equal(classifyDiffSize(['a.js']), 'small');
+  });
+
+  it('returns small for 2 files', () => {
+    assert.equal(classifyDiffSize(['a.js', 'b.js']), 'small');
+  });
+
+  it('returns medium for 3 files', () => {
+    assert.equal(classifyDiffSize(['a.js', 'b.js', 'c.js']), 'medium');
+  });
+
+  it('returns medium for 8 files', () => {
+    assert.equal(classifyDiffSize(Array.from({ length: 8 }, (_, i) => `f${i}.js`)), 'medium');
+  });
+
+  it('returns large for 9 files', () => {
+    assert.equal(classifyDiffSize(Array.from({ length: 9 }, (_, i) => `f${i}.js`)), 'large');
+  });
+
+  it('returns large for 20 files', () => {
+    assert.equal(classifyDiffSize(Array.from({ length: 20 }, (_, i) => `f${i}.js`)), 'large');
+  });
+
+  it('handles non-array input gracefully (null → small)', () => {
+    assert.equal(classifyDiffSize(null), 'small');
+  });
+});
+
+describe('shouldRunCrossModel', () => {
+  it('returns false for small diff (2 files)', () => {
+    assert.equal(shouldRunCrossModel(['a.js', 'b.js']), false);
+  });
+
+  it('returns false for medium diff (5 files)', () => {
+    assert.equal(shouldRunCrossModel(Array.from({ length: 5 }, (_, i) => `f${i}.js`)), false);
+  });
+
+  it('returns true for large diff (9 files)', () => {
+    assert.equal(shouldRunCrossModel(Array.from({ length: 9 }, (_, i) => `f${i}.js`)), true);
+  });
+
+  it('returns true for large diff (15 files)', () => {
+    assert.equal(shouldRunCrossModel(Array.from({ length: 15 }, (_, i) => `f${i}.js`)), true);
+  });
+
+  it('returns false for empty file list', () => {
+    assert.equal(shouldRunCrossModel([]), false);
+  });
+});
 
 describe('triageLenses', () => {
   it('returns baseline lenses for any file list', () => {

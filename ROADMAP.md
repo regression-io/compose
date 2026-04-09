@@ -300,7 +300,7 @@ Product design conversation with the LLM before the roadmap exists. The LLM asks
 | 84 | COMP-DESIGN-1b | **Decision cards:** `parseDecisionBlocks` extracts fenced `decision` JSON from LLM responses. `DesignCard` renders clickable panels (letter prefix, title, bullets, recommendation badge, selected check). Card selection sends `card_select` message. Revisable via `reviseDecision`. | COMPLETE |
 | 85 | COMP-DESIGN-1c | **Live design doc:** DesignDocPanel in context panel with live markdown preview (react-markdown + remark-gfm). Draft builds incrementally from decisions via `buildDraftDoc()`. Human can edit inline — edits survive across assistant turns and rehydration. `POST /complete` accepts edited draft as seed for final LLM polish. | COMPLETE |
 | 86 | COMP-DESIGN-1d | **Research + sidebar:** DesignSidebar with Decisions/Research tab bar. ResearchTab shows topic outline, codebase references (Read/Grep/Glob), and web searches. Live SSE events (`research`/`research_result`) with unique IDs for reliable correlation. Topic outline auto-generated from decisions. | COMPLETE |
-| 87 | COMP-DESIGN-2 | **compose new integration:** `compose new` detects `docs/design.md` and uses it as enriched intent, skipping the questionnaire. Research and brainstorm steps reference design decisions. | PLANNED |
+| 87 | COMP-DESIGN-2 | **compose new integration:** `compose new` detects `docs/design.md` and uses it as enriched intent, skipping the questionnaire. Research and brainstorm steps reference design decisions. | COMPLETE |
 
 **Dependencies:** 1a → 1b → 1c, 1a → 1d, 1c → 2
 
@@ -342,7 +342,7 @@ See `docs/features/STRAT-PAR/design.md` for the full design.
 
 ---
 
-## STRAT-REV: Parallel Multi-Lens Review — PARTIAL
+## STRAT-REV: Parallel Multi-Lens Review — COMPLETE
 
 Replace the single-pass review step with parallel specialized reviewers ("lenses"), each focused on one concern. A triage step activates only relevant lenses, they run concurrently via `parallel_dispatch`, and a merge step deduplicates findings before the fix loop.
 
@@ -358,7 +358,7 @@ See `docs/features/STRAT-REV/design.md` for the full design.
 | 82 | STRAT-REV-4 | **Merge + dedup + fix-first classification:** collect, deduplicate by file+issue, assign severity. Classify each finding as **AUTO-FIX** (mechanical: formatting, simple tests, obvious typos) or **ASK** (requires judgment). AUTO-FIX findings are applied immediately in the fix loop. ASK findings are batched into a single gate decision. Inspired by gstack `/review` fix-first pipeline. | COMPLETE |
 | 83 | STRAT-REV-5 | **Selective re-review:** on retry, only re-run lenses with actionable findings | COMPLETE |
 | 84 | STRAT-REV-6 | **Pipeline integration:** replace `review_check` with `parallel_review` in `build.stratum.yaml` | COMPLETE |
-| 85 | STRAT-REV-7 | **Cross-model adversarial synthesis:** for large diffs (200+ lines), run both Claude lens review and Codex review in parallel. Merge step surfaces overlapping findings (high confidence) vs. unique findings (flag for human attention). Auto-scales: small diffs skip, medium diffs run one cross-model check, large diffs run full synthesis. Inspired by gstack `/review` + `/codex` cross-model pattern. | PLANNED |
+| 85 | STRAT-REV-7 | **Cross-model adversarial synthesis:** For large diffs (≥9 files), Codex review runs after Claude lenses. Synthesis agent classifies CONSENSUS/CLAUDE_ONLY/CODEX_ONLY findings. Auto-scales by file count. Opt-out via flag or env var. Fail-open on Codex errors. All orchestration in build.js, no pipeline YAML changes. | COMPLETE |
 
 **Dependencies:** STRAT-PAR (parallel dispatch infrastructure)
 
