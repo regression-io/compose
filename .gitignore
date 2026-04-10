@@ -8,3 +8,8 @@ package-lock.json
 *.jpg
 .playwright-mcp/
 .compose-supervisor.pid
+.DS_Store
+**/.DS_Store
+.superpowers/
+/compose/
+.claude/worktrees/
