@@ -19,7 +19,7 @@ import { Search, ShieldCheck, AlertTriangle, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { useVisionStore } from '../useVisionStore.js';
 import { useShallow } from 'zustand/react/shallow';
-import { LIFECYCLE_PHASE_LABELS } from '../constants.js';
+import { LIFECYCLE_PHASE_LABELS, GATE_STEP_LABELS, gateLabel } from '../constants.js';
 import StatusBadge from './StatusBadge.jsx';
 
 export default function CommandPalette({ open, onClose, onSelectItem, onSelectGate }) {
@@ -48,8 +48,8 @@ export default function CommandPalette({ open, onClose, onSelectItem, onSelectGa
         .map(g => ({
           type: 'gate',
           id: g.id,
-          label: `${LIFECYCLE_PHASE_LABELS[g.fromPhase] ?? g.fromPhase} Gate`,
-          sub: items.find(i => i.id === g.itemId)?.title ?? g.itemId,
+          label: gateLabel(g, items.find(i => i.id === g.itemId)),
+          sub: GATE_STEP_LABELS[g.stepId] ? `${LIFECYCLE_PHASE_LABELS[g.fromPhase] ?? g.fromPhase} → ${LIFECYCLE_PHASE_LABELS[g.toPhase] ?? g.toPhase}` : null,
           status: 'pending',
           gate: g,
         }));
@@ -104,8 +104,8 @@ export default function CommandPalette({ open, onClose, onSelectItem, onSelectGa
       .map(g => ({
         type: 'gate',
         id: g.id,
-        label: `${LIFECYCLE_PHASE_LABELS[g.fromPhase] ?? g.fromPhase} → ${LIFECYCLE_PHASE_LABELS[g.toPhase] ?? g.toPhase}`,
-        sub: items.find(i => i.id === g.itemId)?.title ?? g.itemId,
+        label: gateLabel(g, items.find(i => i.id === g.itemId)),
+        sub: g.status,
         status: g.status,
         gate: g,
       }));

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Separator } from '@/components/ui/separator.jsx';
 import { ScrollArea } from '@/components/ui/scroll-area.jsx';
-import { TYPE_COLORS, STATUS_COLORS, PHASES, PHASE_LABELS, STATUSES, CONFIDENCE_LABELS, LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS } from './constants.js';
+import { TYPE_COLORS, STATUS_COLORS, PHASES, PHASE_LABELS, STATUSES, CONFIDENCE_LABELS, LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS, GATE_STEP_LABELS } from './constants.js';
 import ConnectionGraph from './ConnectionGraph.jsx';
 import ConfidenceBar from './shared/ConfidenceBar.jsx';
 
@@ -536,7 +536,7 @@ export default function ItemDetailPanel({ item, items, connections, gates, onUpd
                     return (
                       <div key={gate.id} className="rounded bg-amber-400/10 border border-amber-400/20 px-2 py-1.5">
                         <p className="text-[10px] text-amber-400 font-medium mb-1">
-                          Pending: {LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → {LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}
+                          Pending: {GATE_STEP_LABELS[gate.stepId] ?? `${LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → ${LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}`}
                         </p>
                         {assessment && assessment.exists && (
                           <p className="text-[10px] text-muted-foreground mb-1">
@@ -567,7 +567,7 @@ export default function ItemDetailPanel({ item, items, connections, gates, onUpd
                     return (
                       <div key={gate.id} className="flex items-center gap-2 px-2 py-1 rounded bg-muted/30">
                         <span className="text-[10px] text-muted-foreground">
-                          {LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → {LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}
+                          {GATE_STEP_LABELS[gate.stepId] ?? `${LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → ${LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}`}
                         </span>
                         <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0 h-4 ml-auto', outcomeColors[gate.outcome] || '')}>
                           {gate.outcome}

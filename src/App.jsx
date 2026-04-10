@@ -50,6 +50,7 @@ import SettingsPanel from './components/vision/SettingsPanel.jsx';
 import PipelineView from './components/vision/PipelineView.jsx';
 import SessionsView from './components/vision/SessionsView.jsx';
 import DashboardView from './components/vision/DashboardView.jsx';
+import IdeaboxView from './components/vision/IdeaboxView.jsx';
 import DesignView from './components/vision/DesignView.jsx';
 import DesignSidebar from './components/vision/DesignSidebar.jsx';
 import { useDesignStore } from './components/vision/useDesignStore.js';
@@ -327,6 +328,8 @@ function CockpitView({
       );
     case 'design':
       return <DesignView key={projectRoot} />;
+    case 'ideabox':
+      return <IdeaboxView />;
     case 'settings':
       return (
         <SettingsPanel

@@ -15,6 +15,7 @@
  *   items       {array}    all items (for no-selection summary)
  */
 import React, { useCallback, useRef } from 'react';
+import { gateLabel } from '../vision/constants.js';
 
 const MIN_WIDTH = 280;
 const MAX_WIDTH_FRACTION = 0.6;
@@ -110,6 +111,19 @@ export default function ContextPanel({
   );
 }
 
+const PHASE_COLORS = {
+  implementation: '#3b82f6', // blue
+  vision:         '#a855f7', // purple
+  planning:       '#f59e0b', // amber
+  specification:  '#06b6d4', // cyan
+  verification:   '#22c55e', // green
+  design:         '#f43f5e', // rose
+};
+
+function phaseColor(phase) {
+  return PHASE_COLORS[phase] || '#6b7280'; // gray fallback
+}
+
 function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
   const phaseDistribution = {};
   for (const item of items) {
@@ -155,8 +169,8 @@ function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
           ) : (
             <div className="space-y-0.5">
               {pendingGates.slice(0, 5).map((g, i) => (
-                <p key={i} className="text-[10px] text-amber-400 font-mono truncate">
-                  {g.featureCode || g.stepId || g.id}
+                <p key={i} className="text-[10px] text-amber-400 truncate">
+                  {gateLabel(g, items.find(it => it.id === g.itemId))}
                 </p>
               ))}
             </div>
@@ -191,7 +205,8 @@ function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
                 className="h-full"
                 style={{
                   width: `${(count / totalItems) * 100}%`,
-                  background: 'hsl(var(--accent) / 0.6)',
+                  background: phaseColor(phase),
+                  opacity: 0.75,
                   minWidth: '2px',
                 }}
                 title={`${phase}: ${count}`}
@@ -200,7 +215,8 @@ function ProjectSummary({ activeBuild, pendingGates, agentErrors, items }) {
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
             {Object.entries(phaseDistribution).map(([phase, count]) => (
-              <span key={phase} className="text-[9px] text-muted-foreground">
+              <span key={phase} className="text-[9px] text-muted-foreground flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: phaseColor(phase) }} />
                 {phase}: {count}
               </span>
             ))}

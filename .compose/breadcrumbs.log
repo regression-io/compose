@@ -196,3 +196,16 @@
 2026-04-10T10:39:31+08:00 | COMP-TEST-BOOTSTRAP: creating lib/test-bootstrap.js — framework detection and scaffold generation
 2026-04-10T10:40:31+08:00 | COMP-TEST-BOOTSTRAP: writing test/test-bootstrap.test.js — unit tests for framework detection and scaffold
 2026-04-10T10:43:25+08:00 | COMP-TEST-BOOTSTRAP items 127+128: wiring detectTestFramework into executeShipStep and coverage_check dispatch
+2026-04-10T11:31:02+08:00 | COMP-IDEABOX Batch 1: foundation (178-180, 185)
+2026-04-10T11:32:18+08:00 | COMP-IDEABOX Batch 1: scaffold ideabox lib, CLI commands, cache, REST routes, tests
+2026-04-10T11:45:21+08:00 | COMP-IDEABOX Batch 2: implementing IdeaboxView, useIdeaboxStore, IdeaboxTriagePanel, IdeaboxPromoteDialog, wiring tabs and App.jsx
+2026-04-10T11:58:18+08:00 | COMP-IDEABOX Batch 3: discussion parse/serialize/addDiscussion + effort/impact fields in lib/ideabox.js
+2026-04-10T11:59:37+08:00 | COMP-IDEABOX Batch 3: adding /discuss route and effort/impact to PATCH in ideabox-routes.js
+2026-04-10T12:00:12+08:00 | COMP-IDEABOX Batch 3: adding 'discuss' subcommand to bin/compose.js
+2026-04-10T12:00:44+08:00 | COMP-IDEABOX Batch 3: adding idea_suggestion pattern detection to lib/build.js
+2026-04-10T12:01:24+08:00 | COMP-IDEABOX Batch 3: adding --from-idea flag to compose new in bin/compose.js
+2026-04-10T12:01:53+08:00 | COMP-IDEABOX Batch 3: adding Ideas section to AttentionQueueSidebar.jsx
+2026-04-10T12:02:29+08:00 | COMP-IDEABOX Batch 3: adding addDiscussion to useIdeaboxStore.js + discussion thread UI in IdeaboxView.jsx
+2026-04-10T12:04:14+08:00 | COMP-IDEABOX Batch 3: creating IdeaboxMatrixView.jsx and IdeaboxAnalytics.jsx
+2026-04-10T12:06:00+08:00 | COMP-IDEABOX Batch 3: adding Ideas toggle to GraphView.jsx
+2026-04-10T12:06:53+08:00 | COMP-IDEABOX Batch 3: extending test/ideabox.test.js with discussion/effort/impact/resurrectIdea tests

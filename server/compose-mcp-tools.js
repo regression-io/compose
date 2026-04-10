@@ -24,7 +24,13 @@ export const SESSIONS_FILE = path.join(getDataDir(), 'sessions.json');
 export function loadVisionState() {
   try {
     const raw = fs.readFileSync(VISION_FILE, 'utf-8');
-    return JSON.parse(raw);
+    const state = JSON.parse(raw);
+    if (Array.isArray(state.gates)) {
+      const seen = new Map();
+      for (const g of state.gates) seen.set(g.id, g);
+      state.gates = Array.from(seen.values());
+    }
+    return state;
   } catch {
     return { items: [], connections: [], gates: [] };
   }

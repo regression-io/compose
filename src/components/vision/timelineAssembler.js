@@ -4,6 +4,7 @@
  *
  * COMP-UX-11: Feature Event Timeline
  */
+import { GATE_STEP_LABELS, LIFECYCLE_PHASE_LABELS } from './constants.js';
 
 /**
  * @typedef {Object} TimelineEvent
@@ -103,9 +104,10 @@ export function assembleTimeline(sessions, gates, currentItem) {
     for (const gate of filtered) {
       // Gate created
       if (gate.createdAt) {
-        const label = gate.fromPhase && gate.toPhase
-          ? `Gate: ${gate.fromPhase} → ${gate.toPhase}`
-          : `Gate created`;
+        const label = GATE_STEP_LABELS[gate.stepId]
+          ?? (gate.fromPhase && gate.toPhase
+            ? `${LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → ${LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}`
+            : 'Gate created');
         events.push({
           id: `gate-created-${gate.id}`,
           timestamp: gate.createdAt,

@@ -158,7 +158,7 @@ export function compactStats(items, gates) {
     if (item.status === 'blocked') blocked++;
   }
 
-  const pendingGates = safeGates.filter(g => g.status === 'pending').length;
+  const pendingGates = safeGates.filter(g => g.status === 'pending' || g.status === 'awaiting').length;
   attentionCount = computeAttentionQueue(safeItems, safeGates).length;
 
   return {

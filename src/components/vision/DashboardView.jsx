@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { CheckCircle2, Circle, ArrowRight, Bot, FileText, Terminal, List } from 'lucide-react';
-import { LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS } from './constants.js';
+import { LIFECYCLE_PHASE_LABELS, LIFECYCLE_PHASE_ARTIFACTS, GATE_STEP_LABELS } from './constants.js';
 import ArtifactDiff from '../shared/ArtifactDiff.jsx';
 import AgentCard from '../shared/AgentCard.jsx';
 import EventTimeline from './EventTimeline.jsx';
@@ -170,7 +170,7 @@ function PendingGates({ gates, allGates, items, onResolveGate }) {
                   {item?.title ?? 'Unknown'}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {gate.stepId || gate.fromPhase || 'gate'}
+                  {GATE_STEP_LABELS[gate.stepId] ?? LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase ?? 'Gate'}
                   {completeness != null && ` \u00b7 ${Math.round(completeness * 100)}% complete`}
                 </p>
                 {priorMap.has(gate.id) && (

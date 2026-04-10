@@ -169,7 +169,7 @@ function syncSkills(agents) {
 // compose init — project-local setup
 // ---------------------------------------------------------------------------
 
-function runInit(flags) {
+async function runInit(flags) {
   const noStratum = flags.includes('--no-stratum')
   const noLifecycle = flags.includes('--no-lifecycle')
   const cwd = process.cwd()
@@ -237,6 +237,7 @@ function runInit(flags) {
       features: 'docs/features',
       journal: 'docs/journal',
       context: 'docs/context',
+      ideabox: 'docs/product/ideabox.md',
       ...(existing.paths || {}),
     },
   }
@@ -265,6 +266,16 @@ function runInit(flags) {
       writeFileSync(dest, content)
       console.log(`Created ${dest}`)
     }
+  }
+
+  // 5c. Scaffold docs/product/ideabox.md if absent
+  const ideaboxRel = config.paths.ideabox || 'docs/product/ideabox.md'
+  const ideaboxDest = join(cwd, ideaboxRel)
+  if (!existsSync(ideaboxDest)) {
+    mkdirSync(dirname(ideaboxDest), { recursive: true })
+    const { IDEABOX_TEMPLATE } = await import('../lib/ideabox.js')
+    writeFileSync(ideaboxDest, IDEABOX_TEMPLATE)
+    console.log(`Created ${ideaboxDest}`)
   }
 
   // 6. Register compose-mcp in .mcp.json
@@ -376,7 +387,7 @@ function runSetup() {
 // ---------------------------------------------------------------------------
 
 if (cmd === 'init') {
-  runInit(args)
+  await runInit(args)
   process.exit(0)
 }
 
@@ -387,7 +398,7 @@ if (cmd === 'setup') {
 
 if (cmd === 'install') {
   // Backwards-compat: run both init + setup
-  runInit(args)
+  await runInit(args)
   runSetup()
   process.exit(0)
 }
@@ -398,7 +409,7 @@ if (cmd === 'import') {
   // Auto-init if needed
   if (!existsSync(join(cwd, '.compose', 'compose.json'))) {
     console.log('No .compose/ found — running init first...\n')
-    runInit(args.filter(a => a.startsWith('--')))
+    await runInit(args.filter(a => a.startsWith('--')))
     console.log('')
   }
 
@@ -415,7 +426,9 @@ if (cmd === 'import') {
 if (cmd === 'new') {
   const autoMode = args.includes('--auto')
   const askMode = args.includes('--ask')
-  const intent = args.filter(a => !a.startsWith('-')).join(' ')
+  const fromIdeaIdx = args.indexOf('--from-idea')
+  const fromIdeaId = fromIdeaIdx !== -1 ? args[fromIdeaIdx + 1] : null
+  const intent = args.filter((a, i) => !a.startsWith('-') && i !== fromIdeaIdx + 1).join(' ')
 
   if (!intent) {
     console.error('Usage: compose new "description of the product" [--auto] [--ask]')
@@ -434,6 +447,31 @@ if (cmd === 'new') {
 
   const cwd = process.cwd()
   const name = basename(cwd)
+
+  // --from-idea <ID>: pre-populate intent from a promoted ideabox entry (Item 184)
+  let fromIdeaIntent = ''
+  if (fromIdeaId) {
+    try {
+      const { readIdeabox: _ribNew } = await import('../lib/ideabox.js')
+      const ibCfgNew = (() => { try { return JSON.parse(readFileSync(join(cwd, '.compose', 'compose.json'), 'utf-8')) } catch { return {} } })()
+      const ibRelNew = ibCfgNew?.paths?.ideabox || 'docs/product/ideabox.md'
+      const ibDataNew = _ribNew(cwd, ibRelNew)
+      const foundIdea = [...ibDataNew.ideas, ...ibDataNew.killed].find(
+        i => i.id.toUpperCase() === fromIdeaId.toUpperCase()
+      )
+      if (foundIdea) {
+        const parts = [`Feature idea: ${foundIdea.title}`]
+        if (foundIdea.description) parts.push(`Description: ${foundIdea.description}`)
+        if (foundIdea.cluster) parts.push(`Cluster: ${foundIdea.cluster}`)
+        fromIdeaIntent = parts.join('\n')
+        console.log(`Pre-populating intent from ${foundIdea.id}: ${foundIdea.title}`)
+      } else {
+        console.warn(`--from-idea: idea not found: ${fromIdeaId}`)
+      }
+    } catch (err) {
+      console.warn(`--from-idea: could not load idea: ${err.message}`)
+    }
+  }
 
   // Read any existing context to enrich intent
   let existingContext = ''
@@ -455,17 +493,18 @@ if (cmd === 'new') {
   // Auto-init if not already initialized (or missing pipeline specs)
   if (!existsSync(join(cwd, '.compose', 'compose.json')) || !existsSync(join(cwd, 'pipelines', 'new.stratum.yaml'))) {
     console.log('Running compose init...\n')
-    runInit(args.filter(a => a.startsWith('--')))
+    await runInit(args.filter(a => a.startsWith('--')))
     console.log('')
   }
 
   // Questionnaire: runs on first time automatically, then only with --ask
   // Skip questionnaire if a design doc exists — it provides the enriched intent
+  // Also skip if --from-idea provided — the idea already carries title/description/cluster
   const hasDesignDoc = existsSync(join(cwd, 'docs', 'design.md'))
-  let finalIntent = intent
+  let finalIntent = fromIdeaIntent ? `${fromIdeaIntent}${intent ? '\n\n' + intent : ''}` : intent
   let skipResearch = false
   const hasAnswers = existsSync(join(cwd, '.compose', 'questionnaire.json'))
-  const runQuestionnaireNow = !autoMode && !hasDesignDoc && (!hasAnswers || askMode)
+  const runQuestionnaireNow = !autoMode && !hasDesignDoc && (!hasAnswers || askMode) && !fromIdeaId
 
   if (runQuestionnaireNow) {
     const { runQuestionnaire } = await import('../lib/questionnaire.js')
@@ -971,7 +1010,7 @@ if (cmd === 'build') {
   const buildCwd = process.cwd()
   if (!existsSync(join(buildCwd, '.compose', 'compose.json')) || !existsSync(join(buildCwd, 'pipelines', 'build.stratum.yaml'))) {
     console.log('Running compose init...\n')
-    runInit(args.filter(a => a.startsWith('--')))
+    await runInit(args.filter(a => a.startsWith('--')))
     console.log('')
   }
 
@@ -1083,6 +1122,299 @@ if (cmd === 'build') {
     process.exit(1)
   })
   child.on('exit', (code) => process.exit(code ?? 0))
+} else if (cmd === 'ideabox') {
+  // ---------------------------------------------------------------------------
+  // compose ideabox — idea management CLI
+  // ---------------------------------------------------------------------------
+  const ibSubcmd = args[0]
+  const ibCwd = process.cwd()
+
+  // Resolve compose config (paths, etc.)
+  function loadComposeConfig(cwd) {
+    const cfgPath = join(cwd, '.compose', 'compose.json')
+    if (existsSync(cfgPath)) {
+      try { return JSON.parse(readFileSync(cfgPath, 'utf-8')) } catch {}
+    }
+    return {}
+  }
+  function getIdeaboxRelPath(cwd) {
+    return loadComposeConfig(cwd)?.paths?.ideabox || 'docs/product/ideabox.md'
+  }
+  const ibConfig = loadComposeConfig(ibCwd)
+
+  const {
+    parseIdeabox: _parseIdeabox,
+    serializeIdeabox: _serializeIdeabox,
+    addIdea: _addIdea,
+    promoteIdea: _promoteIdea,
+    killIdea: _killIdea,
+    setPriority: _setPriority,
+    loadLens: _loadLens,
+    readIdeabox: _readIdeabox,
+    writeIdeabox: _writeIdeabox,
+    addDiscussion: _addDiscussion,
+  } = await import('../lib/ideabox.js')
+
+  const ibRelPath = getIdeaboxRelPath(ibCwd)
+  const ibFullPath = join(ibCwd, ibRelPath)
+
+  if (!ibSubcmd || ibSubcmd === '--help' || ibSubcmd === '-h') {
+    console.log('Usage: compose ideabox <subcommand>')
+    console.log('')
+    console.log('Subcommands:')
+    console.log('  add "<title>"                Add a new idea')
+    console.log('  list                         List all ideas')
+    console.log('  promote <ID>                 Mark idea as PROMOTED (creates feature folder)')
+    console.log('  kill <ID> "<reason>"         Move idea to Killed Ideas')
+    console.log('  pri <ID> <P0|P1|P2>          Set priority')
+    console.log('  discuss <ID> "<comment>"     Add a discussion comment')
+    console.log('  triage [--lens <name>]       Walk untriaged ideas and assign priorities')
+    process.exit(0)
+  }
+
+  if (ibSubcmd === 'add') {
+    const title = args.slice(1).find(a => !a.startsWith('-')) || args[1]
+    if (!title) {
+      console.error('Usage: compose ideabox add "<title>" [--source "..."] [--desc "..."] [--cluster "..."]')
+      process.exit(1)
+    }
+    // Parse optional flags
+    const sourceIdx = args.indexOf('--source')
+    const descIdx = args.indexOf('--desc')
+    const clusterIdx = args.indexOf('--cluster')
+    const tagsIdx = args.indexOf('--tags')
+    const source = sourceIdx !== -1 ? args[sourceIdx + 1] : ''
+    const description = descIdx !== -1 ? args[descIdx + 1] : ''
+    const cluster = clusterIdx !== -1 ? args[clusterIdx + 1] : null
+    const tagsRaw = tagsIdx !== -1 ? args[tagsIdx + 1] : ''
+    const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim().startsWith('#') ? t.trim() : `#${t.trim()}`) : []
+
+    if (!existsSync(ibFullPath)) {
+      const { IDEABOX_TEMPLATE } = await import('../lib/ideabox.js')
+      mkdirSync(dirname(ibFullPath), { recursive: true })
+      writeFileSync(ibFullPath, IDEABOX_TEMPLATE)
+    }
+
+    const parsed = _readIdeabox(ibCwd, ibRelPath)
+    _addIdea(parsed, { title, description, source, tags, cluster })
+    _writeIdeabox(ibCwd, ibRelPath, parsed)
+    const newIdea = parsed.ideas[parsed.ideas.length - 1]
+    console.log(`Added ${newIdea.id}: ${newIdea.title}`)
+    process.exit(0)
+  }
+
+  if (ibSubcmd === 'list') {
+    if (!existsSync(ibFullPath)) {
+      console.log('No ideabox found. Run: compose ideabox add "<title>"')
+      process.exit(0)
+    }
+    const parsed = _readIdeabox(ibCwd, ibRelPath)
+    if (parsed.ideas.length === 0 && parsed.killed.length === 0) {
+      console.log('No ideas yet.')
+      process.exit(0)
+    }
+
+    // Group by status then priority
+    const byStatus = {}
+    for (const idea of parsed.ideas) {
+      const s = idea.status.startsWith('PROMOTED') ? 'PROMOTED' : idea.status
+      if (!byStatus[s]) byStatus[s] = []
+      byStatus[s].push(idea)
+    }
+
+    const statusOrder = ['NEW', 'DISCUSSING', 'PROMOTED']
+    const priorityOrder = { P0: 0, P1: 1, P2: 2, '—': 3 }
+
+    for (const status of statusOrder) {
+      const group = byStatus[status]
+      if (!group || group.length === 0) continue
+      group.sort((a, b) => (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3))
+      console.log(`\n[${status}]`)
+      for (const idea of group) {
+        const pri = idea.priority !== '—' ? ` [${idea.priority}]` : ''
+        const tags = idea.tags.length ? ` ${idea.tags.join(' ')}` : ''
+        console.log(`  ${idea.id}${pri}  ${idea.title}${tags}`)
+      }
+    }
+
+    if (parsed.killed.length > 0) {
+      console.log(`\n[KILLED] (${parsed.killed.length})`)
+      for (const idea of parsed.killed) {
+        console.log(`  ${idea.id}  ${idea.title}  — ${idea.killedReason}`)
+      }
+    }
+    process.exit(0)
+  }
+
+  if (ibSubcmd === 'promote') {
+    const ideaId = args[1]
+    if (!ideaId) {
+      console.error('Usage: compose ideabox promote <ID> [<FEATURE-CODE>]')
+      process.exit(1)
+    }
+    const featureCode = args[2] || ''
+
+    if (!existsSync(ibFullPath)) {
+      console.error(`Ideabox not found at ${ibFullPath}`)
+      process.exit(1)
+    }
+
+    const parsed = _readIdeabox(ibCwd, ibRelPath)
+    const idea = parsed.ideas.find(i => i.id.toUpperCase() === ideaId.toUpperCase())
+    if (!idea) {
+      console.error(`Idea not found: ${ideaId}`)
+      process.exit(1)
+    }
+
+    // Generate feature code if not provided
+    let resolvedCode = featureCode
+    if (!resolvedCode) {
+      // Derive a slug from the title
+      const slug = idea.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 20).replace(/-+$/, '')
+      resolvedCode = `IDEA-${idea.num}-${slug}`.toUpperCase()
+    }
+
+    // Create feature folder if missing — respect paths.features from compose.json
+    const featuresRel = ibConfig.paths?.features || 'docs/features'
+    const featuresDir = join(ibCwd, featuresRel, resolvedCode)
+    if (!existsSync(featuresDir)) {
+      mkdirSync(featuresDir, { recursive: true })
+      writeFileSync(join(featuresDir, 'feature.json'), JSON.stringify({
+        code: resolvedCode,
+        description: idea.title,
+        status: 'PLANNED',
+        promotedFrom: ideaId,
+        createdAt: new Date().toISOString(),
+      }, null, 2))
+      console.log(`Created feature folder: ${featuresRel}/${resolvedCode}/`)
+    }
+
+    _promoteIdea(parsed, ideaId, resolvedCode)
+    _writeIdeabox(ibCwd, ibRelPath, parsed)
+    console.log(`Promoted ${ideaId} → ${resolvedCode}`)
+    process.exit(0)
+  }
+
+  if (ibSubcmd === 'kill') {
+    const ideaId = args[1]
+    const reason = args[2] || ''
+    if (!ideaId) {
+      console.error('Usage: compose ideabox kill <ID> "<reason>"')
+      process.exit(1)
+    }
+    if (!existsSync(ibFullPath)) {
+      console.error(`Ideabox not found at ${ibFullPath}`)
+      process.exit(1)
+    }
+
+    const parsed = _readIdeabox(ibCwd, ibRelPath)
+    _killIdea(parsed, ideaId, reason)
+    _writeIdeabox(ibCwd, ibRelPath, parsed)
+    console.log(`Killed ${ideaId}: ${reason}`)
+    process.exit(0)
+  }
+
+  if (ibSubcmd === 'pri') {
+    const ideaId = args[1]
+    const priority = args[2]
+    if (!ideaId || !priority) {
+      console.error('Usage: compose ideabox pri <ID> <P0|P1|P2>')
+      process.exit(1)
+    }
+    if (!existsSync(ibFullPath)) {
+      console.error(`Ideabox not found at ${ibFullPath}`)
+      process.exit(1)
+    }
+
+    const parsed = _readIdeabox(ibCwd, ibRelPath)
+    _setPriority(parsed, ideaId, priority)
+    _writeIdeabox(ibCwd, ibRelPath, parsed)
+    console.log(`Set ${ideaId} priority → ${priority}`)
+    process.exit(0)
+  }
+
+  if (ibSubcmd === 'discuss') {
+    const ideaId = args[1]
+    const comment = args[2]
+    if (!ideaId || !comment) {
+      console.error('Usage: compose ideabox discuss <ID> "<comment>"')
+      process.exit(1)
+    }
+    if (!existsSync(ibFullPath)) {
+      console.error(`Ideabox not found at ${ibFullPath}`)
+      process.exit(1)
+    }
+
+    const parsed = _readIdeabox(ibCwd, ibRelPath)
+    _addDiscussion(parsed, ideaId, 'human', comment)
+    _writeIdeabox(ibCwd, ibRelPath, parsed)
+    const today = new Date().toISOString().slice(0, 10)
+    console.log(`[${today}] human: ${comment}`)
+    process.exit(0)
+  }
+
+  if (ibSubcmd === 'triage') {
+    const lensIdx = args.indexOf('--lens')
+    const lensName = lensIdx !== -1 ? args[lensIdx + 1] : null
+
+    if (!existsSync(ibFullPath)) {
+      console.log('No ideabox found. Run: compose ideabox add "<title>" first.')
+      process.exit(0)
+    }
+
+    const parsed = _readIdeabox(ibCwd, ibRelPath)
+    const untriaged = parsed.ideas.filter(i => i.priority === '—' && i.status === 'NEW')
+
+    if (untriaged.length === 0) {
+      console.log('No untriaged ideas.')
+      process.exit(0)
+    }
+
+    let lens = null
+    if (lensName) {
+      lens = _loadLens(ibCwd, lensName)
+      if (!lens) {
+        console.warn(`Lens not found: docs/product/ideabox-priority-${lensName}.md`)
+      } else {
+        console.log(`Using lens: ${lensName}`)
+      }
+    }
+
+    // Interactive triage using readline
+    const { createInterface } = await import('node:readline')
+    const rl = createInterface({ input: process.stdin, output: process.stdout })
+    const question = (q) => new Promise(resolve => rl.question(q, resolve))
+
+    let changed = false
+    for (const idea of untriaged) {
+      console.log(`\n${idea.id}: ${idea.title}`)
+      if (idea.description) console.log(`  ${idea.description.slice(0, 120)}`)
+      if (lens) console.log(`  [lens: ${lensName}]`)
+
+      const ans = await question('  Priority [P0/P1/P2/skip]: ')
+      const p = ans.trim().toUpperCase()
+      if (['P0', 'P1', 'P2'].includes(p)) {
+        _setPriority(parsed, idea.id, p)
+        changed = true
+        console.log(`  Set ${idea.id} → ${p}`)
+      } else {
+        console.log('  Skipped')
+      }
+    }
+
+    rl.close()
+
+    if (changed) {
+      _writeIdeabox(ibCwd, ibRelPath, parsed)
+      console.log('\nSaved.')
+    }
+    process.exit(0)
+  }
+
+  console.error(`Unknown ideabox subcommand: ${ibSubcmd}`)
+  console.error('Run: compose ideabox --help')
+  process.exit(1)
+
 } else {
   console.error(`Unknown command: ${cmd}`)
   process.exit(1)

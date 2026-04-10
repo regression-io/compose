@@ -20,7 +20,7 @@ function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-const PREFIX_RE = /^([A-Z]+-[A-Z]+|[A-Z]+)(?=-\d)/;
+const PREFIX_RE = /^([A-Z]+\d*(?:-[A-Z]+\d*)*)(?=-\d|$)/;
 function deriveGroup(title, featureCode) {
   const titleMatch = (title || '').match(PREFIX_RE);
   if (titleMatch) return titleMatch[1];
@@ -81,7 +81,17 @@ export class VisionStore {
         for (const conn of data.connections) this.connections.set(conn.id, conn);
       }
       if (Array.isArray(data.gates)) {
+        const seenGateIds = new Set();
+        const seenPendingKeys = new Set();
         for (const gate of data.gates) {
+          if (seenGateIds.has(gate.id)) { migrated = true; continue; }
+          seenGateIds.add(gate.id);
+          // Dedup pending gates by itemId+stepId
+          if (gate.status === 'pending' && gate.itemId && gate.stepId) {
+            const key = `${gate.itemId}:${gate.stepId}`;
+            if (seenPendingKeys.has(key)) { migrated = true; continue; }
+            seenPendingKeys.add(key);
+          }
           // Migration: normalize legacy gate outcomes
           if (gate.outcome) {
             const map = { approved: 'approve', killed: 'kill', revised: 'revise' };
@@ -303,6 +313,16 @@ export class VisionStore {
   /** Get a gate by its ID */
   getGateById(gateId) {
     return this.gates.get(gateId) || null;
+  }
+
+  /** Find an existing pending gate for the same item+step */
+  findPendingGate(itemId, stepId) {
+    for (const gate of this.gates.values()) {
+      if (gate.status === 'pending' && gate.itemId === itemId && gate.stepId === stepId) {
+        return gate;
+      }
+    }
+    return null;
   }
 
   /** Get all gates (any status) as an array */

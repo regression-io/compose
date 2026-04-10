@@ -111,6 +111,32 @@ export const PIPELINE_STEPS = [
   { id: 'ship_gate',           name: 'Ship Gate',       agent: 'human',  phase: 'ship',           hasGate: true  },
 ];
 
+/**
+ * Human-friendly gate labels keyed by stepId.
+ * Short verb phrase that tells the reviewer what to do.
+ */
+export const GATE_STEP_LABELS = {
+  design_gate:       'Review Design',
+  prd_gate:          'Review PRD',
+  architecture_gate: 'Review Architecture',
+  plan_gate:         'Review Plan',
+  report_gate:       'Review Report',
+  ship_gate:         'Approve for Ship',
+};
+
+/**
+ * Build a contextual gate label: "Review Design — My Feature"
+ * Falls back gracefully when fields are missing.
+ */
+export function gateLabel(gate, item) {
+  const action = GATE_STEP_LABELS[gate.stepId]
+    ?? (gate.fromPhase && gate.toPhase
+      ? `${LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase} → ${LIFECYCLE_PHASE_LABELS[gate.toPhase] ?? gate.toPhase}`
+      : 'Gate');
+  const name = item?.title || gate.featureCode || null;
+  return name ? `${action} — ${name}` : action;
+}
+
 export const PIPELINE_PHASE_CONFIG = {
   design:         { label: 'Phase 1: Design',      color: 'border-blue-500/30 bg-blue-500/5'      },
   blueprint:      { label: 'Phase 2: Blueprint',   color: 'border-violet-500/30 bg-violet-500/5'  },

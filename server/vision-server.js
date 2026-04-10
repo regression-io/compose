@@ -26,6 +26,7 @@ import { attachDesignRoutes } from './design-routes.js';
 import { DesignSessionManager } from './design-session.js';
 import { ClaudeSDKConnector } from './connectors/claude-sdk-connector.js';
 import { attachPipelineRoutes } from './pipeline-routes.js';
+import { attachIdeaboxRoutes } from './ideabox-routes.js';
 /** Settings defaults (previously derived from contracts/lifecycle.json). */
 const SETTINGS_DEFAULTS = {
   phases: [
@@ -106,6 +107,13 @@ export class VisionServer {
       getDataDir: () => getDataDir(),
       getPipelinesDir: () => path.join(getTargetRoot(), 'pipelines'),
       stratumClient: null, // V1: no MCP client in server context; fallback YAML parse is acceptable
+    });
+
+    // ── Ideabox routes ────────────────────────────────────────────────────────
+    attachIdeaboxRoutes(app, {
+      getProjectRoot: () => getTargetRoot(),
+      getDataDir: () => getDataDir(),
+      broadcastMessage: (msg) => this.broadcastMessage(msg),
     });
 
     // ── Design conversation routes ──────────────────────────────────────────

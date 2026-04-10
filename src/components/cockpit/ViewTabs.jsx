@@ -12,7 +12,7 @@
  *   onOpenPalette {fn}      called when Cmd+K button is clicked
  */
 import React from 'react';
-import { Network, GitBranch, Activity, ShieldCheck, Search, FileText, Workflow, MessageSquare, LayoutDashboard } from 'lucide-react';
+import { Network, GitBranch, Activity, ShieldCheck, Search, FileText, Workflow, MessageSquare, LayoutDashboard, Lightbulb } from 'lucide-react';
 
 const TAB_META = {
   dashboard: { label: 'Dashboard', icon: LayoutDashboard },
@@ -23,6 +23,7 @@ const TAB_META = {
   gates:     { label: 'Gates',     icon: ShieldCheck },
   docs:      { label: 'Docs',      icon: FileText },
   design:    { label: 'Design',    icon: MessageSquare },
+  ideabox:   { label: 'Ideabox',   icon: Lightbulb },
 };
 
 export default function ViewTabs({ tabs = [], activeTab, onTabChange, onOpenPalette, badges = {} }) {

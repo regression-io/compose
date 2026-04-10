@@ -2,6 +2,64 @@
 
 ## 2026-04-09
 
+### COMP-IDEABOX Batch 3: Advanced Features (Items 184, 186, 187, 188, 189)
+
+**Item 184: Lifecycle integration**
+- **build.js:** after each agent step, scans output text for "we should/could/might" patterns and emits `idea_suggestion` stream events (hints only, nothing auto-filed).
+- **bin/compose.js:** `compose new --from-idea <ID>` flag pre-populates intent from an ideabox entry's title + description + cluster, skips duplicate questionnaire fields.
+- **AttentionQueueSidebar.jsx:** "Ideas" section below the attention queue showing untriaged idea count. Click navigates to the ideabox view.
+
+**Item 186: Discussion threads**
+- **lib/ideabox.js:** `parseIdeabox` and `serializeIdeabox` support inline discussion entries (`**Discussion:**` block with `- [date] author: text` entries). Discussion field parsed to `[{ date, author, text }]`.
+- **lib/ideabox.js:** `addDiscussion(parsedData, ideaId, author, text)` mutation helper.
+- **server/ideabox-routes.js:** `POST /api/ideabox/ideas/:id/discuss` endpoint.
+- **bin/compose.js:** `compose ideabox discuss <ID> "<comment>"` subcommand.
+- **IdeaboxView.jsx:** discussion thread rendered in detail panel; inline input to add comments.
+- **useIdeaboxStore.js:** `addDiscussion` and `updateIdea` actions.
+
+**Item 187: Impact/effort matrix**
+- **lib/ideabox.js:** `effort` (S|M|L) and `impact` (low|medium|high) fields added to idea schema. Parsed from `**Effort:**` and `**Impact:**` lines.
+- **server/ideabox-routes.js:** PATCH allows `effort` and `impact` fields.
+- **IdeaboxMatrixView.jsx (new):** 2x2 scatter plot with Quick Wins / Big Bets / Fill-ins / Money Pits quadrants. Unassigned tray with inline EffortImpactForm. Dot colors by cluster.
+- **IdeaboxView.jsx:** "Cards | Matrix" tab toggle in header.
+
+**Item 188: Roadmap graph integration**
+- **GraphView.jsx:** "Ideas" toggle (default off). When on, renders idea nodes as dashed amber circles connected via dashed edges to their `mapsTo` feature targets.
+
+**Item 189: Source analytics + digest dashboard**
+- **IdeaboxAnalytics.jsx (new):** collapsible analytics section in header — source breakdown bars, NEW→DISCUSSING→PROMOTED status funnel with kill rate, cluster health with promotion rate. Pure derived computation from store data.
+
+- **Tests:** 68 tests, all passing. New suites: discussion parsing, addDiscussion, effort/impact fields, resurrectIdea.
+
+### COMP-IDEABOX: Product Idea Capture & Triage (Wave 3) — Batches 1+2
+
+**Batch 1 (Backend + CLI):**
+- **lib/ideabox.js (new):** pure markdown parser/writer. parseIdeabox/serializeIdeabox round-trip, addIdea, promoteIdea, killIdea, resurrectIdea, setPriority, addDiscussion, loadLens. Handles SmartMemory canonical format.
+- **server/ideabox-routes.js (new):** REST API — GET, POST, PATCH, /promote, /kill, /resurrect, /discuss. PATCH rejects status mutations (must use /promote or /kill).
+- **server/ideabox-cache.js (new):** mtime-invalidated JSON cache for fast UI queries.
+- **bin/compose.js:** `compose init` scaffolds `docs/product/ideabox.md`. `compose ideabox` subcommands: add, list, promote, kill, pri, triage, discuss. Respects `paths.ideabox` and `paths.features` from compose.json.
+- 48 parser/CLI tests.
+
+**Batch 2 (Core Web UI):**
+- **IdeaboxView.jsx (new):** main view with digest header, filter bar (tag/status/priority/search), priority lanes, drag-and-drop, click-to-detail panel, graveyard.
+- **IdeaboxTriagePanel.jsx (new):** modal triage flow with keyboard shortcuts, similarity hints, progress.
+- **IdeaboxPromoteDialog.jsx (new):** 3-step wizard (feature code → preview → confirm).
+- **useIdeaboxStore.js (new):** Zustand store with WS-driven hydration.
+- ViewTabs registers ideabox tab; App.jsx routes it.
+- 24 store tests.
+
+**Batch 3 (Advanced + Integrations):**
+- **Discussion threads:** parse/serialize, addDiscussion endpoint, CLI `compose ideabox discuss`, detail panel thread UI.
+- **Effort/impact matrix:** schema fields with enum validation, IdeaboxMatrixView.jsx (2x2 scatter with quadrants, unassigned tray).
+- **Graph integration:** GraphView "Ideas" toggle renders idea nodes as dashed amber circles connected to mapsTo features. Nodes carry status='idea' for handler compatibility.
+- **Source analytics:** IdeaboxAnalytics.jsx — source breakdown bars, status funnel, cluster health.
+- **Lifecycle integration:** build.js scans agent output for "we should/could" patterns, emits idea_suggestion stream events. AttentionQueueSidebar shows untriaged count. `compose new --from-idea <ID>` pre-populates intent.
+- 20 additional tests (discussion, addDiscussion, effort/impact, resurrect).
+
+**Codex fixes:** REST promote now creates feature folder (CLI parity), enum validation on effort/impact, idea graph nodes interactive, idea_suggestion events bridged to UI.
+
+92 total tests, all passing.
+
 ### COMP-CTX: Ambient Context Layer (Wave 3)
 
 - **compose init:** scaffolds `docs/context/` with tech-stack.md, conventions.md, decisions.md. Path configurable via `compose.json` `paths.context`.

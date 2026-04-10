@@ -17,7 +17,7 @@ import { ChevronLeft, ChevronRight, X, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { useVisionStore } from '../useVisionStore.js';
 import { useShallow } from 'zustand/react/shallow';
-import { LIFECYCLE_PHASE_LABELS, GATE_COLORS, GATE_GATE_FALLBACK_COLOR } from '../constants.js';
+import { GATE_COLORS, GATE_FALLBACK_COLOR, GATE_STEP_LABELS, gateLabel } from '../constants.js';
 
 export default function GateNotificationBar({ onOpenGate }) {
   const { gates, items } = useVisionStore(useShallow(s => ({ gates: s.gates, items: s.items })));
@@ -33,13 +33,7 @@ export default function GateNotificationBar({ onOpenGate }) {
   const gate = pending[safeIndex];
   const matchedItem = items.find(i => i.id === gate.itemId)
     || items.find(i => i.lifecycle?.featureCode && gate.featureCode && i.lifecycle.featureCode === gate.featureCode);
-  // Build a readable title — avoid raw UUIDs
-  let itemTitle = matchedItem?.title;
-  if (!itemTitle) itemTitle = gate.featureCode;
-  if (!itemTitle) itemTitle = gate.stepId?.replace(/_/g, ' ');
-  if (!itemTitle) itemTitle = gate.toPhase ? `${gate.toPhase} transition` : null;
-  if (!itemTitle) itemTitle = 'Pending review';
-  const phaseLabel = LIFECYCLE_PHASE_LABELS[gate.fromPhase] ?? gate.fromPhase ?? 'Gate';
+  const label = gateLabel(gate, matchedItem);
   const colors = GATE_COLORS[gate.fromPhase] ?? GATE_FALLBACK_COLOR;
 
   const handleDismiss = () => {
@@ -64,11 +58,8 @@ export default function GateNotificationBar({ onOpenGate }) {
       <ShieldCheck className={cn('h-3.5 w-3.5 shrink-0', colors.text)} />
 
       {/* Gate info */}
-      <span className={cn('text-[11px] font-medium shrink-0', colors.text)}>
-        {phaseLabel} Gate
-      </span>
-      <span className="text-[10px] text-muted-foreground truncate flex-1 min-w-0">
-        {itemTitle}
+      <span className={cn('text-[11px] font-medium truncate flex-1 min-w-0', colors.text)}>
+        {label}
       </span>
 
       {/* Carousel controls */}

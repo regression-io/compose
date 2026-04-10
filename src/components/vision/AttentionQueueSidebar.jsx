@@ -16,7 +16,7 @@
 import React from 'react';
 import {
   Search, CircleDot, Sun, Moon, Bell,
-  Zap, AlertTriangle, Shield, Plus,
+  Zap, AlertTriangle, Shield, Plus, Lightbulb,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Input } from '@/components/ui/input.jsx';
@@ -27,6 +27,7 @@ import AgentPanel from './AgentPanel.jsx';
 import { computeAttentionQueue, buildProgress, compactStats, togglePhase, ATTENTION_PRIORITY } from './attentionQueueState.js';
 import StatusBadge from './shared/StatusBadge.jsx';
 import PhaseTag from './shared/PhaseTag.jsx';
+import { useIdeaboxStore } from './useIdeaboxStore.js';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -160,7 +161,7 @@ function CompactStatsRow({ items, gates }) {
         <span className="text-xs" style={{ color: 'hsl(var(--destructive))' }}>{stats.blocked} blocked</span>
       )}
       {stats.pendingGates > 0 && (
-        <span className="text-xs" style={{ color: 'hsl(var(--warning))' }}>{stats.pendingGates} gates</span>
+        <span className="text-xs" style={{ color: 'hsl(var(--warning))' }}>{stats.pendingGates} {stats.pendingGates === 1 ? 'gate' : 'gates'}</span>
       )}
     </div>
   );
@@ -170,6 +171,8 @@ function CompactStatsRow({ items, gates }) {
  * GroupFilter — feature code prefix groups with counts.
  * Only shows groups that are visible (not hidden).
  */
+const VISIBLE_STATUSES = new Set(['planned', 'ready', 'in_progress', 'review', 'blocked', 'parked']);
+
 function GroupFilter({ items, hiddenGroups, onToggleGroup }) {
   const groups = React.useMemo(() => {
     const counts = {};
@@ -177,6 +180,7 @@ function GroupFilter({ items, hiddenGroups, onToggleGroup }) {
     for (const item of items) {
       const title = item.title || '';
       if (title.startsWith('`docs/') || title.startsWith('docs/')) continue;
+      if (!VISIBLE_STATUSES.has(item.status)) continue;
       const group = item.group || 'other';
       counts[group] = (counts[group] || 0) + 1;
       if (['in_progress', 'review', 'ready'].includes(item.status)) {
@@ -214,6 +218,40 @@ function GroupFilter({ items, hiddenGroups, onToggleGroup }) {
         );
       })}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// IdeasSection — shows untriaged idea count, click navigates to ideabox
+// ---------------------------------------------------------------------------
+
+function IdeasSection({ onViewChange }) {
+  const ideas = useIdeaboxStore(s => s.ideas);
+  const untriagedCount = React.useMemo(
+    () => ideas.filter(i => !i.priority || i.priority === '—').length,
+    [ideas],
+  );
+
+  if (untriagedCount === 0) return null;
+
+  return (
+    <div className="px-2 mb-2">
+      <p
+        className="text-[10px] font-medium uppercase tracking-wider px-2 mb-1"
+        style={{ color: 'hsl(var(--muted-foreground))' }}
+      >
+        Ideas
+      </p>
+      <button
+        onClick={() => onViewChange?.('ideabox')}
+        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors hover:bg-sidebar-accent/50"
+        style={{ color: 'hsl(var(--muted-foreground))' }}
+        title="View untriaged ideas"
+      >
+        <Lightbulb className="h-3 w-3 shrink-0 text-amber-400" />
+        <span className="flex-1 text-left">{untriagedCount} untriaged</span>
+      </button>
+    </div>
   );
 }
 
@@ -267,6 +305,7 @@ function AttentionQueueSidebar({
   onStopAgent,
   onThemeChange,
   onNewItem,
+  widthPx,
 }) {
   const safeItems = items || [];
   const safeGates = gates || [];
@@ -301,7 +340,7 @@ function AttentionQueueSidebar({
   }, [onPhaseSelect, selectedPhase]);
 
   return (
-    <aside className="w-52 shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border">
+    <aside className="shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border" style={{ width: widthPx ?? 208 }}>
 
       {/* ── Header ── */}
       <div className="p-3 pb-2">
@@ -361,6 +400,9 @@ function AttentionQueueSidebar({
           />
         </>
       )}
+
+      {/* ── Ideas section (untriaged ideas count) ── */}
+      <IdeasSection onViewChange={onViewChange} />
 
       {/* ── Search ── */}
       <div className="px-3 pb-2">

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LIFECYCLE_PHASE_LABELS } from './constants.js';
+import { gateLabel } from './constants.js';
 
 export default function GateToast({ event, items, onNavigate }) {
   const [visible, setVisible] = useState(false);
@@ -18,7 +18,7 @@ export default function GateToast({ event, items, onNavigate }) {
   const item = items.find(i => i.id === current.itemId);
   const title = item?.title ?? 'Unknown';
   const message = current.type === 'pending'
-    ? `Gate pending: ${title} — ${LIFECYCLE_PHASE_LABELS[current.fromPhase] ?? current.fromPhase} → ${LIFECYCLE_PHASE_LABELS[current.toPhase] ?? current.toPhase}`
+    ? `Gate pending: ${gateLabel(current, item)}`
     : `Gate ${current.outcome}: ${title}`;
 
   return (

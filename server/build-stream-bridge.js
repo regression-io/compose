@@ -379,6 +379,13 @@ export class BuildStreamBridge {
           _source: 'build',
         };
 
+      case 'idea_suggestion':
+        return {
+          type: 'system', subtype: 'idea_suggestion',
+          text: event.text, stepId: event.stepId,
+          _source: 'build',
+        };
+
       default:
         return null; // unknown event type — skip
     }

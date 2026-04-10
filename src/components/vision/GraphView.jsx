@@ -4,6 +4,7 @@ import cytoscapeDagre from 'cytoscape-dagre';
 import cytoscapeFcose from 'cytoscape-fcose';
 import { TYPE_COLORS, PHASE_LABELS, CONFIDENCE_LABELS } from './constants.js';
 import FeatureFocusToggle from '../shared/FeatureFocusToggle.jsx';
+import { useIdeaboxStore } from './useIdeaboxStore.js';
 
 try { cytoscape.use(cytoscapeDagre); } catch (e) { /* already registered */ }
 try { cytoscape.use(cytoscapeFcose); } catch (e) { /* already registered */ }
@@ -249,6 +250,22 @@ function buildStylesheet() {
     }},
     { selector: '.relay-active', style: { 'width': 2, 'line-color': '#3b82f6', 'opacity': 0.8, 'target-arrow-color': '#3b82f6' }},
     { selector: '.relay-result', style: { 'width': 2, 'line-color': '#10b981', 'opacity': 0.8, 'target-arrow-color': '#10b981' }},
+    // Item 188: Idea node style (dashed circle)
+    { selector: '.idea-node', style: {
+      'label': 'data(label)', 'text-valign': 'center', 'text-halign': 'center',
+      'font-size': '8px', 'font-family': 'monospace', 'color': '#fbbf24',
+      'text-wrap': 'wrap', 'text-max-width': '70px',
+      'width': '70px', 'height': '70px', 'shape': 'ellipse',
+      'background-color': '#451a0310',
+      'border-style': 'dashed', 'border-width': 1.5, 'border-color': '#f59e0b',
+      'opacity': 0.85,
+    }},
+    { selector: 'edge[edgeType="idea"]', style: {
+      'width': 1, 'line-color': '#f59e0b', 'line-style': 'dashed',
+      'line-dash-pattern': [6, 3],
+      'target-arrow-color': '#f59e0b', 'target-arrow-shape': 'triangle',
+      'arrow-scale': 0.7, 'curve-style': 'bezier', 'opacity': 0.5,
+    }},
   ];
 }
 
@@ -400,6 +417,10 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
   const [gatePopoverNodeId, setGatePopoverNodeId] = useState(null);
   const [badgePositions, setBadgePositions] = useState([]);
   const [showAgentTopology, setShowAgentTopology] = useState(false);
+  const [showIdeas, setShowIdeas] = useState(false);
+
+  // Ideabox store — ideas with mapsTo references (for Item 188)
+  const ideaboxIdeas = useIdeaboxStore(s => s.ideas);
 
   // COMP-VIS-1: Auto-enable on first running agent, auto-disable when all finish
   const prevHadRunning = useRef(false);
@@ -454,13 +475,61 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
     return [...agentOverlay.nodes, ...agentOverlay.edges];
   }, [spawnedAgents]);
 
+  // Build idea overlay elements (dashed circles connected to mapsTo features)
+  const ideaElements = useMemo(() => {
+    if (!showIdeas) return [];
+    const itemIds = new Set(filteredItems.map(i => i.id));
+    const result = [];
+    for (const idea of ideaboxIdeas) {
+      if (!idea.mapsTo) continue;
+      const nodeId = `idea-${idea.id}`;
+      result.push({
+        data: {
+          id: nodeId,
+          label: `${idea.id}\n${idea.title.slice(0, 20)}${idea.title.length > 20 ? '…' : ''}`,
+          isIdeaNode: true,
+          status: 'idea',  // satisfies node[status] selector for handlers
+          ideaId: idea.id,
+        },
+        classes: 'idea-node',
+      });
+      // Connect to mapsTo references (may be comma-separated)
+      const refs = idea.mapsTo.split(',').map(r => r.trim()).filter(Boolean);
+      for (const ref of refs) {
+        // Find matching item by featureCode or title prefix
+        const target = filteredItems.find(i =>
+          i.lifecycle?.featureCode === ref ||
+          i.featureCode === ref ||
+          (i.title || '').startsWith(ref)
+        );
+        if (target) {
+          result.push({
+            data: {
+              id: `idea-edge-${idea.id}-${target.id}`,
+              source: nodeId,
+              target: target.id,
+              edgeType: 'idea',
+              edgeColor: '#f59e0b',
+              edgeStyle: 'dashed',
+            },
+          });
+        }
+      }
+    }
+    return result;
+  }, [showIdeas, ideaboxIdeas, filteredItems]);
+
   const elements = useMemo(() => {
     const base = buildElements(filteredItems, filteredConnections, grouped, focusActive, featureCode);
+    let result = base;
     if (showAgentTopology && agentElements.length > 0) {
-      return [...base, ...agentElements];
+      result = [...result, ...agentElements];
     }
-    return base;
-  }, [filteredItems, filteredConnections, grouped, showAgentTopology, agentElements, focusActive, featureCode]);
+    if (showIdeas && ideaElements.length > 0) {
+      result = [...result, ...ideaElements];
+    }
+    return result;
+  }, [filteredItems, filteredConnections, grouped, showAgentTopology, agentElements, showIdeas, ideaElements, focusActive, featureCode]);
 
   const stylesheet = useMemo(() => buildStylesheet(), []);
 
@@ -691,6 +760,7 @@ export default function GraphView({ items, connections, selectedItemId, onSelect
           <div className="flex items-center gap-1">
             <FilterBtn active={grouped} onClick={() => setGrouped(!grouped)}>Group</FilterBtn>
             <FilterBtn active={showAgentTopology} onClick={() => setShowAgentTopology(v => !v)} title="Show/hide agent topology">Agents</FilterBtn>
+            <FilterBtn active={showIdeas} onClick={() => setShowIdeas(v => !v)} title="Show/hide idea nodes (connected to features via mapsTo)">Ideas</FilterBtn>
             <Sep />
           <CtrlBtn onClick={handleZoomOut} title="Zoom out">&minus;</CtrlBtn>
           <CtrlBtn onClick={handleFit} title="Fit to view">Fit</CtrlBtn>
