@@ -450,7 +450,7 @@ Drag-and-drop pipeline editor in the web UI. Build, modify, and rewire `.stratum
 
 ---
 
-## STRAT-TIER: Model Tier Routing — PLANNED
+## STRAT-TIER: Model Tier Routing — COMPLETE
 
 Assign Stratum steps to model tiers based on task criticality. Steps declare a `model_tier` (critical/standard/fast) and the executor routes to the appropriate model. Enables hybrid chains: Opus plans → Haiku executes → Sonnet reviews.
 
@@ -458,10 +458,10 @@ Inspired by [wshobson/agents](https://github.com/wshobson/agents) model routing 
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 88 | STRAT-TIER-1 | **IR schema extension:** add optional `model_tier` field to step definitions (`critical` → Opus, `standard` → Sonnet/inherit, `fast` → Haiku). Backward-compatible — absent field means inherit. | PLANNED |
-| 89 | STRAT-TIER-2 | **Executor routing:** executor reads `model_tier`, resolves to concrete model via config map, passes to agent dispatch. Override via CLI flag or `.stratum.yaml` top-level `model_map`. | PLANNED |
-| 90 | STRAT-TIER-3 | **Compose integration:** `build.js` reads tier from step, passes model to connector. Audit trail records which model ran each step. Cost tracking per tier. | PLANNED |
-| 91 | STRAT-TIER-4 | **Hybrid chain presets:** built-in chain templates — `plan-execute-review` (Opus→Haiku→Sonnet), `review-fix` (Sonnet→Haiku), `security-audit` (Opus→Opus). Selectable in spec or via `compose build --chain`. | PLANNED |
+| 88 | STRAT-TIER-1 | **IR schema extension:** add optional `model_tier` field to step definitions (`critical` → Opus, `standard` → Sonnet/inherit, `fast` → Haiku). Backward-compatible — absent field means inherit. | COMPLETE |
+| 89 | STRAT-TIER-2 | **Executor routing:** executor reads `model_tier`, resolves to concrete model via config map, passes to agent dispatch. Override via CLI flag or `.stratum.yaml` top-level `model_map`. | COMPLETE |
+| 90 | STRAT-TIER-3 | **Compose integration:** `build.js` reads tier from step, passes model to connector. Audit trail records which model ran each step. Cost tracking per tier. | COMPLETE |
+| 91 | STRAT-TIER-4 | **Hybrid chain presets:** built-in chain templates — `plan-execute-review` (Opus→Haiku→Sonnet), `review-fix` (Sonnet→Haiku), `security-audit` (Opus→Opus). Selectable in spec or via `compose build --chain`. | COMPLETE |
 
 **Dependencies:** None — independent of other features.
 
@@ -768,16 +768,16 @@ See `docs/features/COMP-OBS-STREAM/design.md` for the full design.
 
 ---
 
-## COMP-OBS-COST: Token and Cost Tracking — PLANNED
+## COMP-OBS-COST: Token and Cost Tracking — COMPLETE
 
 Per-step token usage and cost. Currently only session-level `total_cost_usd` appears in the result message. No per-step breakdown, no cumulative build cost, no input/output token split. Requires extending the Stratum audit format and the build-stream event schema.
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 147 | COMP-OBS-COST-1 | **Audit format extension:** Stratum `stratum_audit` response gains per-step `input_tokens`, `output_tokens`, `cost_usd` fields. Populated from SDK result events accumulated during step execution. Stored in flow state alongside existing `duration_ms`. | PLANNED |
-| 153 | COMP-OBS-COST-2 | **Build-stream cost events:** `build_step_done` events gain `tokens` and `cost_usd` fields from the audit data. `build_end` event gains `total_tokens` and `total_cost_usd` aggregated across all steps. | PLANNED |
-| 154 | COMP-OBS-COST-3 | **Ops strip cost display:** cumulative build cost shown in ops strip during active builds (e.g., "$0.42"). Updates on each `build_step_done`. | PLANNED |
-| 155 | COMP-OBS-COST-4 | **Context panel cost breakdown:** build detail in context panel shows per-step table: step name, input tokens, output tokens, cost, duration. Sortable by cost. Highlights most expensive step. | PLANNED |
+| 147 | COMP-OBS-COST-1 | **Audit format extension:** Stratum `stratum_audit` response gains per-step `input_tokens`, `output_tokens`, `cost_usd` fields. Populated from SDK result events accumulated during step execution. Stored in flow state alongside existing `duration_ms`. | COMPLETE |
+| 153 | COMP-OBS-COST-2 | **Build-stream cost events:** `build_step_done` events gain `tokens` and `cost_usd` fields from the audit data. `build_end` event gains `total_tokens` and `total_cost_usd` aggregated across all steps. | COMPLETE |
+| 154 | COMP-OBS-COST-3 | **Ops strip cost display:** cumulative build cost shown in ops strip during active builds (e.g., "$0.42"). Updates on each `build_step_done`. | COMPLETE |
+| 155 | COMP-OBS-COST-4 | **Context panel cost breakdown:** build detail in context panel shows per-step table: step name, input tokens, output tokens, cost, duration. Sortable by cost. Highlights most expensive step. | COMPLETE |
 
 **Dependencies:** None — standalone. Benefits from COMP-BUDGET (cumulative cost tracking reuses budget ledger).
 

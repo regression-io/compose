@@ -190,7 +190,7 @@ flows:
     output: TestResult
     steps:
       - id: run_tests
-        agent: claude
+        agent: "claude::fast"
         intent: >
           Run the project test suite. Return structured JSON:
           { "passing": boolean, "summary": string, "failures": string[] }.
@@ -275,7 +275,7 @@ flows:
 
       # Phase: Blueprint
       - id: blueprint
-        agent: claude
+        agent: "claude::critical"
         intent: >
           Write an implementation blueprint with file:line references to existing code.
           Ground every reference in actual files. Write to docs/features/{featureCode}/blueprint.md.
@@ -457,7 +457,7 @@ flows:
 
       # Phase: Ship
       - id: ship
-        agent: claude
+        agent: "claude::critical"
         intent: >
           Final verification and commit. You MUST:
 

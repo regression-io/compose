@@ -341,6 +341,11 @@ export class BuildStreamBridge {
           stepId: event.stepId, summary: event.summary,
           retries: event.retries, violations: event.violations,
           flowId: event.flowId,
+          // COMP-OBS-COST: per-step and cumulative cost fields
+          input_tokens: event.input_tokens ?? 0,
+          output_tokens: event.output_tokens ?? 0,
+          cost_usd: event.cost_usd ?? 0,
+          cumulative_cost_usd: event.cumulative_cost_usd ?? 0,
           ...(event.parentFlowId ? { parentFlowId: event.parentFlowId } : {}),
           ...(event.parallel ? { parallel: true } : {}),
           _source: 'build',
@@ -376,6 +381,23 @@ export class BuildStreamBridge {
         return {
           type: 'system', subtype: 'build_end',
           status: event.status, featureCode: event.featureCode,
+          // COMP-OBS-COST: cumulative build totals
+          total_input_tokens: event.total_input_tokens ?? 0,
+          total_output_tokens: event.total_output_tokens ?? 0,
+          total_cost_usd: event.total_cost_usd ?? 0,
+          _source: 'build',
+        };
+
+      case 'step_usage':
+        return {
+          type: 'system', subtype: 'step_usage',
+          stepId: event.stepId,
+          input_tokens: event.input_tokens ?? 0,
+          output_tokens: event.output_tokens ?? 0,
+          cache_creation_input_tokens: event.cache_creation_input_tokens ?? 0,
+          cache_read_input_tokens: event.cache_read_input_tokens ?? 0,
+          cost_usd: event.cost_usd ?? 0,
+          model: event.model ?? null,
           _source: 'build',
         };
 

@@ -209,3 +209,7 @@
 2026-04-10T12:04:14+08:00 | COMP-IDEABOX Batch 3: creating IdeaboxMatrixView.jsx and IdeaboxAnalytics.jsx
 2026-04-10T12:06:00+08:00 | COMP-IDEABOX Batch 3: adding Ideas toggle to GraphView.jsx
 2026-04-10T12:06:53+08:00 | COMP-IDEABOX Batch 3: extending test/ideabox.test.js with discussion/effort/impact/resurrectIdea tests
+2026-04-10T12:36:13+08:00 | Wave 4 cost batch: STRAT-TIER + COMP-OBS-COST
+2026-04-10T12:40:13+08:00 | STRAT-TIER: extend agent-string parser for tier field, add model-tiers module, wire model into connector factory, add audit event, apply tiers to pipeline, add chain presets, write tests
+2026-04-10T12:40:53+08:00 | COMP-OBS-COST: Add model pricing table, usage event extraction, cost accumulation, and UI display
+2026-04-10T12:48:39+08:00 | COMP-OBS-COST complete: 27 tests passing, vite build clean

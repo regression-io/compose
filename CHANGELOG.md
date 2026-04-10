@@ -31,6 +31,30 @@
 
 - **Tests:** 68 tests, all passing. New suites: discussion parsing, addDiscussion, effort/impact fields, resurrectIdea.
 
+### STRAT-TIER: Model Tier Routing (Wave 4)
+
+- **agent-string.js:** Extended parser to support `provider:template:tier` format. `parseAgentString()` returns `{ provider, template, tier }`. `resolveAgentConfig()` resolves tier → modelID.
+- **model-tiers.js (new):** MODEL_TIERS map (critical → Opus, standard → Sonnet, fast → Haiku). `resolveTierModel()` lookup.
+- **agent-chains.js (new):** Chain presets (plan-execute-review, review-fix, security-audit). `applyChain()` rewrites agent strings to include tier so runtime actually routes.
+- **build.js:** defaultConnectorFactory passes resolved model via both `model` and `modelID` for cross-connector compatibility. Emits `step_model` stream events with tier + modelID.
+- **build.stratum.yaml:** Targeted tier assignments — blueprint → critical, ship → critical, run_tests → fast. Defaults unchanged.
+- 46 tests (model-tiers + agent-string extensions).
+
+### COMP-OBS-COST: Token and Cost Tracking (Wave 4)
+
+- **model-pricing.js (new):** Per-model token pricing (Opus $15/$75, Sonnet $3/$15, Haiku $1/$5 per MTok). `calculateCost()` with prefix matching for dated variants.
+- **claude-sdk-connector.js:** Extracts usage from SDK result messages, yields `usage` events.
+- **opencode-connector.js:** Forwards `step_finish` cost/token data as `usage` events (previously logged to stderr only).
+- **result-normalizer.js:** Accumulates usage per step, calculates cost_usd via `calculateCost`, returns `{ text, result, usage }`, forwards per-step usage to streamWriter.
+- **build-stream-writer.js:** `writeUsage()` emits `step_usage` events. `close()` accepts cost totals for `build_end`.
+- **build.js:** Accumulates `buildCostTotals`. Includes tokens/cost on `build_step_done`. Emits cumulative totals on `build_end`. Persists to active-build.json so resumed builds seed correctly.
+- **build-stream-bridge.js:** Passes through cost fields on build_step_done, build_end, and new step_usage event type.
+- **opsStripLogic.js:** `formatCost()` helper. Active build entry shows `· $0.42` when cost > 0.
+- **ContextStepDetail.jsx:** Per-step cost row + sortable breakdown table (most expensive step highlighted).
+- 27 tests (model-pricing + cost-tracking).
+
+**Codex fixes:** Chain presets now actually rewrite agent strings (were inert). Resumed builds seed cost totals from active-build.json (were zero-reset). Tier model passed as both `model` and `modelID` for Codex+Claude connector compat.
+
 ### COMP-IDEABOX: Product Idea Capture & Triage (Wave 3) — Batches 1+2
 
 **Batch 1 (Backend + CLI):**

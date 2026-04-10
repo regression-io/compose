@@ -4,6 +4,18 @@
 import { GATE_STEP_LABELS } from '../vision/constants.js';
 
 /**
+ * Format a USD cost for display in the ops strip.
+ * Uses 2 decimal places: "$0.42", "$12.34"
+ * Returns empty string if cost is 0 or falsy.
+ * @param {number} cost
+ * @returns {string}
+ */
+export function formatCost(cost) {
+  if (!cost || cost <= 0) return '';
+  return `$${cost.toFixed(2)}`;
+}
+
+/**
  * Format elapsed ms as mm:ss.
  * @param {number} ms
  * @returns {string}
@@ -41,12 +53,15 @@ export function deriveEntries({ activeBuild, gates, items, recentErrors, iterati
     const progress = activeBuild.totalSteps
       ? ` \u00B7 step ${activeBuild.currentStepIndex ?? '?'}/${activeBuild.totalSteps}`
       : '';
+    // COMP-OBS-COST: show cumulative build cost when > 0
+    const costStr = formatCost(activeBuild.cumulative_cost_usd);
+    const costPart = costStr ? ` \u00B7 ${costStr}` : '';
     // Include startedAt or flowId in key so subsequent builds for the same feature get unique keys
     const buildId = activeBuild.flowId || activeBuild.startedAt || activeBuild.featureCode;
     entries.push({
       key: `build-${activeBuild.featureCode}-${buildId}`,
       type: activeBuild.status === 'complete' ? 'done' : 'build',
-      label: `${activeBuild.featureCode} \u00B7 ${stepLabel}${progress}`,
+      label: `${activeBuild.featureCode} \u00B7 ${stepLabel}${progress}${costPart}`,
       featureCode: activeBuild.featureCode,
       retries: activeBuild.retries ?? 0,
     });

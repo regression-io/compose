@@ -136,9 +136,21 @@ export class OpencodeConnector extends AgentConnector {
             yield { type: 'tool_use_summary', summary: short, output: output.slice(0, 2048) };
           }
         } else if (event.type === 'step_finish') {
-          // step_finish includes cost and token info
-          if (process.env.COMPOSE_DEBUG && event.part?.cost) {
-            process.stderr.write(`  [${this._agentName}] cost=$${event.part.cost.toFixed(4)} tokens=${event.part.tokens?.total}\n`);
+          // step_finish includes cost and token info — forward as usage event
+          const part = event.part;
+          if (part && (part.cost != null || part.tokens != null)) {
+            if (process.env.COMPOSE_DEBUG) {
+              process.stderr.write(`  [${this._agentName}] cost=$${(part.cost ?? 0).toFixed(4)} tokens=${part.tokens?.total}\n`);
+            }
+            yield {
+              type: 'usage',
+              input_tokens: part.tokens?.input ?? 0,
+              output_tokens: part.tokens?.output ?? 0,
+              cache_creation_input_tokens: part.tokens?.cache_write ?? 0,
+              cache_read_input_tokens: part.tokens?.cache_read ?? 0,
+              cost_usd: part.cost ?? 0,
+              model: resolvedModelID,
+            };
           }
         }
         // step_start is ignored (already yielded init)

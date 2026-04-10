@@ -72,13 +72,20 @@ export class ClaudeSDKConnector extends AgentConnector {
 
     yield { type: 'system', subtype: 'init', agent: 'claude', model: modelID ?? this.#model };
 
+    const activeModel = modelID ?? this.#model;
     try {
       for await (const msg of q) {
         if (process.env.COMPOSE_DEBUG) {
           process.stderr.write(`  [sdk] ${msg?.type ?? typeof msg}\n`);
         }
         for (const event of _normalizeAll(msg)) {
-          yield event;
+          // Inject model into usage events extracted from result messages
+          if (event.type === 'usage' && event._from_result) {
+            const { _from_result: _, ...usageEvent } = event;
+            yield { ...usageEvent, model: activeModel };
+          } else {
+            yield event;
+          }
         }
       }
       yield { type: 'system', subtype: 'complete', agent: 'claude' };
@@ -131,9 +138,23 @@ function _normalizeAll(msg) {
     return events.length > 0 ? events : [msg];
   }
 
-  // SDK result message — contains the final aggregated text
+  // SDK result message — contains the final aggregated text and usage metadata
   if (msg.type === 'result' && msg.result) {
-    return [{ type: 'result', content: msg.result }];
+    const events = [{ type: 'result', content: msg.result }];
+    // Extract usage from msg.usage or msg.message.usage
+    const usage = msg.usage ?? msg.message?.usage;
+    if (usage) {
+      events.push({
+        type: 'usage',
+        input_tokens: usage.input_tokens ?? 0,
+        output_tokens: usage.output_tokens ?? 0,
+        cache_creation_input_tokens: usage.cache_creation_input_tokens ?? 0,
+        cache_read_input_tokens: usage.cache_read_input_tokens ?? 0,
+        // model is injected by the run() loop via _modelForUsage tag on the event
+        _from_result: true,
+      });
+    }
+    return events;
   }
 
   if (msg.type === 'tool_use') {
