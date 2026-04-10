@@ -55,6 +55,12 @@ export class SettingsStore {
       ui: { theme: 'system', defaultView: 'graph' },
       // COMP-CAPS-ENFORCE: runtime capability enforcement policy
       capabilities: { enforcement: 'log' },
+      // COMP-HEALTH: quantified quality score settings
+      health: {
+        enabled: true,
+        gate_threshold: null, // null = off, number = min_score required
+        weights: {},          // dimension weight overrides (must sum to 1.0 ± 0.01)
+      },
     };
   }
 
@@ -71,6 +77,12 @@ export class SettingsStore {
       models: { ...defaults.models, ...user.models },
       ui: { ...defaults.ui, ...user.ui },
       capabilities: { ...defaults.capabilities, ...user.capabilities },
+      // COMP-HEALTH: merge health settings
+      health: {
+        ...defaults.health,
+        ...user.health,
+        weights: { ...defaults.health.weights, ...user.health?.weights },
+      },
     };
   }
 
@@ -78,7 +90,7 @@ export class SettingsStore {
   update(patch) {
     this._validate(patch);
     // Deep merge into user settings
-    for (const section of ['policies', 'iterations', 'models', 'ui', 'capabilities']) {
+    for (const section of ['policies', 'iterations', 'models', 'ui', 'capabilities', 'health']) {
       if (patch[section]) {
         if (!this._userSettings[section]) this._userSettings[section] = {};
         if (section === 'iterations') {
@@ -110,7 +122,7 @@ export class SettingsStore {
 
     // Reject unknown top-level keys
     for (const key of Object.keys(patch)) {
-      if (!['policies', 'iterations', 'models', 'ui', 'capabilities'].includes(key)) {
+      if (!['policies', 'iterations', 'models', 'ui', 'capabilities', 'health'].includes(key)) {
         throw new Error(`Unknown settings section: ${key}`);
       }
     }
@@ -168,6 +180,29 @@ export class SettingsStore {
         const VALID_ENFORCEMENT = ['log', 'block'];
         if (!VALID_ENFORCEMENT.includes(patch.capabilities.enforcement)) {
           throw new Error(`Invalid enforcement: ${patch.capabilities.enforcement} (must be ${VALID_ENFORCEMENT.join(', ')})`);
+        }
+      }
+    }
+
+    if (patch.health) {
+      // Validate gate_threshold: must be null or 0-100
+      if (patch.health.gate_threshold !== undefined && patch.health.gate_threshold !== null) {
+        const t = patch.health.gate_threshold;
+        if (typeof t !== 'number' || t < 0 || t > 100) {
+          throw new Error(`Invalid health.gate_threshold: must be null or a number 0-100`);
+        }
+      }
+      // Validate weights: each value must be a number; sum must be 1.0 ± 0.01
+      if (patch.health.weights !== undefined) {
+        const vals = Object.values(patch.health.weights);
+        if (vals.some(v => typeof v !== 'number' || v < 0)) {
+          throw new Error('Invalid health.weights: all values must be non-negative numbers');
+        }
+        if (vals.length > 0) {
+          const sum = vals.reduce((s, v) => s + v, 0);
+          if (Math.abs(sum - 1.0) > 0.01) {
+            throw new Error(`Invalid health.weights: values must sum to 1.0 ± 0.01 (got ${sum.toFixed(4)})`);
+          }
         }
       }
     }

@@ -5,8 +5,13 @@
  * Also shows all steps with per-step token/cost breakdown when showing
  * the full build summary (COMP-OBS-COST).
  *
+ * COMP-OBS-GATES: also renders a tier pipeline visualization when tier data
+ * is available from build-stream events.
+ *
  * Props:
- *   stepId  {string}  the build step ID to display
+ *   stepId      {string}   the build step ID to display
+ *   tierEvents  {Array}    optional array of gate_tier_result/gate_tier_summary events
+ *                          from the parent build stream consumer
  */
 import React, { useState, useEffect, useMemo } from 'react';
 
@@ -20,12 +25,161 @@ function formatCost(cost) {
   return `$${cost.toFixed(4)}`;
 }
 
-export default function ContextStepDetail({ stepId }) {
+// ---------------------------------------------------------------------------
+// COMP-OBS-GATES: Tier pipeline constants
+// ---------------------------------------------------------------------------
+
+const ALL_TIERS = [
+  { id: 'T0', name: 'schema', label: 'T0' },
+  { id: 'T1', name: 'lint',   label: 'T1' },
+  { id: 'T2', name: 'tests',  label: 'T2' },
+  { id: 'T3', name: 'review', label: 'T3' },
+  { id: 'T4', name: 'codex',  label: 'T4' },
+];
+
+/**
+ * TierPipeline — renders a horizontal dot-chain showing tier pass/fail/skipped status.
+ * Green dot = passed, red dot = failed, gray dot = skipped/not run.
+ * Clicking a dot expands inline details for that tier.
+ */
+function TierPipeline({ tierMap, tierSummary }) {
+  const [expanded, setExpanded] = useState(null);
+
+  const toggle = (tierId) => setExpanded(prev => prev === tierId ? null : tierId);
+
+  return (
+    <div>
+      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
+        Tier Pipeline
+      </p>
+      <div className="flex items-center gap-1.5">
+        {ALL_TIERS.map((tier, i) => {
+          const result = tierMap[tier.id];
+          const skipped = tierSummary?.tiersSkipped?.includes(tier.id);
+
+          let dotColor, title;
+          if (skipped) {
+            dotColor = 'bg-muted-foreground/40';
+            title = `${tier.id} (${tier.name}): skipped`;
+          } else if (result === true) {
+            dotColor = 'bg-success';
+            title = `${tier.id} (${tier.name}): passed`;
+          } else if (result === false) {
+            dotColor = 'bg-destructive';
+            title = `${tier.id} (${tier.name}): failed`;
+          } else {
+            dotColor = 'bg-muted-foreground/20';
+            title = `${tier.id} (${tier.name}): not run`;
+          }
+
+          return (
+            <React.Fragment key={tier.id}>
+              {i > 0 && (
+                <div className="h-px w-3 bg-muted-foreground/20 shrink-0" />
+              )}
+              <button
+                className="flex flex-col items-center gap-0.5 group"
+                onClick={() => toggle(tier.id)}
+                title={title}
+              >
+                <div className={`w-2.5 h-2.5 rounded-full transition-all group-hover:scale-125 ${dotColor} ${expanded === tier.id ? 'ring-1 ring-foreground/40' : ''}`} />
+                <span className="text-[8px] text-muted-foreground leading-none">{tier.label}</span>
+              </button>
+            </React.Fragment>
+          );
+        })}
+        {tierSummary?.costSaved > 0 && (
+          <span className="ml-2 text-[9px] text-success/80">
+            saved ~${tierSummary.costSaved.toFixed(2)}
+          </span>
+        )}
+      </div>
+      {/* Expanded tier detail */}
+      {expanded && (
+        <div className="mt-1.5 px-2 py-1 rounded bg-muted/20 text-[9px] text-muted-foreground">
+          {(() => {
+            const result = tierMap[expanded];
+            const skipped = tierSummary?.tiersSkipped?.includes(expanded);
+            const tierInfo = ALL_TIERS.find(t => t.id === expanded);
+            if (skipped) return `${expanded} (${tierInfo?.name}): skipped — short-circuited by earlier failure`;
+            if (result === true) return `${expanded} (${tierInfo?.name}): passed`;
+            if (result === false) return `${expanded} (${tierInfo?.name}): failed`;
+            return `${expanded} (${tierInfo?.name}): not run this build`;
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// COMP-HEALTH: Health score color helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Return a Tailwind color class for a health score.
+ * Green >= 80, Yellow 60-79, Red < 60.
+ */
+function healthScoreColor(score) {
+  if (score >= 80) return 'text-success';
+  if (score >= 60) return 'text-amber-400';
+  return 'text-destructive';
+}
+
+/**
+ * Trend direction indicator arrow.
+ */
+function trendArrow(direction) {
+  if (direction === 'improving') return '\u2191'; // up arrow
+  if (direction === 'declining') return '\u2193'; // down arrow
+  return '\u2192'; // right arrow (stable)
+}
+
+const DIMENSION_LABELS = {
+  test_coverage:       'Tests',
+  review_findings:     'Review',
+  contract_compliance: 'Contracts',
+  runtime_errors:      'Runtime',
+  doc_freshness:       'Docs',
+  plan_completion:     'Plan',
+};
+
+export default function ContextStepDetail({ stepId, tierEvents = [], healthEvents = [] }) {
   const [step, setStep] = useState(null);
   const [allSteps, setAllSteps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [costSortAsc, setCostSortAsc] = useState(false);
+
+  // COMP-HEALTH: derive latest health score from stream events
+  const healthScore = useMemo(() => {
+    if (!healthEvents || healthEvents.length === 0) return null;
+    // Last health_score event wins
+    for (let i = healthEvents.length - 1; i >= 0; i--) {
+      const ev = healthEvents[i];
+      if (ev.subtype === 'health_score' && typeof ev.score === 'number') {
+        return ev;
+      }
+    }
+    return null;
+  }, [healthEvents]);
+
+  // COMP-OBS-GATES: derive tier state from stream events passed via props
+  const { tierMap, tierSummary } = useMemo(() => {
+    if (!tierEvents || tierEvents.length === 0) return { tierMap: {}, tierSummary: null };
+    const map = {};
+    let summary = null;
+    for (const ev of tierEvents) {
+      if (ev.subtype === 'gate_tier_result') {
+        map[ev.tierId] = ev.passed;
+      } else if (ev.subtype === 'gate_tier_summary') {
+        summary = ev;
+      }
+    }
+    return { tierMap: map, tierSummary: summary };
+  }, [tierEvents]);
+
+  const hasTierData = Object.keys(tierMap).length > 0 || tierSummary !== null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -193,6 +347,13 @@ export default function ContextStepDetail({ stepId }) {
         </div>
       )}
 
+      {/* COMP-OBS-GATES: Tier pipeline visualization */}
+      {hasTierData && (
+        <div>
+          <TierPipeline tierMap={tierMap} tierSummary={tierSummary} />
+        </div>
+      )}
+
       {/* Violations */}
       {step.violations && step.violations.length > 0 && (
         <div>
@@ -207,6 +368,56 @@ export default function ContextStepDetail({ stepId }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* COMP-HEALTH: Build health score panel */}
+      {healthScore != null && (
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
+            Health Score
+          </p>
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className={`text-2xl font-bold font-mono tabular-nums ${healthScoreColor(healthScore.score)}`}>
+              {healthScore.score}
+            </span>
+            <span className="text-[10px] text-muted-foreground">/100</span>
+            {healthScore.trend && (
+              <span className={`text-sm font-mono ${healthScoreColor(healthScore.score)}`}>
+                {trendArrow(healthScore.trend.direction)}
+                {healthScore.trend.delta != null && (
+                  <span className="text-[10px] ml-0.5">
+                    {healthScore.trend.delta > 0 ? '+' : ''}{Math.round(healthScore.trend.delta)}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+          {healthScore.breakdown && Object.keys(healthScore.breakdown).length > 0 && (
+            <div className="space-y-1">
+              {Object.entries(healthScore.breakdown).map(([dim, dimScore]) => (
+                <div key={dim} className="flex items-center gap-2">
+                  <span className="text-[9px] text-muted-foreground w-16 shrink-0">
+                    {DIMENSION_LABELS[dim] ?? dim}
+                  </span>
+                  <div className="flex-1 h-1.5 rounded-full bg-muted-foreground/20 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${dimScore >= 80 ? 'bg-success' : dimScore >= 60 ? 'bg-amber-400' : 'bg-destructive'}`}
+                      style={{ width: `${dimScore}%` }}
+                    />
+                  </div>
+                  <span className={`text-[9px] font-mono w-6 text-right ${healthScoreColor(dimScore)}`}>
+                    {dimScore}
+                  </span>
+                </div>
+              ))}
+              {healthScore.missing && healthScore.missing.length > 0 && (
+                <p className="text-[9px] text-muted-foreground/60 mt-0.5">
+                  No data: {healthScore.missing.map(d => DIMENSION_LABELS[d] ?? d).join(', ')}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -408,6 +408,63 @@ export class BuildStreamBridge {
           _source: 'build',
         };
 
+      // COMP-OBS-GATES: tier evaluation events
+      case 'gate_tier_result':
+        return {
+          type: 'system', subtype: 'gate_tier_result',
+          stepId: event.stepId,
+          tierId: event.tierId,
+          passed: event.passed,
+          details: event.details ?? null,
+          _source: 'build',
+        };
+
+      case 'gate_tier_failed':
+        return {
+          type: 'system', subtype: 'gate_tier_failed',
+          stepId: event.stepId,
+          tierId: event.tierId,
+          summary: event.summary ?? null,
+          flowId: event.flowId ?? null,
+          _source: 'build',
+        };
+
+      case 'gate_tier_summary':
+        return {
+          type: 'system', subtype: 'gate_tier_summary',
+          featureCode: event.featureCode,
+          passed: event.passed,
+          tierThatFailed: event.tierThatFailed ?? null,
+          tiersRun: event.tiersRun ?? [],
+          tiersSkipped: event.tiersSkipped ?? [],
+          costSaved: event.costSaved ?? 0,
+          _source: 'build',
+        };
+
+      // COMP-QA items 113-116: diff-aware QA scoping — affected routes from filesChanged analysis
+      case 'qa_scope':
+        return {
+          type: 'system', subtype: 'qa_scope',
+          affectedRoutes: event.affectedRoutes ?? [],
+          adjacentRoutes: event.adjacentRoutes ?? [],
+          unmappedFiles: event.unmappedFiles ?? [],
+          framework: event.framework ?? 'unknown',
+          docsOnly: event.docsOnly ?? false,
+          skipCoverage: event.skipCoverage ?? false,
+          reason: event.reason ?? null,
+          _source: 'build',
+        };
+
+      // COMP-HEALTH item 118: health score after build completion
+      case 'health_score':
+        return {
+          type: 'system', subtype: 'health_score',
+          score: event.score,
+          breakdown: event.breakdown ?? {},
+          missing: event.missing ?? [],
+          _source: 'build',
+        };
+
       default:
         return null; // unknown event type — skip
     }

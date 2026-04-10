@@ -213,3 +213,11 @@
 2026-04-10T12:40:13+08:00 | STRAT-TIER: extend agent-string parser for tier field, add model-tiers module, wire model into connector factory, add audit event, apply tiers to pipeline, add chain presets, write tests
 2026-04-10T12:40:53+08:00 | COMP-OBS-COST: Add model pricing table, usage event extraction, cost accumulation, and UI display
 2026-04-10T12:48:39+08:00 | COMP-OBS-COST complete: 27 tests passing, vite build clean
+2026-04-10T13:04:44+08:00 | Wave 4 quality batch: COMP-OBS-GATES + COMP-QA + COMP-HEALTH
+2026-04-10T13:08:51+08:00 | COMP-OBS-GATES: creating lib/gate-tiers.js with tier definitions, evaluateTiers, classifyStepAsTier, estimateTierCost
+2026-04-10T13:09:15+08:00 | COMP-QA: implement diff-to-route mapper, dev server detection, coverage integration, CLI command, stream event, and tests
+2026-04-10T13:09:23+08:00 | COMP-OBS-GATES: writing test/gate-tiers.test.js
+2026-04-10T13:10:05+08:00 | COMP-HEALTH: implementing health score module, history, stream integration, UI
+2026-04-10T13:10:06+08:00 | COMP-OBS-GATES: wiring gate-tiers into build.js (tier classification, gate_tier_failed, gate_tier_summary, gate-savings.json)
+2026-04-10T13:10:47+08:00 | COMP-OBS-GATES: adding writeGateTier to BuildStreamWriter and gate_tier_result/gate_tier_summary/gate_tier_failed cases to BuildStreamBridge
+2026-04-10T13:11:10+08:00 | COMP-OBS-GATES: adding tier pipeline visualization to ContextStepDetail.jsx

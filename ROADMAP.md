@@ -438,11 +438,11 @@ Drag-and-drop pipeline editor in the web UI. Build, modify, and rewire `.stratum
 |---|---------|------|--------|
 | 111 | COMP-PIPE-EDIT-1 | **Step canvas:** Drag-and-drop step nodes on a canvas. Each node shows step ID, agent, intent preview. Dependency edges rendered as arrows. Add step via toolbar or context menu. Delete step via node menu. | PLANNED |
 | 112 | COMP-PIPE-EDIT-2 | **Step inspector:** Click a step node to open a side panel with editable fields: ID, agent, intent (multiline), inputs (key-value), output_contract (dropdown from defined contracts), ensure conditions, retries, on_fail. Live validation as you type. | PLANNED |
-| 113 | COMP-PIPE-EDIT-3 | **Dependency wiring:** Drag from one node's output port to another's input port to create `depends_on` edges. Visual feedback for invalid connections (cycles, missing refs). Auto-layout via dagre/elk. | PLANNED |
-| 114 | COMP-PIPE-EDIT-4 | **Contract editor:** Define and edit contracts (LensFinding, ReviewResult, etc.) in a schema form. Contracts available as dropdowns in step inspector. New contracts auto-added to the spec. | PLANNED |
-| 115 | COMP-PIPE-EDIT-5 | **Sub-flow support:** Collapse a group of steps into a named sub-flow. Expand sub-flows to edit internals. Sub-flow inputs/outputs visible as ports on the collapsed node. | PLANNED |
-| 116 | COMP-PIPE-EDIT-6 | **YAML sync:** Bidirectional sync between canvas and YAML. Edit in canvas → YAML updates live. Edit YAML in Docs view → canvas updates. Conflict resolution when both sides change. | PLANNED |
-| 117 | COMP-PIPE-EDIT-7 | **Template save:** Save the current canvas as a new pipeline template in `pipelines/`. Templates appear in the existing TemplateSelector for future builds. | PLANNED |
+| 113 | COMP-PIPE-EDIT-3 | **Dependency wiring:** Drag from one node's output port to another's input port to create `depends_on` edges. Visual feedback for invalid connections (cycles, missing refs). Auto-layout via dagre/elk. | COMPLETE |
+| 114 | COMP-PIPE-EDIT-4 | **Contract editor:** Define and edit contracts (LensFinding, ReviewResult, etc.) in a schema form. Contracts available as dropdowns in step inspector. New contracts auto-added to the spec. | COMPLETE |
+| 115 | COMP-PIPE-EDIT-5 | **Sub-flow support:** Collapse a group of steps into a named sub-flow. Expand sub-flows to edit internals. Sub-flow inputs/outputs visible as ports on the collapsed node. | COMPLETE |
+| 116 | COMP-PIPE-EDIT-6 | **YAML sync:** Bidirectional sync between canvas and YAML. Edit in canvas → YAML updates live. Edit YAML in Docs view → canvas updates. Conflict resolution when both sides change. | COMPLETE |
+| 117 | COMP-PIPE-EDIT-7 | **Template save:** Save the current canvas as a new pipeline template in `pipelines/`. Templates appear in the existing TemplateSelector for future builds. | COMPLETE |
 
 **Dependencies:** COMP-PIPE (template selector, pipeline routes — complete), COMP-UX-1 (context panel — complete)
 
@@ -563,7 +563,7 @@ Inspired by [claude-context-optimizer](https://github.com/egorfedorov/claude-con
 
 ---
 
-## COMP-QA: Diff-Aware QA Scoping — PLANNED
+## COMP-QA: Diff-Aware QA Scoping — COMPLETE
 
 Scope integration/browser testing to changed functionality instead of full regression. When `compose build` reaches the test phase, analyze the git diff to identify affected routes/pages, detect the running dev server, and test only changed functionality. Prevents regression on adjacent pages without paying for full-suite reruns.
 
@@ -571,10 +571,10 @@ Inspired by gstack `/qa` diff-aware mode — git diff analysis → affected rout
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 113 | COMP-QA-1 | **Diff-to-route mapper:** analyze git diff to identify changed files, map to routes/pages via framework conventions (Next.js pages/, Express routes/, etc.) or explicit `routes.yaml` mapping. Output: list of affected URLs to test. | PLANNED |
-| 114 | COMP-QA-2 | **Dev server detection:** scan common ports (3000, 4000, 5173, 8080) for running dev servers. If none found, attempt `npm run dev` or equivalent from manifest. Timeout after 30s. | PLANNED |
-| 115 | COMP-QA-3 | **Targeted browser verification:** for each affected route, run a Playwright verification pass — navigate, check for console errors, verify key elements render, take before/after screenshots. Findings feed into review merge step. | PLANNED |
-| 116 | COMP-QA-4 | **Regression guard:** on adjacent routes (one hop from changed routes in the route graph), run a lightweight smoke check (200 OK + no console errors) to catch collateral breakage without full verification cost. | PLANNED |
+| 113 | COMP-QA-1 | **Diff-to-route mapper:** analyze git diff to identify changed files, map to routes/pages via framework conventions (Next.js pages/, Express routes/, etc.) or explicit `routes.yaml` mapping. Output: list of affected URLs to test. | COMPLETE |
+| 114 | COMP-QA-2 | **Dev server detection:** scan common ports (3000, 4000, 5173, 8080) for running dev servers. If none found, attempt `npm run dev` or equivalent from manifest. Timeout after 30s. | COMPLETE |
+| 115 | COMP-QA-3 | **Targeted browser verification:** for each affected route, run a Playwright verification pass — navigate, check for console errors, verify key elements render, take before/after screenshots. Findings feed into review merge step. | COMPLETE |
+| 116 | COMP-QA-4 | **Regression guard:** on adjacent routes (one hop from changed routes in the route graph), run a lightweight smoke check (200 OK + no console errors) to catch collateral breakage without full verification cost. | COMPLETE |
 
 **Dependencies:** None — standalone, but enhances `compose build` test phase.
 
@@ -582,7 +582,7 @@ Inspired by gstack `/qa` diff-aware mode — git diff analysis → affected rout
 
 ---
 
-## COMP-HEALTH: Quantified Quality Score for Gates — PLANNED
+## COMP-HEALTH: Quantified Quality Score for Gates — COMPLETE
 
 Assign a numeric quality score to gate decisions based on weighted dimensions. Instead of binary pass/fail, gates surface a composite score (0–100) that policy can threshold. Dimensions include test coverage, review finding severity, console errors, contract compliance, and documentation freshness. Score history enables trend tracking.
 
@@ -590,10 +590,10 @@ Inspired by gstack `/qa` health scoring — weighted average across 8 dimensions
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 117 | COMP-HEALTH-1 | **Score dimensions:** define 6 weighted dimensions — test coverage (25%), review findings (25%, weighted by severity), contract compliance (15%), console/runtime errors (15%), documentation freshness (10%), plan completion (10%). Configurable weights in `.compose/compose.json`. | PLANNED |
-| 118 | COMP-HEALTH-2 | **Score computation:** after each phase completes, compute composite score from available signals (Stratum audit trace, review findings, test results). Missing dimensions scored as neutral (50), not zero. | PLANNED |
-| 119 | COMP-HEALTH-3 | **Policy integration:** gates can declare `min_score: 70` as a threshold. Score below threshold → gate blocks. Score between threshold and target → gate warns. Score above target → auto-approve (if policy allows). | PLANNED |
-| 120 | COMP-HEALTH-4 | **Score history and trends:** persist scores in `.compose/data/health-scores.json` per feature per phase. `compose status` shows current score. Context panel shows score trend across phases. `/retro` includes score trends. | PLANNED |
+| 117 | COMP-HEALTH-1 | **Score dimensions:** define 6 weighted dimensions — test coverage (25%), review findings (25%, weighted by severity), contract compliance (15%), console/runtime errors (15%), documentation freshness (10%), plan completion (10%). Configurable weights in `.compose/compose.json`. | COMPLETE |
+| 118 | COMP-HEALTH-2 | **Score computation:** after each phase completes, compute composite score from available signals (Stratum audit trace, review findings, test results). Missing dimensions scored as neutral (50), not zero. | COMPLETE |
+| 119 | COMP-HEALTH-3 | **Policy integration:** gates can declare `min_score: 70` as a threshold. Score below threshold → gate blocks. Score between threshold and target → gate warns. Score above target → auto-approve (if policy allows). | COMPLETE |
+| 120 | COMP-HEALTH-4 | **Score history and trends:** persist scores in `.compose/data/health-scores.json` per feature per phase. `compose status` shows current score. Context panel shows score trend across phases. `/retro` includes score trends. | COMPLETE |
 
 **Dependencies:** STRAT-REV (review findings feed into scoring), COMP-CTX-2 (documentation freshness signal).
 
@@ -785,7 +785,7 @@ Per-step token usage and cost. Currently only session-level `total_cost_usd` app
 
 ---
 
-## COMP-OBS-GATES: Tiered Gate Evaluation — PLANNED
+## COMP-OBS-GATES: Tiered Gate Evaluation — COMPLETE
 
 Gate checks run in cost order with short-circuit on failure. Currently gates have no defined evaluation order — an expensive Codex review runs even when a cheap lint check would have caught the issue. This is both a pipeline change (ordering + short-circuit logic) and a UI change (showing which tiers ran).
 
@@ -793,10 +793,10 @@ Inspired by [LaneKeep](https://github.com/algorismo-au/lanekeep)'s 7-9 tier eval
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 149 | COMP-OBS-GATES-1 | **Tier definition:** define 5 gate evaluation tiers: T0 schema/type validation, T1 lint/format, T2 test suite, T3 LLM review (Claude lenses), T4 cross-model review (Codex). Each tier declares cost category (fast/medium/expensive). Configured in `.compose/compose.json` under `gate_tiers`. | PLANNED |
-| 156 | COMP-OBS-GATES-2 | **Short-circuit execution:** gate evaluator runs tiers in order. First tier failure halts evaluation — expensive tiers never run. Gate result includes: tiers_run, tier_that_failed (if any), tiers_skipped. | PLANNED |
-| 157 | COMP-OBS-GATES-3 | **Gate detail view:** context panel gate review shows tier pipeline visualization — each tier as a dot (green=pass, red=fail, gray=skipped). Click tier for detail. Failed tier shows findings. Skipped tiers show "skipped — prior tier failed". | PLANNED |
-| 158 | COMP-OBS-GATES-4 | **Cost savings tracking:** track and display estimated cost saved by short-circuiting (cost of skipped tiers). Accumulate in `.compose/data/gate-savings.json`. Surface in build summary. | PLANNED |
+| 149 | COMP-OBS-GATES-1 | **Tier definition:** define 5 gate evaluation tiers: T0 schema/type validation, T1 lint/format, T2 test suite, T3 LLM review (Claude lenses), T4 cross-model review (Codex). Each tier declares cost category (fast/medium/expensive). Configured in `.compose/compose.json` under `gate_tiers`. | COMPLETE |
+| 156 | COMP-OBS-GATES-2 | **Short-circuit execution:** gate evaluator runs tiers in order. First tier failure halts evaluation — expensive tiers never run. Gate result includes: tiers_run, tier_that_failed (if any), tiers_skipped. | COMPLETE |
+| 157 | COMP-OBS-GATES-3 | **Gate detail view:** context panel gate review shows tier pipeline visualization — each tier as a dot (green=pass, red=fail, gray=skipped). Click tier for detail. Failed tier shows findings. Skipped tiers show "skipped — prior tier failed". | COMPLETE |
+| 158 | COMP-OBS-GATES-4 | **Cost savings tracking:** track and display estimated cost saved by short-circuiting (cost of skipped tiers). Accumulate in `.compose/data/gate-savings.json`. Surface in build summary. | COMPLETE |
 
 **Dependencies:** STRAT-REV (lens library provides T3/T4 tier implementations).
 

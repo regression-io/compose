@@ -31,6 +31,36 @@
 
 - **Tests:** 68 tests, all passing. New suites: discussion parsing, addDiscussion, effort/impact fields, resurrectIdea.
 
+### COMP-OBS-GATES: Tiered Gate Evaluation (Wave 4)
+
+- **gate-tiers.js (new):** 5 tiers (T0 schema → T1 lint → T2 tests → T3 llm-review → T4 cross-model) with cost estimates. `classifyStepAsTier()` maps pipeline steps. `evaluateTiers()` short-circuits on first failure, tracks cost saved from skipped tiers.
+- **build.js:** Accumulates tier results per step, emits `gate_tier_result`/`gate_tier_failed`/`gate_tier_summary` events, persists savings to `.compose/data/gate-savings.json`.
+- **ContextStepDetail.jsx:** `TierPipeline` component with colored dots (green=pass, red=fail, gray=skipped), cost-saved badge, click-to-expand.
+- 14 tests, all passing.
+
+### COMP-QA: Diff-Aware QA Scoping (Wave 4)
+
+- **qa-scoping.js (new):** `mapFilesToRoutes()` — framework-aware file→route mapper supporting Next.js (pages/app), Express, React Router, explicit routes.yaml config. React Router filename pattern takes precedence over routes/ directory (avoids misclassifying `AuthRoute.tsx`).
+- **classifyRoutes():** splits into affected vs adjacent via path-prefix matching.
+- **detectDevServer():** probes ports 3000/3001/4000/5173/8080 with AbortController timeout.
+- **isDocsOnlyDiff():** flags builds where only docs/config changed.
+- **build.js:** Emits `qa_scope` event before coverage dispatch. Persists `filesChanged` to feature.json for CLI inspection.
+- **bin/compose.js:** `compose qa-scope <featureCode>` command reads feature's filesChanged and prints mapped routes.
+- 39 tests, all passing.
+
+### COMP-HEALTH: Quantified Quality Score (Wave 4)
+
+- **health-score.js (new):** 6-dimension weighted score (test_coverage 25%, review_findings 25%, contract_compliance 15%, runtime_errors 15%, doc_freshness 10%, plan_completion 10%). Missing dimensions re-normalized out (no penalty). `computeCompositeScore()` returns score + breakdown + missing list.
+- **health-history.js (new):** Append-only `.compose/data/health-scores.json`. `getTrend()` returns improving/declining/stable.
+- **build.js:** Collects signals per phase (test_coverage from coverage_check, review_findings from parallel_review, plan_completion from ship, runtime_errors from violations, doc_freshness from staleness check, contract_compliance from ensure pass/fail tracking). Emits `health_score` event at build end. Persists to history.
+- **settings-store.js:** `health.enabled`, `health.gate_threshold`, `health.weights` config. Validation: threshold 0-100, weights sum 1.0.
+- **Enforcement:** When gate_threshold is set and score < threshold, build status downgraded to 'failed'.
+- **ContextStepDetail.jsx:** Health Score panel with big color-coded number, trend arrow, per-dimension mini bars.
+- **App.jsx:** Wires tierEvents and healthEvents from activeBuild to ContextStepDetail.
+- 55 tests, all passing.
+
+**Codex fixes:** health threshold now enforces via build status downgrade, App.jsx wires tier/health events to ContextStepDetail, filesChanged persisted to feature.json for qa-scope command, contract_compliance dimension now populated from ensure pass/fail tracking, React Router filename detection precedes routes/ dir check.
+
 ### STRAT-TIER: Model Tier Routing (Wave 4)
 
 - **agent-string.js:** Extended parser to support `provider:template:tier` format. `parseAgentString()` returns `{ provider, template, tier }`. `resolveAgentConfig()` resolves tier → modelID.

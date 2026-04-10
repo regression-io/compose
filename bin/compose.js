@@ -38,6 +38,7 @@ if (!cmd || cmd === '--help' || cmd === '-h') {
   console.log('  roadmap migrate    Extract ROADMAP.md entries into feature.json files')
   console.log('  roadmap check      Verify feature.json and ROADMAP.md are in sync')
   console.log('  triage    Analyze a feature and recommend build profile')
+  console.log('  qa-scope  Show affected routes from a feature\'s changed files')
   console.log('  init      Initialize Compose in the current project')
   console.log('  setup     Install global skill + register stratum-mcp')
   process.exit(0)
@@ -1414,6 +1415,69 @@ if (cmd === 'build') {
   console.error(`Unknown ideabox subcommand: ${ibSubcmd}`)
   console.error('Run: compose ideabox --help')
   process.exit(1)
+
+} else if (cmd === 'qa-scope') {
+  // ---------------------------------------------------------------------------
+  // compose qa-scope <featureCode>
+  // COMP-QA item 116: inspect which routes are affected by a feature's filesChanged
+  // ---------------------------------------------------------------------------
+  const qsCode = args.find(a => !a.startsWith('-'))
+  if (!qsCode) {
+    console.error('Usage: compose qa-scope <feature-code>')
+    process.exit(1)
+  }
+
+  const qsCwd = process.cwd()
+
+  import('../lib/feature-json.js').then(({ readFeature }) => {
+    import('../lib/qa-scoping.js').then(({ mapFilesToRoutes, classifyRoutes }) => {
+      const feature = readFeature(qsCwd, qsCode)
+      if (!feature) {
+        console.error(`Feature not found: ${qsCode}`)
+        process.exit(1)
+      }
+
+      const filesChanged = feature.filesChanged ?? []
+      if (filesChanged.length === 0) {
+        console.log(`No filesChanged recorded for ${qsCode}.`)
+        console.log('Run a build first so the pipeline tracks touched files.')
+        process.exit(0)
+      }
+
+      const result = mapFilesToRoutes(filesChanged, { cwd: qsCwd })
+      const allKnown = []  // v1: no known-routes registry
+      const { affected, adjacent } = classifyRoutes(result.affectedRoutes, allKnown)
+
+      console.log(`\nQA Scope for ${qsCode}`)
+      console.log(`Framework:  ${result.framework}`)
+      console.log(`Docs-only:  ${result.docsOnly}`)
+      console.log(`\nAffected routes (${affected.length}):`)
+      if (affected.length === 0) {
+        console.log('  (none — no code files mapped to known routes)')
+      } else {
+        for (const r of affected) console.log(`  ${r}`)
+      }
+
+      console.log(`\nAdjacent routes (${adjacent.length}):`)
+      if (adjacent.length === 0) {
+        console.log('  (none)')
+      } else {
+        for (const r of adjacent) console.log(`  ${r}`)
+      }
+
+      console.log(`\nUnmapped files (${result.unmappedFiles.length}):`)
+      if (result.unmappedFiles.length === 0) {
+        console.log('  (none)')
+      } else {
+        for (const f of result.unmappedFiles) console.log(`  ${f}`)
+      }
+
+      process.exit(0)
+    })
+  }).catch((err) => {
+    console.error(`qa-scope failed: ${err.message}`)
+    process.exit(1)
+  })
 
 } else {
   console.error(`Unknown command: ${cmd}`)

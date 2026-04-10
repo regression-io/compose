@@ -372,6 +372,24 @@ export function handleVisionMessage(msg, refs, setters) {
     // COMP-PIPE-1-3: Pipeline draft approved/rejected — clear draft state
     if (setPipelineDraft) setPipelineDraft(null);
 
+  } else if (msg.type === 'system' && msg.subtype === 'health_score') {
+    // COMP-HEALTH item 118: store health score in activeBuild state
+    if (setActiveBuild) {
+      setActiveBuild(prev => prev
+        ? { ...prev, health_score: msg.score, health_breakdown: msg.breakdown, health_missing: msg.missing }
+        : prev
+      );
+    }
+
+  } else if (msg.type === 'system' && (msg.subtype === 'gate_tier_result' || msg.subtype === 'gate_tier_failed' || msg.subtype === 'gate_tier_summary')) {
+    // COMP-OBS-GATES: accumulate tier events in activeBuild
+    if (setActiveBuild) {
+      setActiveBuild(prev => prev
+        ? { ...prev, tierEvents: [...(prev.tierEvents || []), msg].slice(-50) }
+        : prev
+      );
+    }
+
   } else if (msg.type === 'snapshotRequest' && msg.requestId) {
     // Collect UI state from provider and DOM, send back
     const { collectDOMSnapshot } = refs;

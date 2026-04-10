@@ -1175,7 +1175,11 @@ function AppInner() {
                       />
                     )}
                     {contextSelection?.type === 'step' && (
-                      <ContextStepDetail stepId={contextSelection.id} />
+                      <ContextStepDetail
+                        stepId={contextSelection.id}
+                        tierEvents={activeBuild?.tierEvents}
+                        healthEvents={activeBuild?.health_score != null ? [{ score: activeBuild.health_score, breakdown: activeBuild.health_breakdown, missing: activeBuild.health_missing }] : undefined}
+                      />
                     )}
                     {contextSelection?.type === 'design-doc' && (
                       <DesignDocPanel />
