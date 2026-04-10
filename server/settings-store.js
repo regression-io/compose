@@ -53,6 +53,8 @@ export class SettingsStore {
         summarizer: process.env.SUMMARIZER_MODEL || 'haiku',
       },
       ui: { theme: 'system', defaultView: 'graph' },
+      // COMP-CAPS-ENFORCE: runtime capability enforcement policy
+      capabilities: { enforcement: 'log' },
     };
   }
 
@@ -68,6 +70,7 @@ export class SettingsStore {
       },
       models: { ...defaults.models, ...user.models },
       ui: { ...defaults.ui, ...user.ui },
+      capabilities: { ...defaults.capabilities, ...user.capabilities },
     };
   }
 
@@ -75,7 +78,7 @@ export class SettingsStore {
   update(patch) {
     this._validate(patch);
     // Deep merge into user settings
-    for (const section of ['policies', 'iterations', 'models', 'ui']) {
+    for (const section of ['policies', 'iterations', 'models', 'ui', 'capabilities']) {
       if (patch[section]) {
         if (!this._userSettings[section]) this._userSettings[section] = {};
         if (section === 'iterations') {
@@ -107,7 +110,7 @@ export class SettingsStore {
 
     // Reject unknown top-level keys
     for (const key of Object.keys(patch)) {
-      if (!['policies', 'iterations', 'models', 'ui'].includes(key)) {
+      if (!['policies', 'iterations', 'models', 'ui', 'capabilities'].includes(key)) {
         throw new Error(`Unknown settings section: ${key}`);
       }
     }
@@ -157,6 +160,15 @@ export class SettingsStore {
       }
       if (patch.ui.defaultView !== undefined && !VALID_VIEWS.includes(patch.ui.defaultView)) {
         throw new Error(`Invalid defaultView: ${patch.ui.defaultView} (must be ${VALID_VIEWS.join(', ')})`);
+      }
+    }
+
+    if (patch.capabilities) {
+      if (patch.capabilities.enforcement !== undefined) {
+        const VALID_ENFORCEMENT = ['log', 'block'];
+        if (!VALID_ENFORCEMENT.includes(patch.capabilities.enforcement)) {
+          throw new Error(`Invalid enforcement: ${patch.capabilities.enforcement} (must be ${VALID_ENFORCEMENT.join(', ')})`);
+        }
       }
     }
   }

@@ -2,6 +2,29 @@
 
 ## 2026-04-09
 
+### COMP-CTX: Ambient Context Layer (Wave 3)
+
+- **compose init:** scaffolds `docs/context/` with tech-stack.md, conventions.md, decisions.md. Path configurable via `compose.json` `paths.context`.
+- **step-prompt.js:** ambient context injected into every agent prompt as `## Project Context`. Cached per-build, invalidated after decision log append.
+- **staleness.js:** `checkStaleness()` reads `<!-- phase: ... -->` markers from artifacts, flags stale files in gate context.
+- **Decision log:** gate outcomes auto-appended to decisions.md with date, feature, step, outcome, rationale.
+- 33 tests, all passing.
+
+### COMP-CAPS-ENFORCE: Runtime Violation Detection (Wave 3)
+
+- **result-normalizer.js:** `onToolUse` callback tap on tool_use events — passive, doesn't change event flow.
+- **capability-checker.js:** `checkCapabilityViolation()` compares tools against agent template. Violation (disallowed) vs warning (not in allowedTools).
+- **build.js:** violations checked in both main loop and child flow steps. Logged to stream + console.
+- **settings-store.js:** `capabilities.enforcement` setting — `log` (default) or `block`. Block mode fails the step on violation.
+- 11 tests, all passing.
+
+### COMP-TEST-BOOTSTRAP: Test Framework Bootstrap (Wave 3)
+
+- **test-bootstrap.js:** `detectTestFramework()` checks config files + package.json deps. `scaffoldTestFramework()` creates vitest/jest/pytest/go/rust test setup.
+- **build.js:** before coverage step, detects framework; if missing, scaffolds then annotates step intent for golden flow generation.
+- **Ship step:** uses detected test command instead of hardcoded `npm test`.
+- 25 tests, all passing.
+
 ### COMP-OBS-SURFACE + COMP-OBS-STREAM (Wave 3)
 
 - **OBS-SURFACE:** Items 146, 148, 150 already implemented. Item 192 (live budget counters): OpsStrip shows "review 3/5, 2:34/15:00" during active iterations with live elapsed timer.

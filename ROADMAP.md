@@ -384,7 +384,7 @@ See `docs/features/COMP-BENCH/design.md` for the full design.
 
 ---
 
-## COMP-CTX: Context Artifacts — PLANNED
+## COMP-CTX: Context Artifacts — COMPLETE
 
 Manage project-level context documents as first-class artifacts in the feature lifecycle. Agents always see ambient context (tech stack, conventions, decision log) without manual injection. Stale artifacts are flagged when the code or phase moves past them.
 
@@ -620,7 +620,7 @@ Inspired by gstack `/ship` plan completion audit — cross-referencing TODOS.md 
 
 ---
 
-## COMP-TEST-BOOTSTRAP: Test Framework Bootstrap — PLANNED
+## COMP-TEST-BOOTSTRAP: Test Framework Bootstrap — COMPLETE
 
 Detect when a project has no test framework and auto-generate one during the build phase. Instead of failing on "no tests," scaffold a framework-appropriate test setup, generate golden flow tests from the implementation, and gate on the generated suite passing.
 
@@ -677,7 +677,7 @@ Inspired by [Hub3r7/claude-code-orchestration-template](https://github.com/Hub3r
 
 ---
 
-## COMP-CAPS-ENFORCE: Agent Capability Violation Detection — PLANNED
+## COMP-CAPS-ENFORCE: Agent Capability Violation Detection — COMPLETE
 
 Runtime detection of agent tool calls that violate their capability profile. Currently COMP-AGENT-CAPS logs which template was active per step, but doesn't inspect actual tool_use events. This feature hooks into the result normalizer's event stream to compare each tool call against the agent's profile and surface violations.
 

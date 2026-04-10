@@ -190,3 +190,9 @@
 2026-04-09T23:38:09+08:00 | COMP-UX-3b: Add conversational gate prompts with recommendation and default Enter action, plus GateView summary badge
 2026-04-09T23:39:10+08:00 | COMP-UX-3b GateView: Add recommendation summary badge above approve/revise/kill buttons
 2026-04-09T23:39:38+08:00 | COMP-UX-3c: Add concise console narration to build.js for step completion, gate resolution, and iteration summaries
+2026-04-10T10:35:10+08:00 | Wave 3 M-batch: exploring COMP-CTX, COMP-CAPS-ENFORCE, COMP-TEST-BOOTSTRAP
+2026-04-10T10:38:53+08:00 | COMP-CTX: scaffold docs/context/ in init, inject into step prompts, staleness detection, decision log
+2026-04-10T10:39:10+08:00 | COMP-CAPS-ENFORCE: add onToolUse tap to runAndNormalize, create capability-checker.js, wire violations into build.js, add capabilities.enforcement to settings-store.js
+2026-04-10T10:39:31+08:00 | COMP-TEST-BOOTSTRAP: creating lib/test-bootstrap.js — framework detection and scaffold generation
+2026-04-10T10:40:31+08:00 | COMP-TEST-BOOTSTRAP: writing test/test-bootstrap.test.js — unit tests for framework detection and scaffold
+2026-04-10T10:43:25+08:00 | COMP-TEST-BOOTSTRAP items 127+128: wiring detectTestFramework into executeShipStep and coverage_check dispatch

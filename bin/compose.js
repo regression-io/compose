@@ -236,6 +236,7 @@ function runInit(flags) {
       docs: 'docs',
       features: 'docs/features',
       journal: 'docs/journal',
+      context: 'docs/context',
       ...(existing.paths || {}),
     },
   }
@@ -249,6 +250,22 @@ function runInit(flags) {
 
   // 5. Create .compose/data/
   mkdirSync(join(composeDir, 'data'), { recursive: true })
+
+  // 5b. Scaffold docs/context/ with ambient context templates
+  const contextDir = join(cwd, config.paths.context)
+  mkdirSync(contextDir, { recursive: true })
+  const contextTemplates = {
+    'tech-stack.md': '# Tech Stack\n\nDescribe your technology stack here.\n',
+    'conventions.md': '# Conventions\n\nDescribe coding conventions here.\n',
+    'decisions.md': '# Decision Log\n\nDecisions accumulate here during builds.\n',
+  }
+  for (const [filename, content] of Object.entries(contextTemplates)) {
+    const dest = join(contextDir, filename)
+    if (!existsSync(dest)) {
+      writeFileSync(dest, content)
+      console.log(`Created ${dest}`)
+    }
+  }
 
   // 6. Register compose-mcp in .mcp.json
   const mcpPath = join(cwd, '.mcp.json')
