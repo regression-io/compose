@@ -469,7 +469,7 @@ Inspired by [wshobson/agents](https://github.com/wshobson/agents) model routing 
 
 ---
 
-## COMP-TEAMS: Agent Team Presets — PLANNED
+## COMP-TEAMS: Agent Team Presets — COMPLETE (v1)
 
 Pre-configured multi-agent team compositions for common workflows. Each preset defines agent count, roles, file ownership boundaries, and coordination protocol. Builds on STRAT-PAR's parallel dispatch infrastructure.
 
@@ -477,14 +477,16 @@ Inspired by [wshobson/agents](https://github.com/wshobson/agents) agent-teams pl
 
 | # | Feature | Item | Status |
 |---|---------|------|--------|
-| 92 | COMP-TEAMS-1 | **Team presets library:** 5 preset configs — `review` (3 reviewers: security/perf/arch), `debug` (3 investigators with competing hypotheses), `feature` (1 lead + 2 implementers), `fullstack` (4 agents across layers), `research` (3 explorers with codebase/web/docs splits). Stored as `.stratum.yaml` templates. | PLANNED |
-| 93 | COMP-TEAMS-2 | **File ownership enforcement:** `parallel_dispatch` gains `files_owned` per task as exclusive locks. `no_file_conflicts` ensure already exists (STRAT-PAR-2). Add runtime enforcement: agent writes outside owned files → step fails. Sequential fallback for shared files. | PLANNED |
-| 94 | COMP-TEAMS-3 | **Team-lead agent pattern:** agent definition for orchestrating decomposition — selects 2–5 teammates, assigns file boundaries, builds dependency graph, collects and merges results. Reusable as a Compose agent or Claude Code agent. | PLANNED |
-| 95 | COMP-TEAMS-4 | **`compose build --team`:** CLI flag to select a preset or custom team config. `compose build --team review` runs the review preset. `compose build --team custom:./my-team.yaml` uses a custom definition. | PLANNED |
+| 92 | COMP-TEAMS-1 | **Team presets library (v1):** 3 preset configs — `review` (3 reviewers: security/perf/arch), `feature` (decompose + parallel implement + verify), `research` (3 explorers: codebase/web/docs). Stored as `.stratum.yaml` in bundled `presets/`. Two-level template loader (project → bundled fallback). | COMPLETE |
+| 93 | COMP-TEAMS-2 | **File ownership enforcement:** Plan-time validation via `no_file_conflicts` ensure on decompose step. Runtime enforcement deferred to COMP-CAPS-ENFORCE. | PARTIAL |
+| 94 | COMP-TEAMS-3 | **Team-lead agent pattern:** `decompose` step with `claude:orchestrator` serves this role in v1. Dedicated team-lead profile deferred. | PARTIAL |
+| 95 | COMP-TEAMS-4 | **`compose build --team`:** CLI flag rewrites to `--template team-<name>`. Named presets only. Batch rejection. New `read-only-researcher` capability profile for web research. | COMPLETE |
 
 **Dependencies:** STRAT-PAR (parallel dispatch, worktree isolation, `no_file_conflicts`)
 
-**Exit:** `compose build --team feature` decomposes work, assigns file ownership, dispatches agents in parallel with conflict prevention. 5 built-in presets cover common workflows. Custom team definitions supported.
+**Deferred to future:** `debug` team (COMP-TEAMS-DEBUG), `fullstack` team (COMP-TEAMS-FULLSTACK), runtime file ownership enforcement (COMP-CAPS-ENFORCE), custom team paths (`--team custom:./path`).
+
+**Exit:** `compose build --team review|research|feature` runs curated multi-agent pipeline. 3 built-in presets cover review, research, and implementation workflows.
 
 ---
 
@@ -901,7 +903,7 @@ Multi-agent coordination, production hardening, benchmarking. Enables D4.
 
 | Feature | Items | Effort | Rationale |
 |---------|-------|--------|-----------|
-| COMP-TEAMS | 92–95 | L | Team presets, file ownership enforcement, team-lead pattern. Last piece before D4. |
+| ~~COMP-TEAMS~~ | 92–95 | S | **COMPLETE (v1)** — 3 team presets (review, research, feature), --team CLI, two-level template loader, read-only-researcher profile. |
 | COMP-RT | 58–61 | L | Event coalescing, client hydration, connector trait split, session branching. |
 | STRAT-VOCAB | 107–109 | S | Vocabulary enforcement — naming consistency across parallel agents. |
 | COMP-BENCH | 62–66 | L | Model benchmark suite. Needs STRAT-REV + STRAT-TIER to be meaningful. |
