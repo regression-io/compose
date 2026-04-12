@@ -18,6 +18,50 @@ import { findProjectRoot } from '../server/find-root.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PACKAGE_ROOT = resolve(__dirname, '..')
 
+// ---------------------------------------------------------------------------
+// --team flag (COMP-TEAMS)
+// ---------------------------------------------------------------------------
+
+export const KNOWN_TEAMS = ['review', 'research', 'feature'];
+
+/**
+ * Parse and validate the --team flag from CLI args.
+ * Rewrites --team <name> into a template name and strips it from args.
+ *
+ * @param {string[]} args - Raw CLI arguments
+ * @returns {{ template: string|null, args: string[] }}
+ * @throws {Error} On invalid usage
+ */
+export function parseTeamFlag(args) {
+  const teamIdx = args.indexOf('--team');
+  if (teamIdx === -1) return { template: null, args: [...args] };
+
+  const teamName = args[teamIdx + 1];
+  if (!teamName || teamName.startsWith('-')) {
+    throw new Error('--team requires a team name (available: ' + KNOWN_TEAMS.join(', ') + ')');
+  }
+
+  if (!KNOWN_TEAMS.includes(teamName)) {
+    throw new Error(`Unknown team "${teamName}". Available: ${KNOWN_TEAMS.join(', ')}`);
+  }
+
+  if (args.includes('--template')) {
+    throw new Error('--team cannot be used with --template');
+  }
+
+  const cleaned = args.filter((_, i) => i !== teamIdx && i !== teamIdx + 1);
+
+  if (cleaned.includes('--all')) {
+    throw new Error('--team cannot be used with batch builds (--all or multiple features)');
+  }
+  const featureCodes = cleaned.filter(a => !a.startsWith('-'));
+  if (featureCodes.length > 2) {
+    throw new Error('--team cannot be used with batch builds (--all or multiple features)');
+  }
+
+  return { template: `team-${teamName}`, args: cleaned };
+}
+
 const [,, cmd, ...args] = process.argv
 
 // ---------------------------------------------------------------------------
@@ -961,7 +1005,18 @@ if (cmd === 'build') {
     }
     agentWorkDir = resolve(cwdValue)
   }
-  const filteredArgs = args.filter((a, i) => i !== cwdIdx && (cwdIdx === -1 || i !== cwdIdx + 1))
+  let filteredArgs = args.filter((a, i) => i !== cwdIdx && (cwdIdx === -1 || i !== cwdIdx + 1))
+
+  // --team flag (COMP-TEAMS)
+  let teamTemplate = null
+  try {
+    const teamResult = parseTeamFlag(filteredArgs)
+    teamTemplate = teamResult.template
+    if (teamTemplate) filteredArgs = teamResult.args
+  } catch (err) {
+    console.error(`Error: ${err.message}`)
+    process.exit(1)
+  }
 
   // --template <name>
   let templateName = null
@@ -973,6 +1028,9 @@ if (cmd === 'build') {
       process.exit(1)
     }
     templateName = templateValue
+  }
+  if (teamTemplate && !templateName) {
+    templateName = teamTemplate
   }
   const filteredArgs2 = filteredArgs.filter((a, i) => i !== templateIdx && (templateIdx === -1 || i !== templateIdx + 1))
 
