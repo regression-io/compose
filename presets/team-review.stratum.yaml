@@ -1,0 +1,100 @@
+# TEAM PRESET: review
+#
+# Purpose:     Parallel multi-lens review after implementation
+# Pattern:     3 read-only reviewers → merge findings → gate
+# Capability:  Agents use read-only-reviewer profile (Read/Grep/Glob/Agent only)
+# Isolation:   none (reviewers read shared state, don't modify)
+# Merge:       Deduplication step consolidates findings
+#
+# Use with:    compose build <feature-code> --team review
+# Customize:   Copy to your project's pipelines/ as team-review.stratum.yaml and edit.
+
+version: "0.3"
+
+contracts:
+  ReviewFindings:
+    findings: {type: string}
+    lens: {type: string}
+    severity_counts: {type: string}
+  MergedReviewResult:
+    findings: {type: string}
+    has_critical: {type: string}
+    summary: {type: string}
+
+flows:
+  team-review:
+    input:
+      diff: {type: string}
+      context: {type: string}
+    output: MergedReviewResult
+    steps:
+      - id: security
+        agent: "claude:read-only-reviewer"
+        intent: >
+          Review this diff for security issues only: injection, auth bypass,
+          secrets in code, insecure deserialization, missing input validation.
+          Focus on concrete, exploitable vulnerabilities — not theoretical risks.
+          Format each finding as: SEVERITY file:line — description — fix suggestion.
+          If none found, say "No security issues found."
+        inputs:
+          diff: "$.input.diff"
+          context: "$.input.context"
+        output_contract: ReviewFindings
+        ensure:
+          - "result.findings is not None"
+          - "result.findings != ''"
+        retries: 2
+
+      - id: performance
+        agent: "claude:read-only-reviewer"
+        intent: >
+          Review this diff for performance issues only: N+1 queries, unnecessary
+          allocations, blocking calls in async context, O(n²) where O(n) is possible,
+          missing indices, hot-path inefficiencies.
+          Only flag genuine concerns, not theoretical micro-optimizations.
+          Format each finding as: SEVERITY file:line — description — fix suggestion.
+          If none found, say "No performance issues found."
+        inputs:
+          diff: "$.input.diff"
+          context: "$.input.context"
+        output_contract: ReviewFindings
+        ensure:
+          - "result.findings is not None"
+          - "result.findings != ''"
+        retries: 2
+
+      - id: architecture
+        agent: "claude:read-only-reviewer"
+        intent: >
+          Review this diff for architecture issues only: coupling between modules,
+          layering violations, error handling gaps, inconsistent abstractions,
+          missing or misplaced responsibilities.
+          Format each finding as: SEVERITY file:line — description — fix suggestion.
+          If none found, say "No architecture issues found."
+        inputs:
+          diff: "$.input.diff"
+          context: "$.input.context"
+        output_contract: ReviewFindings
+        ensure:
+          - "result.findings is not None"
+          - "result.findings != ''"
+        retries: 2
+
+      - id: merge
+        agent: "claude:orchestrator"
+        depends_on: [security, performance, architecture]
+        intent: >
+          Consolidate findings from three review passes (security, performance,
+          architecture). Deduplicate findings that appear in multiple passes
+          (same file:line, same issue). Rank by severity. Set has_critical to
+          "true" if any finding is CRITICAL severity, "false" otherwise.
+          Write a one-sentence summary.
+        inputs:
+          security: "$.steps.security.output.findings"
+          performance: "$.steps.performance.output.findings"
+          architecture: "$.steps.architecture.output.findings"
+        output_contract: MergedReviewResult
+        ensure:
+          - "result.has_critical in ('true', 'false')"
+          - "result.summary != ''"
+        retries: 2
