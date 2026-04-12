@@ -32,6 +32,7 @@ flows:
     output: VerifyResult
     steps:
       - id: decompose
+        type: decompose
         agent: "claude:orchestrator"
         intent: >
           Break down this feature into parallel implementation tasks.
@@ -55,6 +56,7 @@ flows:
         ensure:
           - "len(result.tasks) >= 1"
           - "len(result.tasks) <= 6"
+          - "no_file_conflicts(result.tasks)"
         retries: 2
 
       - id: execute
@@ -65,7 +67,6 @@ flows:
         isolation: worktree
         require: all
         merge: sequential_apply
-        no_file_conflicts: true
         intent_template: >
           Implement this task using TDD. Write the test first, watch it fail,
           implement, watch it pass.
