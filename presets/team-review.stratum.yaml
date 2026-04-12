@@ -1,0 +1,108 @@
+# TEAM PRESET: review
+#
+# Purpose:     Parallel multi-lens review after implementation
+# Pattern:     Triage → parallel_dispatch reviewers → merge findings → gate
+# Capability:  Agents use read-only-reviewer profile (Read/Grep/Glob/Agent only)
+# Isolation:   none (reviewers read shared state, don't modify)
+# Merge:       Deduplication step consolidates findings
+#
+# Use with:    compose build <feature-code> --team review
+# Customize:   Copy to your project's pipelines/ as team-review.stratum.yaml and edit.
+
+version: "0.3"
+
+contracts:
+  TriageResult:
+    tasks:
+      type: array
+      values: [{type: object}]
+    diff: {type: string}
+  ReviewFindings:
+    findings: {type: string}
+    lens: {type: string}
+    severity_counts: {type: string}
+  MergedReviewResult:
+    findings: {type: string}
+    has_critical: {type: string}
+    summary: {type: string}
+
+workflow:
+  name: team-review
+  description: "Parallel multi-lens code review"
+  input:
+    featureCode:
+      type: string
+      required: true
+    description:
+      type: string
+      required: true
+
+flows:
+  team-review:
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: MergedReviewResult
+    steps:
+      - id: triage
+        agent: "claude:orchestrator"
+        intent: >
+          Gather the git diff for this feature and decide which review lenses
+          to activate. Read the changed files. Produce a task list with one
+          entry per lens. Each task must have:
+          - id: lens name (e.g. "security", "performance", "architecture")
+          - lens_name: same as id
+          - lens_focus: one-sentence description of what to look for
+          - confidence_gate: minimum confidence (1-10) to report a finding
+          - exclusions: what NOT to flag
+
+          Always include: security, performance, architecture.
+          Include the full git diff in your output.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: TriageResult
+        ensure:
+          - "len(result.tasks) >= 3"
+        retries: 2
+
+      - id: review_lenses
+        type: parallel_dispatch
+        source: "$.steps.triage.output.tasks"
+        agent: "claude:read-only-reviewer"
+        max_concurrent: 4
+        isolation: none
+        require: all
+        intent_template: >
+          You are reviewing a code diff as the {lens_name} reviewer.
+
+          Focus: {lens_focus}
+          Confidence gate: only report findings with confidence >= {confidence_gate}/10.
+          Exclusions: do NOT flag {exclusions}.
+
+          Format each finding as: SEVERITY file:line — description — fix suggestion.
+          If none found, say "No {lens_name} issues found."
+        output_fields:
+          findings: {type: string}
+          lens: {type: string}
+          severity_counts: {type: string}
+        ensure:
+          - "result.findings is not None"
+          - "result.findings != ''"
+        depends_on: [triage]
+
+      - id: merge
+        agent: "claude:orchestrator"
+        depends_on: [review_lenses]
+        intent: >
+          Consolidate findings from all review lenses. Deduplicate findings
+          that appear in multiple passes (same file:line, same issue). Rank
+          by severity. Set has_critical to "true" if any finding is CRITICAL
+          severity, "false" otherwise. Write a one-sentence summary.
+        inputs:
+          review_results: "$.steps.review_lenses.output"
+        output_contract: MergedReviewResult
+        ensure:
+          - "result.has_critical == 'false'"
+          - "result.summary != ''"
+        retries: 2

@@ -1,0 +1,108 @@
+# TEAM PRESET: research
+#
+# Purpose:     Parallel exploration for cold-start discovery
+# Pattern:     Triage → parallel_dispatch explorers → synthesize findings
+# Capability:  codebase/docs use read-only-reviewer, web uses read-only-researcher
+# Isolation:   none (read-only exploration)
+# Merge:       Sequential synthesis step
+#
+# Use with:    compose build <feature-code> --team research
+# Customize:   Copy to your project's pipelines/ as team-research.stratum.yaml and edit.
+
+version: "0.3"
+
+contracts:
+  ResearchTaskList:
+    tasks:
+      type: array
+      values: [{type: object}]
+    topic: {type: string}
+  ExplorerFindings:
+    sources: {type: string}
+    patterns: {type: string}
+    open_questions: {type: string}
+  ResearchResult:
+    synthesis: {type: string}
+    recommendations: {type: string}
+    summary: {type: string}
+
+workflow:
+  name: team-research
+  description: "Parallel multi-source research and synthesis"
+  input:
+    featureCode:
+      type: string
+      required: true
+    description:
+      type: string
+      required: true
+
+flows:
+  team-research:
+    input:
+      featureCode: {type: string}
+      description: {type: string}
+    output: ResearchResult
+    steps:
+      - id: plan
+        agent: "claude:orchestrator"
+        intent: >
+          Plan the research for this feature. Read the feature description
+          and any existing docs. Produce a task list with 3 research tasks:
+
+          1. id: "codebase", agent: "claude:read-only-reviewer"
+             - Explore the local codebase for relevant patterns, files, conventions
+          2. id: "web", agent: "claude:read-only-researcher"
+             - Search the web for best practices, library docs, similar implementations
+          3. id: "docs", agent: "claude:read-only-reviewer"
+             - Read local docs, READMEs, specs, ADRs for relevant context
+
+          Each task must have: id, description, agent.
+          Also output the research topic derived from the feature description.
+        inputs:
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: ResearchTaskList
+        ensure:
+          - "len(result.tasks) == 3"
+        retries: 2
+
+      - id: explore
+        type: parallel_dispatch
+        source: "$.steps.plan.output.tasks"
+        agent: "claude:read-only-reviewer"
+        max_concurrent: 3
+        isolation: none
+        require: all
+        intent_template: >
+          Research this topic: {task.description}
+
+          Find relevant sources, patterns, and open questions.
+          List sources with file:line references (for code) or URLs (for web).
+          Note patterns that could inform the implementation.
+          List open questions that need answers before implementation.
+        output_fields:
+          sources: {type: string}
+          patterns: {type: string}
+          open_questions: {type: string}
+        ensure:
+          - "result.sources is not None"
+        depends_on: [plan]
+
+      - id: synthesize
+        agent: "claude:orchestrator"
+        depends_on: [explore]
+        intent: >
+          Synthesize findings from all research explorers. Cross-reference
+          sources. Identify consensus patterns and contradictions. Produce
+          actionable recommendations for the feature implementation.
+          Write a one-sentence summary.
+        inputs:
+          research_results: "$.steps.explore.output"
+          topic: "$.steps.plan.output.topic"
+        output_contract: ResearchResult
+        ensure:
+          - "result.synthesis != ''"
+          - "result.recommendations != ''"
+          - "result.summary != ''"
+        retries: 2

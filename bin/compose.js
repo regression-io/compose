@@ -18,6 +18,11 @@ import { findProjectRoot } from '../server/find-root.js'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PACKAGE_ROOT = resolve(__dirname, '..')
 
+// ---------------------------------------------------------------------------
+// --team flag (COMP-TEAMS)
+// ---------------------------------------------------------------------------
+import { parseTeamFlag } from '../lib/team-flag.js';
+
 const [,, cmd, ...args] = process.argv
 
 // ---------------------------------------------------------------------------
@@ -961,7 +966,18 @@ if (cmd === 'build') {
     }
     agentWorkDir = resolve(cwdValue)
   }
-  const filteredArgs = args.filter((a, i) => i !== cwdIdx && (cwdIdx === -1 || i !== cwdIdx + 1))
+  let filteredArgs = args.filter((a, i) => i !== cwdIdx && (cwdIdx === -1 || i !== cwdIdx + 1))
+
+  // --team flag (COMP-TEAMS)
+  let teamTemplate = null
+  try {
+    const teamResult = parseTeamFlag(filteredArgs)
+    teamTemplate = teamResult.template
+    if (teamTemplate) filteredArgs = teamResult.args
+  } catch (err) {
+    console.error(`Error: ${err.message}`)
+    process.exit(1)
+  }
 
   // --template <name>
   let templateName = null
@@ -973,6 +989,9 @@ if (cmd === 'build') {
       process.exit(1)
     }
     templateName = templateValue
+  }
+  if (teamTemplate && !templateName) {
+    templateName = teamTemplate
   }
   const filteredArgs2 = filteredArgs.filter((a, i) => i !== templateIdx && (templateIdx === -1 || i !== templateIdx + 1))
 
@@ -1013,6 +1032,11 @@ if (cmd === 'build') {
     console.log('Running compose init...\n')
     await runInit(args.filter(a => a.startsWith('--')))
     console.log('')
+  }
+
+  if (isBatch && teamTemplate) {
+    console.error('Error: --team cannot be used with batch builds (--all, multiple features, or prefix matching)')
+    process.exit(1)
   }
 
   if (isBatch) {
