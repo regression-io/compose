@@ -14,6 +14,11 @@ export const AGENT_TEMPLATES = new Map([
     disallowedTools: ['Edit', 'Write', 'Bash'],
     description: 'Read-only review agent',
   }],
+  ['read-only-researcher', {
+    allowedTools: ['Read', 'Grep', 'Glob', 'Agent', 'WebSearch', 'WebFetch'],
+    disallowedTools: ['Edit', 'Write', 'Bash'],
+    description: 'Read-only research agent with web access',
+  }],
   ['implementer', {
     allowedTools: null,
     disallowedTools: null,

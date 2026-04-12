@@ -4,7 +4,7 @@
  *   - lib/agent-string.js: parseAgentString, resolveAgentConfig
  *   - server/connectors/claude-sdk-connector.js: tool restriction opts
  */
-import { test, describe } from 'node:test';
+import { test, it, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { AGENT_TEMPLATES, resolveTemplate, validateCapabilities } from '../server/agent-templates.js';
@@ -54,6 +54,24 @@ describe('resolveTemplate', () => {
 
   test('returns null for undefined input', () => {
     assert.strictEqual(resolveTemplate(undefined), null);
+  });
+
+  it('resolves read-only-researcher with web tools', () => {
+    const profile = resolveTemplate('read-only-researcher');
+    assert.ok(profile, 'profile should exist');
+    assert.ok(profile.allowedTools.includes('Read'), 'should allow Read');
+    assert.ok(profile.allowedTools.includes('Grep'), 'should allow Grep');
+    assert.ok(profile.allowedTools.includes('Glob'), 'should allow Glob');
+    assert.ok(profile.allowedTools.includes('Agent'), 'should allow Agent');
+    assert.ok(profile.allowedTools.includes('WebSearch'), 'should allow WebSearch');
+    assert.ok(profile.allowedTools.includes('WebFetch'), 'should allow WebFetch');
+  });
+
+  it('read-only-researcher denies Edit/Write/Bash', () => {
+    const profile = resolveTemplate('read-only-researcher');
+    assert.ok(profile.disallowedTools.includes('Edit'), 'should deny Edit');
+    assert.ok(profile.disallowedTools.includes('Write'), 'should deny Write');
+    assert.ok(profile.disallowedTools.includes('Bash'), 'should deny Bash');
   });
 });
 
