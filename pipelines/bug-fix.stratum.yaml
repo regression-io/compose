@@ -1,22 +1,29 @@
 metadata:
   id: bug-fix
   label: "Bug Fix"
-  description: "Diagnose and fix a bug — reproduce, root-cause, fix, test, verify, ship"
+  description: "Diagnose and fix a bug — reproduce, trace root cause, scope audit, fix, test, verify, ship"
   category: maintenance
-  steps: 6
-  estimated_minutes: 30
+  steps: 8
+  estimated_minutes: 40
 
 version: "0.1"
 
 # bug-fix pipeline
 #
-# Six-step flow for targeted bug resolution:
-#   1. reproduce  — confirm the bug exists with a failing test
-#   2. diagnose   — trace root cause through code and logs
-#   3. fix        — implement the minimal correct fix
-#   4. test       — run full test suite, ensure no regressions
-#   5. verify     — confirm original reproduction case now passes
-#   6. ship       — commit and report
+# Eight-step flow for disciplined bug resolution:
+#   1. reproduce    — confirm the bug exists with a failing test
+#   2. diagnose     — trace root cause by OBSERVING actual data (not assuming)
+#   3. scope_check  — grep audit if change spans multiple layers/repos
+#   4. fix          — implement the minimal correct fix across ALL affected layers
+#   5. test         — run full test suite, ensure no regressions
+#   6. verify       — confirm original reproduction case now passes
+#   7. retro_check  — detect fix chains and log discipline signals
+#   8. ship         — commit and report
+#
+# Debug Discipline (COMP-DEBUG-1):
+#   - diagnose requires trace_evidence (actual command output, not prose assumptions)
+#   - scope_check prevents incremental multi-layer discovery
+#   - retro_check detects fix chains and feeds iteration ledger
 #
 # Inputs:
 #   task — bug description (symptoms, steps to reproduce, affected files)
@@ -35,6 +42,30 @@ contracts:
     summary:  {type: string}
     failures: {type: array}
 
+  TraceEvidence:
+    command:       {type: string}
+    actual_output: {type: string}
+    conclusion:    {type: string}
+
+  DiagnoseResult:
+    root_cause:      {type: string}
+    affected_layers: {type: array}
+    trace_evidence:  {type: array, items: TraceEvidence}
+    summary:         {type: string}
+
+  ScopeResult:
+    scope:                {type: string, values: [single, cross_layer]}
+    references_found:     {type: array}
+    repos_scanned:        {type: number}
+    summary:              {type: string}
+
+  RetroCheckResult:
+    fix_chains:       {type: array}
+    attempt_count:    {type: number}
+    escalation:       {type: boolean}
+    discipline_score: {type: number}
+    summary:          {type: string}
+
 functions:
   reproduce:
     mode: compute
@@ -49,21 +80,47 @@ functions:
   diagnose:
     mode: compute
     intent: >
-      Trace the root cause of the bug through the codebase. Read relevant
-      source files, logs, and stack traces. Return a summary identifying
-      the root cause and affected code paths.
+      Trace the root cause by OBSERVING actual data, not assuming.
+      You MUST run at least one command that prints a real value at the
+      failure point (docker exec, curl, python -c "print(type(x))").
+      Return trace_evidence: a list of {command, actual_output, conclusion}.
+      Also identify which layers are affected (core, service, frontend, infra).
+      "Import OK" and "build passed" are NOT trace evidence.
     input:
       task: {type: string}
-    output: BugFixResult
+    output: DiagnoseResult
+    ensure:
+      - "result.trace_evidence != null"
+      - "result.trace_evidence.length > 0"
+      - "result.root_cause != null"
+    retries: 2
+
+  scope_check:
+    mode: compute
+    intent: >
+      If the diagnosis shows the root cause involves a provider switch,
+      field rename, config key change, or anything spanning multiple
+      repos or layers: grep ALL configured project repos for every reference
+      to the affected term. Return the full reference list grouped by repo.
+      If the change is single-layer, return scope: 'single' and skip.
+      This prevents incremental multi-layer discovery (fixing one layer,
+      deploying, discovering the next layer is broken, repeat).
+    input:
+      task: {type: string}
+      diagnosis: {type: object}
+    output: ScopeResult
     retries: 1
 
   fix:
     mode: compute
     intent: >
       Implement the minimal correct fix for the diagnosed root cause.
+      If scope_check found cross-layer references, address ALL of them
+      in coordinated commits — do not leave any reference unaddressed.
       Change only what is necessary. Return a summary of changes made.
     input:
       task: {type: string}
+      scope: {type: object}
     output: BugFixResult
     retries: 2
 
@@ -87,6 +144,20 @@ functions:
     input:
       task: {type: string}
     output: BugFixResult
+    retries: 1
+
+  retro_check:
+    mode: compute
+    intent: >
+      Analyze git history for this session. Detect fix chains: 2+ commits
+      modifying the same file or function. Count total fix attempts on
+      the target bug. For visual/CSS/layout bugs, enforce hard stop at
+      attempt 2 and flag for cross-agent escalation.
+      Return fix_chains (list of repeated files), attempt_count, whether
+      escalation was triggered, and a discipline_score (0-100).
+    input:
+      task: {type: string}
+    output: RetroCheckResult
     retries: 1
 
   ship:
@@ -116,11 +187,19 @@ flows:
           task: "$.input.task"
         depends_on: [reproduce]
 
+      - id: scope_check
+        function: scope_check
+        inputs:
+          task: "$.input.task"
+          diagnosis: "$.steps.diagnose.output"
+        depends_on: [diagnose]
+
       - id: fix
         function: fix
         inputs:
           task: "$.input.task"
-        depends_on: [diagnose]
+          scope: "$.steps.scope_check.output"
+        depends_on: [scope_check]
 
       - id: test
         function: test
@@ -134,8 +213,14 @@ flows:
           task: "$.input.task"
         depends_on: [test]
 
+      - id: retro_check
+        function: retro_check
+        inputs:
+          task: "$.input.task"
+        depends_on: [verify]
+
       - id: ship
         function: ship
         inputs:
           task: "$.input.task"
-        depends_on: [verify]
+        depends_on: [retro_check]

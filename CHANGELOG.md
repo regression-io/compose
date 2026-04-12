@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-04-12
+
+### COMP-DEBUG-1: Debug Discipline Engine (design)
+
+**Feature design and pipeline enhancement for disciplined bug resolution.**
+
+Derived from SmartMemory weekly retro analysis (132 commits, 4:1 fix:feat ratio). Four anti-patterns identified and codified:
+
+1. **Fix-chain detection** — git analysis detects repeated edits to same file/function across commits, signals thrashing vs. root-cause fixing
+2. **Trace-before-fix enforcement** — `diagnose` step now requires `trace_evidence` postcondition (actual command output, not prose assumptions)
+3. **Cross-layer grep audit** — automatic scope expansion when diagnose detects provider switches, field renames, or config changes spanning repos
+4. **Attempt counting with escalation** — hard stop on visual/layout bugs at attempt 2, cross-agent handoff to break "one more tweak" loops
+
+**Pipeline changes:**
+- `bug-fix.stratum.yaml`: 6 → 8 steps (added `scope_check` and `retro_check`)
+- New contracts: `TraceEvidence`, `DiagnoseResult`, `ScopeResult`, `RetroCheckResult`
+- `diagnose` step now has `ensure:` postconditions requiring trace evidence
+
+**Docs:**
+- `docs/features/COMP-DEBUG-1/design.md` — full feature design
+- `docs/ROADMAP.md` — added to Phase 7 (Trusted Pipeline Harness)
+
 ## 2026-04-09
 
 ### COMP-IDEABOX Batch 3: Advanced Features (Items 184, 186, 187, 188, 189)

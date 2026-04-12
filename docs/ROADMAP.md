@@ -264,6 +264,7 @@ harness does, after verifying ground truth itself (run tests, check files, call 
 | COMP-HARNESS-7 | Multi-agent routing — harness selects which connector (`claude`, `codex`, others) to use per step based on step type; executor and reviewer never the same agent | PLANNED |
 | COMP-HARNESS-8 | Tiered evaluation — fast-loop evals (cheap per-iteration: did flagged files change? did targeted test pass?) before full gates (expensive: full codex review, full test suite); skip full gate when fast check fails *(inspired by Itera)* | PLANNED |
 | COMP-HARNESS-9 | Iteration ledger — per-iteration JSONL log with mistake/fix/prevention rules; enriches iteration history beyond `{ n, result }` so the agent learns within a single review loop; ingested to SmartMemory via COMP-MEM-2 for cross-session learning *(inspired by Itera)* | PLANNED |
+| COMP-DEBUG-1 | Debug discipline engine — fix-chain detection (git analysis of repeated edits to same file/function), trace-before-fix enforcement (postcondition requiring actual data observation before fix code), cross-layer grep audit (automatic scope expansion for migrations/renames), attempt counting with escalation (hard stop + cross-agent handoff after N attempts on visual/layout bugs). Health score dimension + review lens. Depends on COMP-HARNESS-1 + COMP-HARNESS-9. *(inspired by SmartMemory retro 2026-04-12: 7-commit list_memories chain, 10-commit Groq migration, 8-commit graph layout chase)* | PLANNED |
 
 ---
 

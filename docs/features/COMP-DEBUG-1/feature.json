@@ -1,0 +1,16 @@
+{
+  "code": "COMP-DEBUG-1",
+  "name": "Debug Discipline Engine",
+  "status": "PLANNED",
+  "phase": "implementation",
+  "complexity": 3,
+  "profile": {
+    "needs_prd": false,
+    "needs_architecture": true,
+    "needs_verification": true,
+    "needs_report": true
+  },
+  "depends_on": ["COMP-HARNESS-1", "COMP-HARNESS-9"],
+  "tags": ["debug", "discipline", "harness", "quality"],
+  "source": "SmartMemory weekly retro 2026-04-12"
+}
