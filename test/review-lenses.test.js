@@ -4,6 +4,7 @@ import {
   triageLenses,
   classifyDiffSize,
   shouldRunCrossModel,
+  LENS_DEFINITIONS,
 } from '../lib/review-lenses.js';
 
 const REQUIRED_FIELDS = ['id', 'lens_name', 'lens_focus', 'confidence_gate', 'exclusions'];
@@ -125,4 +126,66 @@ describe('triageLenses', () => {
     }
   });
 
+});
+
+describe('lens reasoning_template', () => {
+  const LENS_IDS = ['diff-quality', 'contract-compliance', 'security', 'framework'];
+
+  it('every lens has a reasoning_template object', () => {
+    for (const id of LENS_IDS) {
+      const def = LENS_DEFINITIONS[id];
+      assert.ok(def.reasoning_template, `${id} missing reasoning_template`);
+      assert.equal(typeof def.reasoning_template, 'object');
+    }
+  });
+
+  it('every reasoning_template has require_citations: true', () => {
+    for (const id of LENS_IDS) {
+      assert.strictEqual(
+        LENS_DEFINITIONS[id].reasoning_template.require_citations,
+        true,
+        `${id} missing require_citations`
+      );
+    }
+  });
+
+  it('every reasoning_template has exactly 3 sections', () => {
+    for (const id of LENS_IDS) {
+      const sections = LENS_DEFINITIONS[id].reasoning_template.sections;
+      assert.ok(Array.isArray(sections), `${id} sections not an array`);
+      assert.equal(sections.length, 3, `${id} expected 3 sections, got ${sections.length}`);
+    }
+  });
+
+  it('every section has id, label, description', () => {
+    for (const id of LENS_IDS) {
+      for (const section of LENS_DEFINITIONS[id].reasoning_template.sections) {
+        assert.ok(section.id, `${id} section missing id`);
+        assert.ok(section.label, `${id} section missing label`);
+        assert.ok(section.description, `${id} section missing description`);
+      }
+    }
+  });
+
+  it('first section is always premises', () => {
+    for (const id of LENS_IDS) {
+      const first = LENS_DEFINITIONS[id].reasoning_template.sections[0];
+      assert.equal(first.id, 'premises', `${id} first section should be premises`);
+    }
+  });
+
+  it('last section is always findings', () => {
+    for (const id of LENS_IDS) {
+      const sections = LENS_DEFINITIONS[id].reasoning_template.sections;
+      const last = sections[sections.length - 1];
+      assert.equal(last.id, 'findings', `${id} last section should be findings, got ${last.id}`);
+    }
+  });
+
+  it('triageLenses returns tasks that still include reasoning_template', () => {
+    const tasks = triageLenses(['src/auth/login.jsx']);
+    for (const task of tasks) {
+      assert.ok(task.reasoning_template, `triage task ${task.id} missing reasoning_template`);
+    }
+  });
 });
