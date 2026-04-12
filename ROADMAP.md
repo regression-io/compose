@@ -366,6 +366,18 @@ See `docs/features/STRAT-REV/design.md` for the full design.
 
 ---
 
+## STRAT-CERT-PAR: Server-Side Cert Validation for Parallel Dispatch — PLANNED
+
+Server-side certificate validation for `parallel_dispatch` task results. Extends `validate_certificate` to run per-task inside the `parallel_done` handler. Currently STRAT-REV lens cert injection is prompt-shaping only — this would add enforcement with retries.
+
+Design questions to resolve:
+- Task-level `reasoning_template` resolution (from parent step? from task metadata?)
+- Per-task cert failure semantics (fail task vs retry task vs fail step)
+- Interaction with `require` threshold (all/any/N) — a task that fails cert but produces correct output
+- Whether to lift CERT-1 restriction on `parallel_dispatch` or add a new field
+
+---
+
 ## COMP-BENCH: Model Benchmark Suite — PLANNED
 
 Score LLMs on multi-phase workflow fidelity — not just code correctness (SWE-bench) but pipeline discipline, artifact quality, gate compliance, and cost efficiency. A fixed seed repo + 5 canonical feature requests + Stratum audit traces + judge-model scoring.
