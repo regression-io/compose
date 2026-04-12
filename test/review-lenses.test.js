@@ -129,7 +129,7 @@ describe('triageLenses', () => {
 });
 
 describe('lens reasoning_template', () => {
-  const LENS_IDS = ['diff-quality', 'contract-compliance', 'security', 'framework'];
+  const LENS_IDS = Object.keys(LENS_DEFINITIONS);
 
   it('every lens has a reasoning_template object', () => {
     for (const id of LENS_IDS) {
