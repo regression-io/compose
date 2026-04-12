@@ -1,7 +1,7 @@
 # TEAM PRESET: research
 #
 # Purpose:     Parallel exploration for cold-start discovery
-# Pattern:     3 explorers (codebase, web, docs) → synthesize findings
+# Pattern:     Triage → parallel_dispatch explorers → synthesize findings
 # Capability:  codebase/docs use read-only-reviewer, web uses read-only-researcher
 # Isolation:   none (read-only exploration)
 # Merge:       Sequential synthesis step
@@ -12,84 +12,97 @@
 version: "0.3"
 
 contracts:
+  ResearchTaskList:
+    tasks:
+      type: array
+      values: [{type: object}]
+    topic: {type: string}
   ExplorerFindings:
     sources: {type: string}
     patterns: {type: string}
     open_questions: {type: string}
   ResearchResult:
-    codebase_findings: {type: string}
-    web_findings: {type: string}
-    docs_findings: {type: string}
     synthesis: {type: string}
     recommendations: {type: string}
+    summary: {type: string}
+
+workflow:
+  name: team-research
+  description: "Parallel multi-source research and synthesis"
+  input:
+    featureCode:
+      type: string
+      required: true
+    description:
+      type: string
+      required: true
 
 flows:
   team-research:
     input:
-      topic: {type: string}
-      context: {type: string}
+      featureCode: {type: string}
+      description: {type: string}
     output: ResearchResult
     steps:
-      - id: codebase
-        agent: "claude:read-only-reviewer"
+      - id: plan
+        agent: "claude:orchestrator"
         intent: >
-          Explore the local codebase to understand how it relates to this topic.
-          Find relevant files, patterns, existing implementations, and conventions.
-          List sources with file:line references. Note patterns and open questions.
+          Plan the research for this feature. Read the feature description
+          and any existing docs. Produce a task list with 3 research tasks:
+
+          1. id: "codebase", agent: "claude:read-only-reviewer"
+             - Explore the local codebase for relevant patterns, files, conventions
+          2. id: "web", agent: "claude:read-only-researcher"
+             - Search the web for best practices, library docs, similar implementations
+          3. id: "docs", agent: "claude:read-only-reviewer"
+             - Read local docs, READMEs, specs, ADRs for relevant context
+
+          Each task must have: id, description, agent.
+          Also output the research topic derived from the feature description.
         inputs:
-          topic: "$.input.topic"
-          context: "$.input.context"
-        output_contract: ExplorerFindings
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: ResearchTaskList
         ensure:
-          - "result.sources is not None"
+          - "len(result.tasks) == 3"
         retries: 2
 
-      - id: web
-        agent: "claude:read-only-researcher"
-        intent: >
-          Search the web for information relevant to this topic. Look for:
-          best practices, library documentation, similar implementations,
-          known pitfalls, and recent developments.
-          List sources with URLs. Note patterns and open questions.
-        inputs:
-          topic: "$.input.topic"
-          context: "$.input.context"
-        output_contract: ExplorerFindings
-        ensure:
-          - "result.sources is not None"
-        retries: 2
-
-      - id: docs
+      - id: explore
+        type: parallel_dispatch
+        source: "$.steps.plan.output.tasks"
         agent: "claude:read-only-reviewer"
-        intent: >
-          Read local documentation (READMEs, design docs, specs, ADRs) to find
-          information relevant to this topic. Check docs/, README.md, CLAUDE.md,
-          and any linked specifications.
-          List sources with file:line references. Note patterns and open questions.
-        inputs:
-          topic: "$.input.topic"
-          context: "$.input.context"
-        output_contract: ExplorerFindings
+        max_concurrent: 3
+        isolation: none
+        require: all
+        intent_template: >
+          Research this topic: {task.description}
+
+          Find relevant sources, patterns, and open questions.
+          List sources with file:line references (for code) or URLs (for web).
+          Note patterns that could inform the implementation.
+          List open questions that need answers before implementation.
+        output_fields:
+          sources: {type: string}
+          patterns: {type: string}
+          open_questions: {type: string}
         ensure:
           - "result.sources is not None"
-        retries: 2
+        depends_on: [plan]
 
       - id: synthesize
         agent: "claude:orchestrator"
-        depends_on: [codebase, web, docs]
+        depends_on: [explore]
         intent: >
-          Synthesize findings from three research passes (codebase, web, docs).
-          Cross-reference sources. Identify consensus patterns and contradictions.
-          Produce actionable recommendations for the feature implementation.
+          Synthesize findings from all research explorers. Cross-reference
+          sources. Identify consensus patterns and contradictions. Produce
+          actionable recommendations for the feature implementation.
+          Write a one-sentence summary.
         inputs:
-          codebase: "$.steps.codebase.output.sources"
-          codebase_patterns: "$.steps.codebase.output.patterns"
-          web: "$.steps.web.output.sources"
-          web_patterns: "$.steps.web.output.patterns"
-          docs: "$.steps.docs.output.sources"
-          docs_patterns: "$.steps.docs.output.patterns"
+          research_results: "$.steps.explore.output"
+          topic: "$.steps.plan.output.topic"
         output_contract: ResearchResult
         ensure:
           - "result.synthesis != ''"
           - "result.recommendations != ''"
+          - "result.summary != ''"
         retries: 2

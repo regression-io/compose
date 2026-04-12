@@ -1,7 +1,7 @@
 # TEAM PRESET: review
 #
 # Purpose:     Parallel multi-lens review after implementation
-# Pattern:     3 read-only reviewers → merge findings → gate
+# Pattern:     Triage → parallel_dispatch reviewers → merge findings → gate
 # Capability:  Agents use read-only-reviewer profile (Read/Grep/Glob/Agent only)
 # Isolation:   none (reviewers read shared state, don't modify)
 # Merge:       Deduplication step consolidates findings
@@ -12,6 +12,11 @@
 version: "0.3"
 
 contracts:
+  TriageResult:
+    tasks:
+      type: array
+      values: [{type: object}]
+    diff: {type: string}
   ReviewFindings:
     findings: {type: string}
     lens: {type: string}
@@ -21,80 +26,83 @@ contracts:
     has_critical: {type: string}
     summary: {type: string}
 
+workflow:
+  name: team-review
+  description: "Parallel multi-lens code review"
+  input:
+    featureCode:
+      type: string
+      required: true
+    description:
+      type: string
+      required: true
+
 flows:
   team-review:
     input:
-      diff: {type: string}
-      context: {type: string}
+      featureCode: {type: string}
+      description: {type: string}
     output: MergedReviewResult
     steps:
-      - id: security
-        agent: "claude:read-only-reviewer"
+      - id: triage
+        agent: "claude:orchestrator"
         intent: >
-          Review this diff for security issues only: injection, auth bypass,
-          secrets in code, insecure deserialization, missing input validation.
-          Focus on concrete, exploitable vulnerabilities — not theoretical risks.
-          Format each finding as: SEVERITY file:line — description — fix suggestion.
-          If none found, say "No security issues found."
+          Gather the git diff for this feature and decide which review lenses
+          to activate. Read the changed files. Produce a task list with one
+          entry per lens. Each task must have:
+          - id: lens name (e.g. "security", "performance", "architecture")
+          - lens_name: same as id
+          - lens_focus: one-sentence description of what to look for
+          - confidence_gate: minimum confidence (1-10) to report a finding
+          - exclusions: what NOT to flag
+
+          Always include: security, performance, architecture.
+          Include the full git diff in your output.
         inputs:
-          diff: "$.input.diff"
-          context: "$.input.context"
-        output_contract: ReviewFindings
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
+        output_contract: TriageResult
         ensure:
-          - "result.findings is not None"
-          - "result.findings != ''"
+          - "len(result.tasks) >= 3"
         retries: 2
 
-      - id: performance
+      - id: review_lenses
+        type: parallel_dispatch
+        source: "$.steps.triage.output.tasks"
         agent: "claude:read-only-reviewer"
-        intent: >
-          Review this diff for performance issues only: N+1 queries, unnecessary
-          allocations, blocking calls in async context, O(n²) where O(n) is possible,
-          missing indices, hot-path inefficiencies.
-          Only flag genuine concerns, not theoretical micro-optimizations.
-          Format each finding as: SEVERITY file:line — description — fix suggestion.
-          If none found, say "No performance issues found."
-        inputs:
-          diff: "$.input.diff"
-          context: "$.input.context"
-        output_contract: ReviewFindings
-        ensure:
-          - "result.findings is not None"
-          - "result.findings != ''"
-        retries: 2
+        max_concurrent: 4
+        isolation: none
+        require: all
+        intent_template: >
+          You are reviewing a code diff as the {lens_name} reviewer.
 
-      - id: architecture
-        agent: "claude:read-only-reviewer"
-        intent: >
-          Review this diff for architecture issues only: coupling between modules,
-          layering violations, error handling gaps, inconsistent abstractions,
-          missing or misplaced responsibilities.
+          Focus: {lens_focus}
+          Confidence gate: only report findings with confidence >= {confidence_gate}/10.
+          Exclusions: do NOT flag {exclusions}.
+
           Format each finding as: SEVERITY file:line — description — fix suggestion.
-          If none found, say "No architecture issues found."
-        inputs:
-          diff: "$.input.diff"
-          context: "$.input.context"
-        output_contract: ReviewFindings
+          If none found, say "No {lens_name} issues found."
+        output_fields:
+          findings: {type: string}
+          lens: {type: string}
+          severity_counts: {type: string}
         ensure:
           - "result.findings is not None"
           - "result.findings != ''"
-        retries: 2
+        depends_on: [triage]
 
       - id: merge
         agent: "claude:orchestrator"
-        depends_on: [security, performance, architecture]
+        depends_on: [review_lenses]
         intent: >
-          Consolidate findings from three review passes (security, performance,
-          architecture). Deduplicate findings that appear in multiple passes
-          (same file:line, same issue). Rank by severity. Set has_critical to
-          "true" if any finding is CRITICAL severity, "false" otherwise.
-          Write a one-sentence summary.
+          Consolidate findings from all review lenses. Deduplicate findings
+          that appear in multiple passes (same file:line, same issue). Rank
+          by severity. Set has_critical to "true" if any finding is CRITICAL
+          severity, "false" otherwise. Write a one-sentence summary.
         inputs:
-          security: "$.steps.security.output.findings"
-          performance: "$.steps.performance.output.findings"
-          architecture: "$.steps.architecture.output.findings"
+          review_results: "$.steps.review_lenses.output"
         output_contract: MergedReviewResult
         ensure:
-          - "result.has_critical in ('true', 'false')"
+          - "result.has_critical == 'false'"
           - "result.summary != ''"
         retries: 2

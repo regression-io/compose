@@ -1034,6 +1034,11 @@ if (cmd === 'build') {
     console.log('')
   }
 
+  if (isBatch && teamTemplate) {
+    console.error('Error: --team cannot be used with batch builds (--all, multiple features, or prefix matching)')
+    process.exit(1)
+  }
+
   if (isBatch) {
     import('../lib/build-all.js').then(({ runBuildAll }) => {
       const batchOpts = { cwd: buildCwd, dryRun }

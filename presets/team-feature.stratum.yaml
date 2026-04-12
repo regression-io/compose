@@ -16,25 +16,33 @@ contracts:
     tasks:
       type: array
       values: [{type: object}]
-  ImplementationResult:
-    summary: {type: string}
-    files_changed: {type: string}
   VerifyResult:
     tests_pass: {type: string}
     summary: {type: string}
 
+workflow:
+  name: team-feature
+  description: "Multi-agent parallel feature implementation"
+  input:
+    featureCode:
+      type: string
+      required: true
+    description:
+      type: string
+      required: true
+
 flows:
   team-feature:
     input:
-      task: {type: string}
-      blueprint: {type: string}
-      context: {type: string}
+      featureCode: {type: string}
+      description: {type: string}
     output: VerifyResult
     steps:
       - id: decompose
         type: decompose
         agent: "claude:orchestrator"
         intent: >
+          Read the feature description and any existing plan/blueprint docs.
           Break down this feature into parallel implementation tasks.
           Each task must have:
           - id: unique short identifier
@@ -49,9 +57,8 @@ flows:
           - Each task should be completable in one focused session
           - Target 2-4 tasks for a typical feature
         inputs:
-          task: "$.input.task"
-          blueprint: "$.input.blueprint"
-          context: "$.input.context"
+          featureCode: "$.input.featureCode"
+          description: "$.input.description"
         output_contract: TaskGraph
         ensure:
           - "len(result.tasks) >= 1"
@@ -90,7 +97,7 @@ flows:
 
           Report tests_pass as "true" or "false" with details.
         inputs:
-          task: "$.input.task"
+          featureCode: "$.input.featureCode"
         output_contract: VerifyResult
         ensure:
           - "result.tests_pass == 'true'"
