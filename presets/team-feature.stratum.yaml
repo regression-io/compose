@@ -1,0 +1,97 @@
+# TEAM PRESET: feature
+#
+# Purpose:     Multi-agent parallel feature implementation
+# Pattern:     Decompose → parallel implement with files_owned → verify
+# Capability:  Orchestrator decomposes, implementers have full access
+# Isolation:   worktree (each task in its own worktree)
+# Merge:       sequential_apply (patches applied in topo order)
+#
+# Use with:    compose build <feature-code> --team feature
+# Customize:   Copy to your project's pipelines/ as team-feature.stratum.yaml and edit.
+
+version: "0.3"
+
+contracts:
+  TaskGraph:
+    tasks:
+      type: array
+      values: [{type: object}]
+  ImplementationResult:
+    summary: {type: string}
+    files_changed: {type: string}
+  VerifyResult:
+    tests_pass: {type: string}
+    summary: {type: string}
+
+flows:
+  team-feature:
+    input:
+      task: {type: string}
+      blueprint: {type: string}
+      context: {type: string}
+    output: VerifyResult
+    steps:
+      - id: decompose
+        agent: "claude:orchestrator"
+        intent: >
+          Break down this feature into parallel implementation tasks.
+          Each task must have:
+          - id: unique short identifier
+          - description: what to implement
+          - files_owned: list of files this task may create or modify
+          - files_read: list of files this task may read but NOT modify
+          - depends_on: list of task ids that must complete first (empty if independent)
+
+          Rules:
+          - No two tasks may share files_owned (each file has exactly one owner)
+          - Minimize dependencies — prefer independent parallel tasks
+          - Each task should be completable in one focused session
+          - Target 2-4 tasks for a typical feature
+        inputs:
+          task: "$.input.task"
+          blueprint: "$.input.blueprint"
+          context: "$.input.context"
+        output_contract: TaskGraph
+        ensure:
+          - "len(result.tasks) >= 1"
+          - "len(result.tasks) <= 6"
+        retries: 2
+
+      - id: execute
+        type: parallel_dispatch
+        source: "$.steps.decompose.output.tasks"
+        agent: "claude:implementer"
+        max_concurrent: 3
+        isolation: worktree
+        require: all
+        merge: sequential_apply
+        no_file_conflicts: true
+        intent_template: >
+          Implement this task using TDD. Write the test first, watch it fail,
+          implement, watch it pass.
+
+          Task: {task.description}
+          You own these files (may create/modify): {task.files_owned}
+          You may read (but NOT modify): {task.files_read}
+
+          Feature: {task.id}
+        depends_on: [decompose]
+
+      - id: verify
+        agent: "claude:orchestrator"
+        depends_on: [execute]
+        intent: >
+          All implementation tasks are complete and merged. Run the test suite
+          to verify everything works together. Check that:
+          1. All tests pass
+          2. No merge conflicts remain
+          3. The feature matches the original task description
+
+          Report tests_pass as "true" or "false" with details.
+        inputs:
+          task: "$.input.task"
+        output_contract: VerifyResult
+        ensure:
+          - "result.tests_pass == 'true'"
+          - "result.summary != ''"
+        retries: 2
